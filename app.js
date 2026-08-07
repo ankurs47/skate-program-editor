@@ -358,7 +358,8 @@ const QUALITY = {
 const CODEC_EFFICIENCY = { mp3: 1, aac: 1.3, m4a: 1.3, opus: 1.5, ogg: 1.2, vorbis: 1.2 };
 
 function codecOf(name) {
-  const ext = (String(name).match(/\.([a-z0-9]+)$/i) || [, ''])[1].toLowerCase();
+  const match = String(name).match(/\.([a-z0-9]+)$/i);
+  const ext = match ? match[1].toLowerCase() : '';
   if (ext === 'webm') return 'opus';   // YouTube's WebM audio is Opus
   return ext;
 }
@@ -1151,7 +1152,10 @@ function bindClipCanvas() {
   });
 
   const end = (e) => {
-    if (dragging) { dragging = null; try { canvas.releasePointerCapture(e.pointerId); } catch (_) {} save(); }
+    if (!dragging) return;
+    dragging = null;
+    try { canvas.releasePointerCapture(e.pointerId); } catch (_) { /* never captured */ }
+    save();
   };
   canvas.addEventListener('pointerup', end);
   canvas.addEventListener('pointercancel', end);
@@ -1279,6 +1283,7 @@ function download(blob, filename) {
 function exportFileName(extension) {
   const name = (state.name || 'my program')
     .replace(/[\\/:*?"<>|]+/g, ' ')      // rejected by Windows or POSIX
+    // eslint-disable-next-line no-control-regex -- stripping them is the point
     .replace(/[\u0000-\u001f]+/g, ' ')   // control characters
     .replace(/\s+/g, ' ')
     .slice(0, 90)
@@ -1989,4 +1994,19 @@ function init() {
   if (!saved || !(saved.clips || []).length) openStartDialog(false);
 }
 
-init();
+/* In a browser, start. Under Node — the test suite — export the pure logic
+   instead, so the maths can be checked without a DOM. */
+if (typeof document !== 'undefined') {
+  init();
+} else if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    state, LEVELS, QUALITY, CODEC_EFFICIENCY, CUSTOM_LEVEL,
+    allLevels, findLevel,
+    clipDuration, crossfadeOf, layout,
+    fadeEnvelope, crossfadeEnvelope, valueAt,
+    parseClock, exportFileName, fmt, fmtShort, clamp,
+    codecOf, qualityLabel, qualityDetail,
+    id3Size, oggAudioStart, readMpegFrame, parseFrameHeader,
+    unsupportedReasons, LAME_URL, LAME_SRI,
+  };
+}

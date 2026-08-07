@@ -104,6 +104,32 @@ is the easy way to keep them together.
 - Exporting at a higher quality cannot improve a song that was already poor. The
   editor says so before you export rather than after.
 
+## Development
+
+The app itself has no build step and no runtime dependencies — the tooling below
+is only for checking changes.
+
+```bash
+npm install          # installs eslint, and enables the pre-commit hook
+npm test             # 27 checks: maths, wiring, and asset integrity
+npm run lint
+npm run check        # lint + test, what CI runs
+npm run test:net     # also re-verifies the pinned CDN hash
+```
+
+`npm install` points git at `.githooks`, so **lint and tests run before every
+commit**. Use `git commit --no-verify` to skip it in an emergency.
+
+`main` is protected: changes go through a pull request, and CI has to pass
+before it can merge.
+
+The test suite covers the parts that are easy to get quietly wrong — timeline
+maths with overlapping blends, fade and crossfade envelopes summing correctly,
+filename sanitising across platforms, per-codec quality thresholds, and the MPEG
+frame parser refusing to match non-MPEG data. It also checks that every element
+id the code reaches for exists in the HTML, that every help button has content,
+and that no personal information or local path ever ships.
+
 ## Licence
 
 MIT — see [LICENSE](LICENSE).

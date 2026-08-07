@@ -1,0 +1,17 @@
+{
+  "name": "skate-program-editor",
+  "version": "1.0.0",
+  "description": "Browser tool for cutting figure skating program music",
+  "private": true,
+  "scripts": {
+    "test": "node test/run.js",
+    "test:net": "node test/run.js --net",
+    "lint": "eslint .",
+    "check": "npm run lint && npm test",
+    "prepare": "git config core.hooksPath .githooks || true"
+  },
+  "devDependencies": {
+    "eslint": "^9.15.0"
+  },
+  "license": "MIT"
+}
