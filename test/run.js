@@ -565,6 +565,248 @@ check('monoWindow: averages channels and clamps to the buffer', () => {
   eq(clipped.start, 0);
 });
 
+/* ----------------------------------------------------------- 1c. loudness */
+
+function sine(hz, seconds, amplitude, sampleRate = 44100) {
+  const out = new Float32Array(Math.round(seconds * sampleRate));
+  for (let i = 0; i < out.length; i++) {
+    out[i] = amplitude * Math.sin((2 * Math.PI * hz * i) / sampleRate);
+  }
+  return out;
+}
+
+function join(...parts) {
+  const out = new Float32Array(parts.reduce((n, p) => n + p.length, 0));
+  let at = 0;
+  for (const part of parts) { out.set(part, at); at += part.length; }
+  return out;
+}
+
+/** dBFS of a sine's amplitude, as a stereo pair with no weighting applied. */
+const stereoSineLevel = (amplitude) => 20 * Math.log10(amplitude / Math.SQRT2) + 10 * Math.log10(2);
+
+check('K-weighting: the derivation reproduces the published 48 kHz table', () => {
+  // BS.1770-4 tabulates coefficients at 48 kHz only. Everything here runs at
+  // 44100, so they are derived — and this is what says the derivation is right.
+  const { shelf, highpass } = app.kWeighting(48000);
+  const published = {
+    b0: 1.53512485958697, b1: -2.69169618940638, b2: 1.19839281085285,
+    a1: -1.69065929318241, a2: 0.73248077421585,
+  };
+  for (const [name, value] of Object.entries(published)) {
+    near(shelf[name], value, 1e-12, `shelf ${name}: `);
+  }
+  eq([highpass.b0, highpass.b1, highpass.b2], [1, -2, 1], 'high pass numerator is fixed: ');
+  near(highpass.a1, -1.99004745483398, 1e-12, 'high pass a1: ');
+  near(highpass.a2, 0.99007225036621, 1e-12, 'high pass a2: ');
+});
+
+check('K-weighting: 44100 gets its own coefficients, not the 48 kHz ones', () => {
+  const at44 = app.kWeighting(44100).shelf;
+  const at48 = app.kWeighting(48000).shelf;
+  ok(Math.abs(at44.b0 - at48.b0) > 1e-6, 'the same numbers came back for a different rate');
+  for (const v of Object.values(at44)) ok(isFinite(v), 'coefficient is not finite');
+});
+
+check('loudness: a 1 kHz tone reads its own level', () => {
+  // What the -0.691 offset is for: at the reference frequency the weighting
+  // gain and the offset cancel, so the meter agrees with the arithmetic.
+  for (const amplitude of [0.1, 0.5, 0.02]) {
+    const tone = sine(997, 5, amplitude);
+    near(app.loudnessOf([tone, tone], 44100), stereoSineLevel(amplitude), 0.05,
+      `amplitude ${amplitude}: `);
+  }
+});
+
+check('loudness: a level difference is reported exactly', () => {
+  // The property the whole feature rests on. Absolute accuracy can drift a
+  // little; the difference between two clips may not.
+  const quiet = sine(997, 5, 0.05);
+  const loud = sine(997, 5, 0.1);
+  const gap = app.loudnessOf([loud, loud], 44100) - app.loudnessOf([quiet, quiet], 44100);
+  near(gap, 20 * Math.log10(2), 0.01, 'doubling the amplitude is 6.02 LU: ');
+});
+
+check('loudness: weighted, so bass counts for less and treble for more', () => {
+  const level = (hz) => app.loudnessOf([sine(hz, 5, 0.1), sine(hz, 5, 0.1)], 44100);
+  const reference = level(997);
+  ok(level(40) < reference - 4, `40 Hz should read well below 1 kHz, got ${level(40).toFixed(1)}`);
+  ok(level(10000) > reference + 2, `10 kHz should read above 1 kHz, got ${level(10000).toFixed(1)}`);
+});
+
+check('loudness: mono is measured the way it will be played', () => {
+  // Web Audio sends a mono buffer to both speakers. Measured as a single
+  // channel it would read 3 dB low, and every mono file would end up too loud.
+  const tone = sine(997, 5, 0.1);
+  near(app.loudnessOf([tone], 44100), app.loudnessOf([tone, tone], 44100), 1e-9);
+});
+
+check('loudness: silence at the end does not drag the reading down', () => {
+  const tone = sine(997, 10, 0.1);
+  const hush = sine(997, 30, 1e-5);          // audible only to a meter
+  const alone = app.loudnessOf([tone, tone], 44100);
+  const withTail = app.loudnessOf([join(tone, hush), join(tone, hush)], 44100);
+  near(withTail, alone, 0.1, 'the absolute gate should ignore the tail: ');
+  // Without the gate the mean would land about 6 dB low — this is the size of
+  // the mistake the gate is preventing, not an incidental detail.
+  const ungated = 10 * Math.log10((10 * Math.pow(10, alone / 10) + 30 * 1e-10) / 40);
+  ok(ungated < alone - 4, 'the tail really would have mattered');
+});
+
+check('loudness: a quiet passage does not drag the reading down either', () => {
+  // 30 LU below the body of the piece: loud enough to pass the absolute gate,
+  // quiet enough that the relative gate has to be the one to exclude it.
+  const loud = sine(997, 10, 0.1);
+  const soft = sine(997, 10, 0.1 * Math.pow(10, -30 / 20));
+  const measured = app.loudnessOf([join(loud, soft), join(loud, soft)], 44100);
+  near(measured, app.loudnessOf([loud, loud], 44100), 0.15,
+    'the relative gate should keep the reading on the body of the music: ');
+});
+
+check('loudness: agrees with an independent meter', () => {
+  /* These two numbers came from ffmpeg's ebur128 filter — a separate, long
+     established BS.1770 implementation — run on exactly these signals. It
+     agreed to the 0.1 dB it prints on every case tried except a pure 50 Hz
+     tone (0.06 dB out, on the steepest part of the high pass) and mono, which
+     differs by the deliberate 3.01 dB above. Keeping the numbers here means the
+     agreement is checked on every run without needing ffmpeg installed. */
+  const mixed = (a, b) => {
+    const out = new Float32Array(a.length);
+    for (let i = 0; i < out.length; i++) out[i] = a[i] + b[i];
+    return out;
+  };
+  const left = mixed(sine(220, 8, 0.25), sine(3000, 8, 0.06));
+  const right = mixed(sine(220, 8, 0.24), sine(3000, 8, 0.07));
+  near(app.loudnessOf([left, right], 44100), -12.4, 0.05, 'two tones, unequal channels: ');
+
+  // Pink noise, which loads the weighting filter far more like music does.
+  const pink = (seconds, amplitude, seed) => {
+    const random = rng(seed);
+    const out = new Float32Array(Math.round(seconds * 44100));
+    const b = new Float64Array(7);
+    for (let i = 0; i < out.length; i++) {
+      const w = random() * 2 - 1;
+      b[0] = 0.99886 * b[0] + w * 0.0555179;
+      b[1] = 0.99332 * b[1] + w * 0.0750759;
+      b[2] = 0.96900 * b[2] + w * 0.1538520;
+      b[3] = 0.86650 * b[3] + w * 0.3104856;
+      b[4] = 0.55000 * b[4] + w * 0.5329522;
+      b[5] = -0.7616 * b[5] - w * 0.0168980;
+      out[i] = (b[0] + b[1] + b[2] + b[3] + b[4] + b[5] + b[6] + w * 0.5362) * 0.11 * amplitude;
+      b[6] = w * 0.115926;
+    }
+    return out;
+  };
+  near(app.loudnessOf([pink(10, 0.5, 1), pink(10, 0.5, 2)], 44100), -17.7, 0.05, 'pink noise: ');
+});
+
+check('loudness: nothing measurable reports nothing, not a number', () => {
+  const cases = [
+    ['silence', [new Float32Array(44100 * 5)]],
+    ['too short for a block', [sine(997, 0.2, 0.5)]],
+    ['no channels', []],
+    ['empty channel', [new Float32Array(0)]],
+  ];
+  for (const [what, channels] of cases) {
+    const value = app.loudnessOf(channels, 44100);
+    eq(value, -Infinity, `${what}: `);
+  }
+});
+
+check('loudness: measuring does not alter the audio it measures', () => {
+  // These samples are the decoded buffer everything else plays from, and the
+  // filter runs in place. A missing copy here would quietly wreck playback.
+  const tone = sine(997, 2, 0.4);
+  const before = Array.from(tone);
+  app.loudnessOf([tone, tone], 44100);
+  eq(Array.from(tone), before, 'the input was filtered in place: ');
+});
+
+check('peakOf: the largest sample anywhere, across every channel', () => {
+  near(app.peakOf([new Float32Array([0.1, -0.7, 0.3])]), 0.7, 1e-7, 'negative peaks count: ');
+  near(app.peakOf([new Float32Array([0.1]), new Float32Array([0.9])]), 0.9, 1e-7, 'both channels: ');
+  eq(app.peakOf([]), 0);
+});
+
+check('measureClip: reads the kept part, not the whole file', () => {
+  const buffer = fakeBuffer(join(sine(997, 6, 0.4), sine(997, 6, 0.04)));
+  const first = app.measureClip(buffer, 0, 6);
+  const second = app.measureClip(buffer, 6, 12);
+  near(first.loudness - second.loudness, 20, 0.15, 'the two halves are 20 dB apart: ');
+  near(first.peak, 0.4, 0.01);
+  near(second.peak, 0.04, 0.01);
+});
+
+check('gains: matched clips end up matched, and as loud as the peaks allow', () => {
+  // The dynamic clip runs out of headroom first, so it sets the level and its
+  // peak lands exactly on the ceiling.
+  const measures = [
+    { loudness: -24, peak: 0.7 },    // crest 20.9 dB — the constraint
+    { loudness: -10, peak: 0.99 },   // crest 9.9 dB
+  ];
+  const { gains, loudness } = app.solveGains(measures, { ceiling: -1 });
+  const after = measures.map((m, i) => m.loudness + 20 * Math.log10(gains[i]));
+  near(after[0], after[1], 1e-9, 'clips must end up at the same loudness: ');
+  near(after[0], loudness, 1e-9, 'and at the loudness reported: ');
+  const worst = Math.max(...measures.map((m, i) => m.peak * gains[i]));
+  near(worst, Math.pow(10, -1 / 20), 1e-9, 'the loudest peak should sit on the ceiling: ');
+});
+
+check('gains: already matched clips are only trimmed for headroom', () => {
+  const measures = [{ loudness: -14, peak: 0.9 }, { loudness: -14, peak: 0.9 }];
+  const { gains } = app.solveGains(measures);
+  near(gains[0], gains[1], 1e-12, 'equal input, equal output: ');
+});
+
+check('gains: nothing clips, whatever it is handed', () => {
+  const random = rng(4242);
+  const limit = Math.pow(10, app.LOUDNESS.ceiling / 20);
+  for (let trial = 0; trial < 300; trial++) {
+    const measures = [];
+    for (let i = 0; i < 1 + Math.floor(random() * 5); i++) {
+      measures.push({ loudness: -60 + random() * 55, peak: 0.001 + random() * 0.999 });
+    }
+    const { gains } = app.solveGains(measures);
+    measures.forEach((m, i) => {
+      ok(m.peak * gains[i] <= limit + 1e-9,
+        `clip ${i} of ${JSON.stringify(measures)} peaks at ${(m.peak * gains[i]).toFixed(4)}`);
+    });
+  }
+});
+
+check('gains: an absurd target is still not allowed to clip', () => {
+  const measures = [{ loudness: -20, peak: 0.8 }];
+  const { gains, loudness } = app.solveGains(measures, { target: 0 });
+  near(measures[0].peak * gains[0], Math.pow(10, -1 / 20), 1e-9, 'pulled back to the ceiling: ');
+  ok(loudness < 0, 'the reported loudness must be the one actually reached');
+});
+
+check('gains: near-silence is boosted only so far, and says so', () => {
+  const measures = [{ loudness: -20, peak: 0.8 }, { loudness: -60, peak: 0.001 }];
+  const { gains, capped } = app.solveGains(measures);
+  eq(capped, [1], 'the capped clip should be named: ');
+  near(20 * Math.log10(gains[1]), app.LOUDNESS.maxBoost, 1e-9, 'capped at the boost limit: ');
+});
+
+check('gains: an unmeasurable clip is left alone and does not spoil the rest', () => {
+  const measures = [
+    { loudness: -20, peak: 0.8 },
+    { loudness: -Infinity, peak: 0 },          // a silent clip
+    { loudness: -26, peak: 0.5 },
+  ];
+  const { gains } = app.solveGains(measures);
+  eq(gains[1], 1, 'an unmeasurable clip must come back untouched, exactly: ');
+  for (const g of gains) ok(isFinite(g) && g > 0, `gain ${g} is not usable`);
+  const after = [0, 2].map((i) => measures[i].loudness + 20 * Math.log10(gains[i]));
+  near(after[0], after[1], 1e-9, 'the measurable clips still match each other: ');
+});
+
+check('gains: nothing measurable at all leaves every clip untouched', () => {
+  const { gains, loudness } = app.solveGains([{ loudness: -Infinity, peak: 0 }]);
+  eq(gains, [1]);
+  eq(loudness, -Infinity);
+});
+
 /* --------------------------------------------------------------- 2. wiring */
 
 check('every element the code reaches for exists in the HTML', () => {

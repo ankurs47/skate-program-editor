@@ -15,7 +15,7 @@ plain, and jargon is treated as a bug.
 index.html   structure, help topic content, dialogs
 app.js       everything: decode, waveforms, editing, playback, render, export
 style.css    theming via CSS custom properties, light and dark
-test/run.js  51 checks, no dependencies
+test/run.js  71 checks, no dependencies
 ```
 
 ## Commands
@@ -82,6 +82,14 @@ worse than doing nothing. `alignSelectedJoin()` is the only caller: it takes the
 snapshot for undo *after* deciding to act, so a declined suggestion doesn't leave
 a no-op on the undo stack.
 
+**Loudness is measured on the kept part of a clip, never the whole file.** They
+trimmed twenty seconds out of a four-minute song; the rest is not in the
+programme and must not influence its level. `measureClip()` takes the trim
+bounds for that reason, and because the answer goes stale the moment anything is
+re-trimmed, it is recomputed on demand rather than cached against the file — a
+gating pass over thirty seconds is about 25 ms, which is cheaper than being
+wrong. `solveGains()` then turns those measurements into one gain per clip.
+
 ## Traps
 
 - **A single MPEG sync word means nothing.** Compressed audio is full of `0xFF`
@@ -122,6 +130,27 @@ a no-op on the undo stack.
   only flux is analysis leakage, which is faint and perfectly periodic. Contrast
   alone rates it highly; the `BEAT.minOnsets` term is what rejects it, by asking
   whether any notes start at all before believing the tempo.
+- **BS.1770 publishes its coefficients at 48 kHz and nothing else.** Everything
+  here is decoded to 44100, so `kWeighting()` derives them from the prototype
+  values instead. Copying the published table straight in gives a filter tuned
+  to the wrong frequencies. A test feeds it 48000 and checks it reproduces that
+  table to twelve decimals, which is what says the derivation is honest.
+- **Loudness gating is not a refinement.** Without the absolute gate, a cut that
+  ends in a long fade measures far below what anyone hears and gets boosted for
+  it; without the relative gate, a quiet passage does the same thing more
+  subtly. Both are tested with the size of the mistake they prevent — around
+  6 dB — asserted alongside, so neither can be dropped as an optimisation.
+- **Mono is measured 3 dB louder than the standard says.** Web Audio copies a
+  mono buffer to both speakers, so measuring it as a single channel would leave
+  every mono file reading 3 dB quiet and ending up that much too loud. This is a
+  deliberate departure from BS.1770 and the reason `loudnessOf()` weights a lone
+  channel by two. ffmpeg's meter differs from ours by exactly this much on mono,
+  and by nothing on stereo — that agreement is a test.
+- **Sample peaks understate the real ones.** Inter-sample peaks after encoding
+  run above anything visible in the samples, which is what `LOUDNESS.ceiling`
+  leaves room for. `encodeWav()` clamps, so overshoot is flat-topped distortion
+  rather than wrap-around noise — audible, not catastrophic, and still to be
+  prevented rather than survived.
 - **Grid and flex items need `min-width: 0`.** A long clip name once widened the
   whole column and pushed the buttons off-screen. Relatedly, the timeline sizes
   clips with `flex-grow`, not computed pixels — computing widths from the

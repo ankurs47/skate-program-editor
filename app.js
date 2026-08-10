@@ -1189,6 +1189,219 @@ function describeJoin(result, wasCrossfade) {
   return `${lead}. ${length}`;
 }
 
+/* -------------------------------------------------------------- loudness */
+
+/* Songs cut from different records arrive at wildly different levels. A
+   remastered single can sit 15 dB above an orchestral recording that peaks
+   just as high, and at a rink — where the desk is set once and left alone —
+   that is the difference between a program you can hear and one you cannot.
+
+   Loudness here means ITU-R BS.1770 integrated loudness. Not peak, which says
+   nothing about how loud something sounds, and not plain RMS, which over-reads
+   anything with weight in the bass. The extra work over RMS is one filter and
+   one gating rule; both earn their place, and both are in the traps list.
+
+   Pure: takes channels of samples, returns numbers. */
+
+const LOUDNESS = {
+  block: 0.4,            // seconds per measurement block
+  step: 0.1,             // block spacing, so blocks overlap by 75%
+  absoluteGate: -70,     // LUFS; below this a block is silence, not quiet music
+  relativeGate: -10,     // LU below the ungated mean
+  offset: -0.691,        // BS.1770 calibration, so 1 kHz reads its own level
+  ceiling: -1,           // dBFS left free, because sample peaks understate the real ones
+  maxBoost: 12,          // dB; past this we would be amplifying hiss, not finding music
+};
+
+/**
+ * The two K-weighting biquads: a shelf that lifts everything above ~1.7 kHz,
+ * and a high pass at ~38 Hz.
+ *
+ * BS.1770 tabulates its coefficients at 48 kHz only, and everything here is
+ * decoded to 44100, so they have to be derived rather than copied. These are
+ * the prototype values the published table comes from — a test checks that
+ * passing 48000 reproduces that table.
+ */
+function kWeighting(sampleRate) {
+  const shelfHz = 1681.974450955533;
+  const shelfGain = 3.999843853973347;
+  const shelfQ = 0.7071752369554196;
+  const k1 = Math.tan((Math.PI * shelfHz) / sampleRate);
+  const vh = Math.pow(10, shelfGain / 20);
+  const vb = Math.pow(vh, 0.4996667741545416);
+  const d1 = 1 + k1 / shelfQ + k1 * k1;
+
+  const highHz = 38.13547087602444;
+  const highQ = 0.5003270373238773;
+  const k2 = Math.tan((Math.PI * highHz) / sampleRate);
+  const d2 = 1 + k2 / highQ + k2 * k2;
+
+  return {
+    shelf: {
+      b0: (vh + (vb * k1) / shelfQ + k1 * k1) / d1,
+      b1: (2 * (k1 * k1 - vh)) / d1,
+      b2: (vh - (vb * k1) / shelfQ + k1 * k1) / d1,
+      a1: (2 * (k1 * k1 - 1)) / d1,
+      a2: (1 - k1 / shelfQ + k1 * k1) / d1,
+    },
+    // The standard leaves this stage's numerator at exactly 1, −2, 1.
+    highpass: {
+      b0: 1,
+      b1: -2,
+      b2: 1,
+      a1: (2 * (k2 * k2 - 1)) / d2,
+      a2: (1 - k2 / highQ + k2 * k2) / d2,
+    },
+  };
+}
+
+/** One biquad, transposed direct form II, applied in place. */
+function biquad(samples, c) {
+  let s1 = 0;
+  let s2 = 0;
+  for (let i = 0; i < samples.length; i++) {
+    const x = samples[i];
+    const y = c.b0 * x + s1;
+    s1 = c.b1 * x - c.a1 * y + s2;
+    s2 = c.b2 * x - c.a2 * y;
+    samples[i] = y;
+  }
+}
+
+/**
+ * Integrated loudness in LUFS, or -Infinity for silence and for anything too
+ * short to hold a single 400 ms block.
+ *
+ * `channels` is an array of Float32Array. A mono source counts double, because
+ * Web Audio sends it to both speakers on playback — measured as one channel it
+ * would come out 3 dB quiet and every mono file would end up too loud.
+ */
+function loudnessOf(channels, sampleRate) {
+  const used = channels.slice(0, 2);
+  if (!used.length) return -Infinity;
+  const weight = used.length === 1 ? 2 : 1;
+
+  const sub = Math.round(LOUDNESS.step * sampleRate);
+  const per = Math.round(LOUDNESS.block / LOUDNESS.step);
+  const length = Math.min(...used.map((c) => c.length));
+  const count = Math.floor(length / sub);
+  if (sub < 1 || count < per) return -Infinity;
+
+  const coefficients = kWeighting(sampleRate);
+  const sums = new Float64Array(count);
+  for (const channel of used) {
+    // Copy before filtering: biquad works in place, and these samples belong to
+    // the decoded audio everything else is playing from.
+    const y = Float32Array.from(channel.subarray(0, count * sub));
+    biquad(y, coefficients.shelf);
+    biquad(y, coefficients.highpass);
+    for (let s = 0; s < count; s++) {
+      const end = (s + 1) * sub;
+      let acc = 0;
+      for (let i = s * sub; i < end; i++) acc += y[i] * y[i];
+      sums[s] += weight * acc;
+    }
+  }
+
+  // At 75% overlap every 400 ms block is four consecutive 100 ms sums, so the
+  // overlapping blocks cost nothing beyond the additions.
+  const size = per * sub;
+  const blocks = [];
+  for (let j = 0; j + per <= count; j++) {
+    let power = 0;
+    for (let k = 0; k < per; k++) power += sums[j + k];
+    blocks.push(power / size);
+  }
+
+  const level = (power) => LOUDNESS.offset + 10 * Math.log10(power);
+  const mean = (list) => list.reduce((a, b) => a + b, 0) / list.length;
+
+  // Silence is not quiet music: without this gate a cut that ends in a long
+  // fade measures far below what anyone hears, and gets boosted for it.
+  const heard = blocks.filter((p) => p > 0 && level(p) > LOUDNESS.absoluteGate);
+  if (!heard.length) return -Infinity;
+
+  // Nor is a genuinely quiet passage of the same piece — the second gate keeps
+  // the reading on the body of the music rather than its softest moments.
+  const threshold = level(mean(heard)) + LOUDNESS.relativeGate;
+  const kept = heard.filter((p) => level(p) > threshold);
+  if (!kept.length) return -Infinity;
+  return level(mean(kept));
+}
+
+/** Largest absolute sample across all channels, 0 to 1. */
+function peakOf(channels) {
+  let peak = 0;
+  for (const channel of channels) {
+    for (let i = 0; i < channel.length; i++) {
+      const v = Math.abs(channel[i]);
+      if (v > peak) peak = v;
+    }
+  }
+  return peak;
+}
+
+/** Loudness and peak of the kept part of a clip — not of the whole file. */
+function measureClip(buffer, from, to) {
+  const sr = buffer.sampleRate;
+  const a = clamp(Math.floor(from * sr), 0, buffer.length);
+  const b = clamp(Math.ceil(to * sr), a, buffer.length);
+  const channels = [];
+  for (let c = 0; c < buffer.numberOfChannels; c++) {
+    channels.push(buffer.getChannelData(c).subarray(a, b));
+  }
+  return { loudness: loudnessOf(channels, sr), peak: peakOf(channels) };
+}
+
+/**
+ * Gains that put every clip at the same loudness, as loud as the material
+ * allows without clipping.
+ *
+ * There is no fixed target. The clip with the widest gap between its peak and
+ * its loudness — the most dynamic one — runs out of headroom first, so it sets
+ * the level for everyone else. That is the loudest the programme can be while
+ * staying both matched and clean, and it means a programme of quiet orchestral
+ * cuts is not dragged down to the level of its quietest moment.
+ *
+ * Returns a gain per input clip, in the order given.
+ */
+function solveGains(measures, opts = {}) {
+  const ceiling = opts.ceiling ?? LOUDNESS.ceiling;
+  const maxBoost = opts.maxBoost ?? LOUDNESS.maxBoost;
+  const measured = (m) => isFinite(m.loudness) && m.peak > 0;
+
+  const usable = measures.filter(measured);
+  if (!usable.length) return { gains: measures.map(() => 1), loudness: -Infinity, capped: [] };
+
+  const crest = (m) => 20 * Math.log10(m.peak) - m.loudness;
+  let loudness = opts.target ?? ceiling - Math.max(...usable.map(crest));
+
+  const capped = [];
+  const gains = measures.map((m, i) => {
+    if (!measured(m)) return 1;                 // nothing to measure — leave it alone
+    const wanted = loudness - m.loudness;
+    if (wanted > maxBoost + 1e-9) capped.push(i);
+    return Math.pow(10, Math.min(wanted, maxBoost) / 20);
+  });
+
+  // Whatever the target, nothing may clip. Pulling every clip down by the same
+  // amount keeps them matched, which is the whole point of the exercise.
+  //
+  // Only clips being changed take part. A clip that could not be measured is
+  // left exactly as it was — attenuating it to reach a headroom figure would be
+  // touching audio we just said we had no opinion about.
+  let worst = 0;
+  measures.forEach((m, i) => { if (measured(m)) worst = Math.max(worst, m.peak * gains[i]); });
+  const limit = Math.pow(10, ceiling / 20);
+  if (worst > limit) {
+    const scale = limit / worst;
+    measures.forEach((m, i) => { if (measured(m)) gains[i] *= scale; });
+    loudness += 20 * Math.log10(scale);
+  }
+
+  return { gains, loudness, capped };
+}
+
 /* --------------------------------------------------------------- library */
 
 async function addFiles(fileList) {
@@ -2578,6 +2791,7 @@ if (typeof document !== 'undefined') {
     BEAT, fftInPlace, onsetEnvelope, flattenEnvelope, estimateTempoLag,
     analyseBeats, suggestJoin, monoWindow, beatsAround, suggestJoinForBuffers,
     describeJoin, joinRoom,
+    LOUDNESS, kWeighting, biquad, loudnessOf, peakOf, measureClip, solveGains,
     parseClock, exportFileName, fmt, fmtShort, clamp,
     codecOf, qualityLabel, qualityDetail,
     id3Size, oggAudioStart, readMpegFrame, parseFrameHeader,
