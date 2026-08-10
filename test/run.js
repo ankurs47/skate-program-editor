@@ -493,6 +493,63 @@ check('join: end to end from audio, the two grids agree through the blend', () =
   ok(offGrid(endAt - result.crossfade, 0.5, 0) < 0.03, 'the blend starts off the beat');
 });
 
+check('joinRoom: a cut can reach the file ends but never eat its clip', () => {
+  const clip = { srcStart: 30, srcEnd: 90 };
+  const entry = { duration: 200 };
+  const end = app.joinRoom(clip, entry, 'end');
+  eq(end.max, 110, 'the end can run on to the end of the file: ');
+  near(end.min, -59.5, 1e-9, 'but must leave half a second of clip: ');
+  const start = app.joinRoom(clip, entry, 'start');
+  eq(start.min, -30, 'the start can go back to the beginning of the file: ');
+  near(start.max, 59.5, 1e-9);
+});
+
+check('joinRoom: a clip already shorter than the minimum still allows no move', () => {
+  // min must never come out positive, or zero shift falls outside the range and
+  // every candidate is rejected.
+  const room = app.joinRoom({ srcStart: 0, srcEnd: 0.2 }, { duration: 0.2 }, 'end');
+  ok(room.min <= 0 && room.max >= 0, `zero shift is outside ${JSON.stringify(room)}`);
+});
+
+check('describeJoin: says what changed, and what it cost', () => {
+  const base = { ok: true, reason: 'aligned', endShift: 0.8, startShift: 0, crossfade: 2 };
+  eq(app.describeJoin({ ...base, lengthDelta: 0.8 }, 2),
+    'Lined up with the beat. Program is 0.8s longer');
+  eq(app.describeJoin({ ...base, lengthDelta: -1.24 }, 2),
+    'Lined up with the beat. Program is 1.2s shorter');
+  eq(app.describeJoin({ ...base, lengthDelta: 0.01 }, 2),
+    'Lined up with the beat. Same length as before');
+  eq(app.describeJoin({ ...base, reason: 'tempo-mismatch', lengthDelta: 0 }, 2),
+    'Lined up as closely as these two speeds allow. Same length as before');
+});
+
+check('describeJoin: does not claim to have done anything it did not', () => {
+  const still = { ok: true, reason: 'aligned', endShift: 0, startShift: 0, crossfade: 1.5, lengthDelta: 0 };
+  eq(app.describeJoin(still, 1.5), 'This join is already on the beat');
+  // a blend change on its own still counts as a change
+  ok(app.describeJoin({ ...still, crossfade: 2 }, 1.5).startsWith('Lined up'));
+  for (const reason of ['no-beat', 'no-room']) {
+    const message = app.describeJoin({ ok: false, reason, lengthDelta: 0 }, 1.5);
+    ok(/nothing changed$/.test(message), `"${message}" should end by saying nothing changed`);
+  }
+});
+
+check('describeJoin: plain language, no audio jargon', () => {
+  const banned = /bpm|tempo|crossfade|envelope|onset|phase|grid|downbeat|drift/i;
+  const results = [
+    { ok: false, reason: 'no-beat' },
+    { ok: false, reason: 'no-room' },
+    { ok: true, reason: 'aligned', endShift: 1, startShift: 0, crossfade: 2, lengthDelta: 1 },
+    { ok: true, reason: 'tempo-mismatch', endShift: 1, startShift: 0, crossfade: 2, lengthDelta: -1 },
+    { ok: true, reason: 'aligned', endShift: 0, startShift: 0, crossfade: 2, lengthDelta: 0 },
+  ];
+  for (const result of results) {
+    const message = app.describeJoin(result, 2);
+    ok(!banned.test(message), `"${message}" uses a word from the studio`);
+    ok(!/\.$/.test(message), `"${message}" ends in a full stop; toasts elsewhere do not`);
+  }
+});
+
 check('monoWindow: averages channels and clamps to the buffer', () => {
   const left = new Float32Array([1, 1, 1, 1]);
   const right = new Float32Array([0, 0, 0, 0]);

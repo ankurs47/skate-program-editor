@@ -1160,6 +1160,35 @@ function suggestJoinForBuffers(outBuffer, cutOut, incBuffer, cutIn, opts = {}) {
   return suggestJoin(a.beats, a.cut, b.beats, b.cut, opts);
 }
 
+/**
+ * What to tell her afterwards, in one sentence.
+ *
+ * The change itself is visible — the waveform, the blocks and the timer all
+ * move — so this says the part that isn't: whether it worked, and what it cost
+ * in programme length, because that is the number she is working to.
+ */
+function describeJoin(result, wasCrossfade) {
+  if (!result.ok) {
+    return result.reason === 'no-room'
+      ? 'Not enough song either side to move the cut, so nothing changed'
+      : 'No steady beat to line up with here, so nothing changed';
+  }
+
+  const changed = Math.abs(result.endShift) >= 0.05
+    || Math.abs(result.startShift) >= 0.05
+    || Math.abs(result.crossfade - wasCrossfade) >= 0.05;
+  if (!changed) return 'This join is already on the beat';
+
+  const delta = result.lengthDelta;
+  const length = Math.abs(delta) < 0.05
+    ? 'Same length as before'
+    : `Program is ${Math.abs(delta).toFixed(1)}s ${delta > 0 ? 'longer' : 'shorter'}`;
+  const lead = result.reason === 'tempo-mismatch'
+    ? 'Lined up as closely as these two speeds allow'
+    : 'Lined up with the beat';
+  return `${lead}. ${length}`;
+}
+
 /* --------------------------------------------------------------- library */
 
 async function addFiles(fileList) {
@@ -1591,6 +1620,66 @@ function drawClipEditor() {
   }
   // the first clip has nothing before it to blend into
   $('crossfadeWrap').classList.toggle('hidden', state.clips.indexOf(clip) === 0);
+  updateAlignAvailability();
+}
+
+/** How far a join's two cuts may move without eating a clip whole. */
+function joinRoom(clip, entry, side) {
+  const keep = 0.5;
+  return side === 'end'
+    ? { min: Math.min(0, keep - clipDuration(clip)), max: Math.max(0, entry.duration - clip.srcEnd) }
+    : { min: Math.min(0, -clip.srcStart), max: Math.max(0, clipDuration(clip) - keep) };
+}
+
+function updateAlignAvailability() {
+  const button = $('btnAlignJoin');
+  const clip = selectedClip();
+  const i = clip ? state.clips.indexOf(clip) : -1;
+  const prev = i > 0 ? state.clips[i - 1] : null;
+  const ready = prev && library.get(prev.file)?.buffer && library.get(clip.file)?.buffer;
+
+  button.disabled = !ready;
+  button.title = ready
+    ? 'Moves this cut and the end of the song before it by up to 2.5 seconds each, '
+      + 'so both land on a beat and the blend lasts a whole number of beats'
+    : 'Add both songs first';
+}
+
+/**
+ * Nudge the selected clip's join with the one before it onto the beat.
+ *
+ * Nothing is touched unless there is a beat worth trusting on both sides —
+ * declining is a normal outcome here, not a failure, so it reports and stops.
+ */
+function alignSelectedJoin() {
+  const clip = selectedClip();
+  const i = clip ? state.clips.indexOf(clip) : -1;
+  if (i <= 0) return;
+  const prev = state.clips[i - 1];
+  const prevEntry = library.get(prev.file);
+  const entry = library.get(clip.file);
+  if (!prevEntry?.buffer || !entry?.buffer) { toast('Add both songs first'); return; }
+
+  const was = clip.crossfade || 0;
+  const result = suggestJoinForBuffers(prevEntry.buffer, prev.srcEnd, entry.buffer, clip.srcStart, {
+    crossfade: was,
+    // The blend slider tops out at 10s and cannot outlast either clip.
+    maxCrossfade: Math.min(10, clipDuration(prev), clipDuration(clip)),
+    outRoom: joinRoom(prev, prevEntry, 'end'),
+    incRoom: joinRoom(clip, entry, 'start'),
+  });
+
+  const moves = result.ok && (Math.abs(result.endShift) >= 0.005
+    || Math.abs(result.startShift) >= 0.005
+    || Math.abs(result.crossfade - was) >= 0.005);
+  if (moves) {
+    pushUndo();
+    prev.srcEnd = clamp(prev.srcEnd + result.endShift, prev.srcStart + 0.1, prevEntry.duration);
+    clip.srcStart = clamp(clip.srcStart + result.startShift, 0, clip.srcEnd - 0.1);
+    clip.crossfade = Math.max(0, result.crossfade);
+    refresh();
+  }
+  toast(describeJoin(result, was), 4200);
 }
 
 function bindClipCanvas() {
@@ -2211,6 +2300,7 @@ function bind() {
     if (clip) playClipAudition(clip, state.cursor > clip.srcStart ? state.cursor : clip.srcStart);
   };
   $('btnRemoveClip').onclick = () => { if (state.selected) removeClip(state.selected); };
+  $('btnAlignJoin').onclick = alignSelectedJoin;
 
   for (const key of ['fadeIn', 'fadeOut', 'crossfade']) {
     const slider = $(key);
@@ -2487,6 +2577,7 @@ if (typeof document !== 'undefined') {
     fadeEnvelope, crossfadeEnvelope, valueAt,
     BEAT, fftInPlace, onsetEnvelope, flattenEnvelope, estimateTempoLag,
     analyseBeats, suggestJoin, monoWindow, beatsAround, suggestJoinForBuffers,
+    describeJoin, joinRoom,
     parseClock, exportFileName, fmt, fmtShort, clamp,
     codecOf, qualityLabel, qualityDetail,
     id3Size, oggAudioStart, readMpegFrame, parseFrameHeader,

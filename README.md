@@ -21,6 +21,10 @@ order, blend, check the length, save the file.
 - **Trim** each song by dragging the ends of its waveform, or with `I` and `O`
 - **Reorder** by dragging the blocks
 - **Blend** one song into the next, or fade in and out
+- **Line up with the beat** — one button nudges a join by up to a couple of
+  seconds so both songs land on a beat, which is what stops a blend sounding
+  like a stumble. It says whether that made the program longer or shorter, and
+  if the music has no steady beat it says so and changes nothing
 - **Watch the clock** — a big timer that turns green inside the allowed window
   for your event, and tells you exactly how far off you are when you're not
 - **Flag weak audio** before you commit to it, with a plain Good / Fair / Low
@@ -111,7 +115,7 @@ is only for checking changes.
 
 ```bash
 npm install          # installs eslint, and enables the pre-commit hook
-npm test             # 46 checks: maths, wiring, and asset integrity
+npm test             # 51 checks: maths, wiring, and asset integrity
 npm run lint
 npm run check        # lint + test, what CI runs
 npm run test:net     # also re-verifies the pinned CDN hash

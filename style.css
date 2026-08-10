@@ -379,6 +379,11 @@ aside, section {
 .controls label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
 .controls label b { color: var(--ink); font-family: var(--mono); }
 .controls input[type=range] { width: 100%; accent-color: var(--accent); }
+/* The blend slider and the button that sets it share one cell, so they stay
+   together however the grid wraps. min-width: 0 or a long button label widens
+   the column and pushes the other controls off. */
+.join-cell { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; min-width: 0; }
+.join-cell label { width: 100%; }
 
 /* ---- help ---- */
 /* Help lives behind header buttons rather than on the page. The buttons are

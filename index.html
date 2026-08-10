@@ -143,10 +143,13 @@
           <span>Fade out <b id="valFadeOut">0.0s</b></span>
           <input id="fadeOut" type="range" min="0" max="10" step="0.1" value="0">
         </label>
-        <label id="crossfadeWrap">
-          <span>Blend into previous <b id="valCrossfade">0.0s</b></span>
-          <input id="crossfade" type="range" min="0" max="10" step="0.1" value="0">
-        </label>
+        <div id="crossfadeWrap" class="join-cell">
+          <label>
+            <span>Blend into previous <b id="valCrossfade">0.0s</b></span>
+            <input id="crossfade" type="range" min="0" max="10" step="0.1" value="0">
+          </label>
+          <button id="btnAlignJoin" class="small">Line up with the beat</button>
+        </div>
       </div>
     </div>
 
@@ -233,6 +236,13 @@
           you can hear the join, it&rsquo;s usually in the wrong place.</li>
       <li>Set <b>Blend into previous</b> to 1 or 2 seconds to ease from one song
           into the next. Leave it at 0 for a sudden, dramatic change.</li>
+      <li><b>Line up with the beat</b> shifts the join by up to a couple of
+          seconds so both songs land on a beat, which is what stops a blend
+          sounding like a stumble. It tells you if it made the program longer or
+          shorter. If the music has no steady beat &mdash; a lot of piano and
+          orchestral pieces don&rsquo;t &mdash; it says so and changes nothing,
+          and you place the cut by ear. <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes it
+          either way.</li>
       <li>A small <b>Fade in</b> &mdash; about half a second &mdash; stops the
           music starting with a pop.</li>
       <li>A <b>Fade out</b> of 2 or 3 seconds lets the ending finish gently

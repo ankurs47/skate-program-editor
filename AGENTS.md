@@ -15,7 +15,7 @@ plain, and jargon is treated as a bug.
 index.html   structure, help topic content, dialogs
 app.js       everything: decode, waveforms, editing, playback, render, export
 style.css    theming via CSS custom properties, light and dark
-test/run.js  46 checks, no dependencies
+test/run.js  51 checks, no dependencies
 ```
 
 ## Commands
@@ -78,7 +78,9 @@ Both are pure, and beat times are relative to the window they were measured in,
 never to the song. The grid is *always* found — on applause, on a held chord, on
 silence — so `confidence` below `BEAT.minConfidence` means leave the edit alone.
 Snapping a rubato piece to an invented grid is the worst outcome available here,
-worse than doing nothing.
+worse than doing nothing. `alignSelectedJoin()` is the only caller: it takes the
+snapshot for undo *after* deciding to act, so a declined suggestion doesn't leave
+a no-op on the undo stack.
 
 ## Traps
 
