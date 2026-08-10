@@ -85,6 +85,7 @@
   <section id="workspace">
     <div class="panel-head">
       <h2>Program</h2>
+      <button id="btnEvenOut" class="small">Even out the volume</button>
       <div class="transport">
         <button id="btnPlay" class="play"><span id="btnPlayLabel">Play</span><kbd>Space</kbd></button>
         <button id="btnStop" title="Return to start">Stop</button>
@@ -135,6 +136,10 @@
       </div>
 
       <div class="controls">
+        <label id="levelWrap" title="How much this song's own volume is changed. 100% leaves the recording as it is.">
+          <span>Volume <b id="valLevel">100%</b></span>
+          <input id="level" type="range" min="-24" max="24" step="0.5" value="0">
+        </label>
         <label>
           <span>Fade in <b id="valFadeIn">0.0s</b></span>
           <input id="fadeIn" type="range" min="0" max="10" step="0.1" value="0">
@@ -143,10 +148,13 @@
           <span>Fade out <b id="valFadeOut">0.0s</b></span>
           <input id="fadeOut" type="range" min="0" max="10" step="0.1" value="0">
         </label>
-        <label id="crossfadeWrap">
-          <span>Blend into previous <b id="valCrossfade">0.0s</b></span>
-          <input id="crossfade" type="range" min="0" max="10" step="0.1" value="0">
-        </label>
+        <div id="crossfadeWrap" class="join-cell">
+          <label>
+            <span>Blend into previous <b id="valCrossfade">0.0s</b></span>
+            <input id="crossfade" type="range" min="0" max="10" step="0.1" value="0">
+          </label>
+          <button id="btnAlignJoin" class="small">Line up with the beat</button>
+        </div>
       </div>
     </div>
 
@@ -233,6 +241,22 @@
           you can hear the join, it&rsquo;s usually in the wrong place.</li>
       <li>Set <b>Blend into previous</b> to 1 or 2 seconds to ease from one song
           into the next. Leave it at 0 for a sudden, dramatic change.</li>
+      <li><b>Line up with the beat</b> shifts the join by up to a couple of
+          seconds so both songs land on a beat, which is what stops a blend
+          sounding like a stumble. It tells you if it made the program longer or
+          shorter. If the music has no steady beat &mdash; a lot of piano and
+          orchestral pieces don&rsquo;t &mdash; it says so and changes nothing,
+          and you place the cut by ear. <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes it
+          either way.</li>
+      <li><b>Even out the volume</b> sets every song so they all sound about
+          equally loud. Records are mastered at wildly different levels, and the
+          rink&rsquo;s sound desk is set once and left, so a quiet cut in the
+          middle of your program simply disappears. Use it once your cuts are
+          roughly right, and again if you re-trim, because it measures the part
+          you kept.</li>
+      <li>The <b>Volume</b> slider on each song adjusts it by hand afterwards.
+          Evening out is a starting point, not the last word &mdash; a gentle
+          opening is often <i>meant</i> to be softer than the finish.</li>
       <li>A small <b>Fade in</b> &mdash; about half a second &mdash; stops the
           music starting with a pop.</li>
       <li>A <b>Fade out</b> of 2 or 3 seconds lets the ending finish gently

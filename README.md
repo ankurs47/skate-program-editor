@@ -21,6 +21,13 @@ order, blend, check the length, save the file.
 - **Trim** each song by dragging the ends of its waveform, or with `I` and `O`
 - **Reorder** by dragging the blocks
 - **Blend** one song into the next, or fade in and out
+- **Line up with the beat** — one button nudges a join by up to a couple of
+  seconds so both songs land on a beat, which is what stops a blend sounding
+  like a stumble. It says whether that made the program longer or shorter, and
+  if the music has no steady beat it says so and changes nothing
+- **Even out the volume** — one button sets every song so they sound about
+  equally loud, without letting any of them distort, and a per-song **Volume**
+  slider adjusts it by hand afterwards
 - **Watch the clock** — a big timer that turns green inside the allowed window
   for your event, and tells you exactly how far off you are when you're not
 - **Flag weak audio** before you commit to it, with a plain Good / Fair / Low
@@ -86,7 +93,7 @@ music, which is why it stays a few kilobytes.
   "toleranceSeconds": 10,
   "clips": [
     { "file": "chosen song.mp3", "srcStart": 4.76, "srcEnd": 77.08,
-      "fadeIn": 1.5, "fadeOut": 0, "crossfade": 0 }
+      "fadeIn": 1.5, "fadeOut": 0, "crossfade": 0, "gain": 1 }
   ]
 }
 ```
@@ -111,7 +118,7 @@ is only for checking changes.
 
 ```bash
 npm install          # installs eslint, and enables the pre-commit hook
-npm test             # 27 checks: maths, wiring, and asset integrity
+npm test             # 78 checks: maths, wiring, and asset integrity
 npm run lint
 npm run check        # lint + test, what CI runs
 npm run test:net     # also re-verifies the pinned CDN hash
@@ -125,10 +132,12 @@ before it can merge.
 
 The test suite covers the parts that are easy to get quietly wrong — timeline
 maths with overlapping blends, fade and crossfade envelopes summing correctly,
-filename sanitising across platforms, per-codec quality thresholds, and the MPEG
-frame parser refusing to match non-MPEG data. It also checks that every element
-id the code reaches for exists in the HTML, that every help button has content,
-and that no personal information or local path ever ships.
+filename sanitising across platforms, per-codec quality thresholds, the MPEG
+frame parser refusing to match non-MPEG data, beat detection reading the right
+tempo off a known one while declining to claim a beat in material that has none,
+and loudness measurement agreeing with an independent meter. It also checks that
+every element id the code reaches for exists in the HTML, that every help button
+has content, and that no personal information or local path ever ships.
 
 ## Licence
 
