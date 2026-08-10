@@ -202,8 +202,13 @@ aside, section {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 10px;
+  /* The controls beside the heading refuse to shrink, so on a narrow window
+     they have to be allowed onto a second line instead — without this, adding
+     one more button to the row pushes the rest off the side of the page. */
+  flex-wrap: wrap;
 }
-/* The heading yields; the controls beside it never shrink or wrap away. */
+/* The heading yields; the controls beside it never shrink. When there are too
+   many of them to fit, they take a second line rather than being squashed. */
 .panel-head > h2 {
   min-width: 0;
   overflow: hidden;
@@ -288,6 +293,10 @@ aside, section {
 
 /* ---- timeline ---- */
 .transport { display: flex; align-items: center; gap: 8px; }
+/* Sits with the transport rather than stranded mid-row, but as its own flex
+   item so it can take a second line on a narrow window instead of pushing
+   Play and Stop off the edge. */
+#btnEvenOut { margin-left: auto; }
 #timelineWrap { position: relative; }
 .timeline {
   display: flex;

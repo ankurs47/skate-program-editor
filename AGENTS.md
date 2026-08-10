@@ -15,7 +15,7 @@ plain, and jargon is treated as a bug.
 index.html   structure, help topic content, dialogs
 app.js       everything: decode, waveforms, editing, playback, render, export
 style.css    theming via CSS custom properties, light and dark
-test/run.js  71 checks, no dependencies
+test/run.js  78 checks, no dependencies
 ```
 
 ## Commands
@@ -89,6 +89,14 @@ bounds for that reason, and because the answer goes stale the moment anything is
 re-trimmed, it is recomputed on demand rather than cached against the file — a
 gating pass over thirty seconds is about 25 ms, which is cheaper than being
 wrong. `solveGains()` then turns those measurements into one gain per clip.
+
+**`gain` is a plain multiplier on the clip, applied by its own node.** It sits
+before the fade and blend nodes in `scheduleProgram()` rather than being folded
+into either, so the fade still runs 0 to 1 and the two sides of a crossfade
+still sum to 1 whatever the levels are. Preview and export therefore get it for
+free. The slider works in decibels, because that is what tracks how loud a
+change *sounds*, but stores and shows the multiplier — `LEVEL_SLIDER` and the
+`min`/`max` on the HTML input have to agree, and a test says so.
 
 ## Traps
 

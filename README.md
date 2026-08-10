@@ -25,6 +25,9 @@ order, blend, check the length, save the file.
   seconds so both songs land on a beat, which is what stops a blend sounding
   like a stumble. It says whether that made the program longer or shorter, and
   if the music has no steady beat it says so and changes nothing
+- **Even out the volume** — one button sets every song so they sound about
+  equally loud, without letting any of them distort, and a per-song **Volume**
+  slider adjusts it by hand afterwards
 - **Watch the clock** — a big timer that turns green inside the allowed window
   for your event, and tells you exactly how far off you are when you're not
 - **Flag weak audio** before you commit to it, with a plain Good / Fair / Low
@@ -90,7 +93,7 @@ music, which is why it stays a few kilobytes.
   "toleranceSeconds": 10,
   "clips": [
     { "file": "chosen song.mp3", "srcStart": 4.76, "srcEnd": 77.08,
-      "fadeIn": 1.5, "fadeOut": 0, "crossfade": 0 }
+      "fadeIn": 1.5, "fadeOut": 0, "crossfade": 0, "gain": 1 }
   ]
 }
 ```
@@ -115,7 +118,7 @@ is only for checking changes.
 
 ```bash
 npm install          # installs eslint, and enables the pre-commit hook
-npm test             # 71 checks: maths, wiring, and asset integrity
+npm test             # 78 checks: maths, wiring, and asset integrity
 npm run lint
 npm run check        # lint + test, what CI runs
 npm run test:net     # also re-verifies the pinned CDN hash

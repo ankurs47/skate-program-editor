@@ -758,14 +758,22 @@ check('gains: already matched clips are only trimmed for headroom', () => {
   near(gains[0], gains[1], 1e-12, 'equal input, equal output: ');
 });
 
+/** Measures a real recording could actually produce: the peak is above the
+    loudness, by anything from a squashed 3 dB to a very dynamic 34 dB. */
+function plausibleMeasures(random, count) {
+  const measures = [];
+  for (let i = 0; i < count; i++) {
+    const peak = 0.02 + random() * 0.98;
+    measures.push({ loudness: 20 * Math.log10(peak) - (3 + random() * 31), peak });
+  }
+  return measures;
+}
+
 check('gains: nothing clips, whatever it is handed', () => {
   const random = rng(4242);
   const limit = Math.pow(10, app.LOUDNESS.ceiling / 20);
   for (let trial = 0; trial < 300; trial++) {
-    const measures = [];
-    for (let i = 0; i < 1 + Math.floor(random() * 5); i++) {
-      measures.push({ loudness: -60 + random() * 55, peak: 0.001 + random() * 0.999 });
-    }
+    const measures = plausibleMeasures(random, 1 + Math.floor(random() * 5));
     const { gains } = app.solveGains(measures);
     measures.forEach((m, i) => {
       ok(m.peak * gains[i] <= limit + 1e-9,
@@ -774,18 +782,33 @@ check('gains: nothing clips, whatever it is handed', () => {
   }
 });
 
+check('gains: one freak clip cannot pull the rest down without limit', () => {
+  // A cut that is mostly quiet with a single crash in it sits 38 dB below its
+  // own peak. It cannot be matched without clipping whatever we do — the point
+  // of the cap is that it cannot take the other songs down with it either.
+  const ordinary = [{ loudness: -12, peak: 0.9 }, { loudness: -14, peak: 0.85 }];
+  const freak = { loudness: -40, peak: Math.pow(10, -2 / 20) };
+  const { loudness, short } = app.solveGains([...ordinary, freak]);
+
+  const uncapped = app.LOUDNESS.ceiling - 38;
+  ok(loudness > uncapped + 10, `the outlier still set the level (${loudness.toFixed(1)})`);
+  near(loudness, app.LOUDNESS.ceiling - app.LOUDNESS.maxCrest, 1e-9,
+    'the cap should be what decides the level: ');
+  eq(short, [2], 'and the outlier is the one left short: ');
+});
+
 check('gains: an absurd target is still not allowed to clip', () => {
   const measures = [{ loudness: -20, peak: 0.8 }];
-  const { gains, loudness } = app.solveGains(measures, { target: 0 });
-  near(measures[0].peak * gains[0], Math.pow(10, -1 / 20), 1e-9, 'pulled back to the ceiling: ');
-  ok(loudness < 0, 'the reported loudness must be the one actually reached');
+  const { gains, short } = app.solveGains(measures, { target: 0 });
+  near(measures[0].peak * gains[0], Math.pow(10, -1 / 20), 1e-9, 'held at the ceiling: ');
+  eq(short, [0], 'and reported as not having got there: ');
 });
 
 check('gains: near-silence is boosted only so far, and says so', () => {
   const measures = [{ loudness: -20, peak: 0.8 }, { loudness: -60, peak: 0.001 }];
-  const { gains, capped } = app.solveGains(measures);
-  eq(capped, [1], 'the capped clip should be named: ');
-  near(20 * Math.log10(gains[1]), app.LOUDNESS.maxBoost, 1e-9, 'capped at the boost limit: ');
+  const { gains, short } = app.solveGains(measures);
+  eq(short, [1], 'the clip that fell short should be named: ');
+  near(20 * Math.log10(gains[1]), app.LOUDNESS.maxBoost, 1e-9, 'held at the boost limit: ');
 });
 
 check('gains: an unmeasurable clip is left alone and does not spoil the rest', () => {
@@ -802,9 +825,87 @@ check('gains: an unmeasurable clip is left alone and does not spoil the rest', (
 });
 
 check('gains: nothing measurable at all leaves every clip untouched', () => {
-  const { gains, loudness } = app.solveGains([{ loudness: -Infinity, peak: 0 }]);
+  const { gains, loudness, short } = app.solveGains([{ loudness: -Infinity, peak: 0 }]);
   eq(gains, [1]);
   eq(loudness, -Infinity);
+  eq(short, []);
+});
+
+check('clipGain: a hand-edited project file cannot blow the speakers', () => {
+  eq(app.clipGain({ gain: 1 }), 1);
+  eq(app.clipGain({}), 1, 'missing means "as recorded", not silent: ');
+  eq(app.clipGain({ gain: undefined }), 1);
+  eq(app.clipGain({ gain: 0 }), 0, 'a deliberate zero is allowed: ');
+  eq(app.clipGain({ gain: 9999 }), app.MAX_GAIN, 'absurd values are clamped: ');
+  for (const bad of [-1, NaN, Infinity, 'loud', null]) {
+    eq(app.clipGain({ gain: bad }), 1, `${JSON.stringify(bad)} should fall back to 1: `);
+  }
+});
+
+check('level slider: decibels and percentages agree, and round trip', () => {
+  near(app.gainToDb(1), 0, 1e-9);
+  near(app.gainToDb(2), 6.0206, 1e-4, 'twice as loud is about 6 dB: ');
+  near(app.dbToGain(0), 1, 1e-9);
+  for (const db of [-24, -12, -6, -0.5, 0, 3, 12]) {
+    near(app.gainToDb(app.dbToGain(db)), db, 1e-9, `${db} dB: `);
+  }
+  eq(app.levelPercent(1), 100, 'unchanged reads as 100%: ');
+  eq(app.levelPercent(app.dbToGain(-6)), 50);
+  eq(app.levelPercent(app.dbToGain(6)), 200);
+  eq(app.gainToDb(0), app.LEVEL_SLIDER.min, 'silence pins to the bottom, not -Infinity: ');
+});
+
+check('level slider: its range covers every gain the solver can produce', () => {
+  // A clip pushed past the ends of the slider would show a position that lies.
+  const random = rng(90210);
+  for (let trial = 0; trial < 200; trial++) {
+    const measures = plausibleMeasures(random, 2 + Math.floor(random() * 4));
+    for (const gain of app.solveGains(measures).gains) {
+      const db = app.gainToDb(gain);
+      ok(db >= app.LEVEL_SLIDER.min - 1e-9 && db <= app.LEVEL_SLIDER.max + 1e-9,
+        `${db.toFixed(1)} dB is outside the slider for ${JSON.stringify(measures)}`);
+    }
+  }
+});
+
+check('level slider: the HTML range matches the constant the code works from', () => {
+  // Two places have to agree, and nothing else would notice if they stopped.
+  const tag = html.match(/<input id="level"[^>]*>/);
+  ok(tag, 'the level slider is missing from the HTML');
+  for (const [attribute, expected] of Object.entries(app.LEVEL_SLIDER)) {
+    const found = tag[0].match(new RegExp(`${attribute}="(-?[\\d.]+)"`));
+    ok(found, `the slider has no ${attribute}`);
+    eq(Number(found[1]), expected, `slider ${attribute}: `);
+  }
+  ok(app.MAX_GAIN >= app.dbToGain(app.LEVEL_SLIDER.max),
+    'the clamp is tighter than the slider, so the top of the slider would not stick');
+});
+
+check('describeLevels: counts what happened, and owns up to what did not', () => {
+  eq(app.describeLevels({ matched: 3, short: 0, unmeasured: 0 }), 'Evened out 3 songs');
+  eq(app.describeLevels({ matched: 1, short: 0, unmeasured: 0 }), 'Evened out 1 song');
+  eq(app.describeLevels({ matched: 2, short: 1, unmeasured: 0 }),
+    'Evened out 2 songs — one could not come all the way up, so it stays quieter than the rest');
+  eq(app.describeLevels({ matched: 2, short: 0, unmeasured: 1 }),
+    'Evened out 2 songs — one could not be measured and was left as it was');
+  eq(app.describeLevels({ matched: 2, short: 2, unmeasured: 3 }),
+    'Evened out 2 songs — 2 could not come all the way up, so they stay quieter '
+    + 'than the rest, and 3 could not be measured and were left as they were');
+  eq(app.describeLevels({ matched: 0, short: 0, unmeasured: 2 }),
+    'Could not measure these songs, so nothing changed');
+});
+
+check('describeLevels: plain language, no audio jargon', () => {
+  const banned = /lufs|decibel| db\b|gain|normali[sz]|peak|headroom|loudness|amplitude/i;
+  for (const short of [0, 1, 2]) {
+    for (const unmeasured of [0, 1, 2]) {
+      for (const matched of [0, 1, 3]) {
+        const message = app.describeLevels({ matched, short, unmeasured });
+        ok(!banned.test(message), `"${message}" uses a word from the studio`);
+        ok(!/\.$/.test(message), `"${message}" ends in a full stop; toasts elsewhere do not`);
+      }
+    }
+  }
 });
 
 /* --------------------------------------------------------------- 2. wiring */

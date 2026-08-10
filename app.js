@@ -12,6 +12,7 @@
 
 const SR = 44100;
 const MIN_CROSSFADE = 0.01;
+const MAX_GAIN = 16;             // a shade over the +24 dB the level slider reaches
 const STORE_KEY = 'skate.program.v1';
 
 /* ---------------------------------------------------------------------------
@@ -152,6 +153,20 @@ function clipDuration(clip) {
   return Math.max(0, clip.srcEnd - clip.srcStart);
 }
 
+/**
+ * A clip's level as a plain multiplier. Anything missing, negative or absurd
+ * becomes 1 — a hand-edited project file must not be able to silence the
+ * programme or blow the speakers.
+ */
+function clipGain(clip) {
+  const gain = clip ? clip.gain : undefined;
+  // Checked as a number before anything else: `Number(null)` is 0, so coercing
+  // first would read a null in a project file as "silent" rather than "absent".
+  return typeof gain === 'number' && isFinite(gain) && gain >= 0
+    ? clamp(gain, 0, MAX_GAIN)
+    : 1;
+}
+
 /** Overlap between clip i and the one before it, clamped to fit both. */
 function crossfadeOf(clips, i) {
   if (i === 0) return 0;
@@ -256,9 +271,14 @@ function scheduleProgram(context, destination, when, fromTime) {
 
     const src = context.createBufferSource();
     src.buffer = entry.buffer;
+    const level = context.createGain();
     const fade = context.createGain();
     const blend = context.createGain();
-    src.connect(fade).connect(blend).connect(destination);
+    // Level is a constant, so it sits before the two envelopes rather than
+    // being folded into either — the fade still runs 0 to 1, and the two sides
+    // of a crossfade still sum to 1, whatever the clips are set to.
+    level.gain.value = clipGain(clip);
+    src.connect(level).connect(fade).connect(blend).connect(destination);
 
     const now = context.currentTime;
     applyEnvelope(fade.gain, fadeEnvelope(clip), clipT0, skip, now);
@@ -648,7 +668,7 @@ function fitCanvas(canvas) {
   return { g, w, h };
 }
 
-function drawWave(canvas, peaks, duration, t0, t1, color) {
+function drawWave(canvas, peaks, duration, t0, t1, color, gain = 1) {
   const { g, w, h } = fitCanvas(canvas);
   g.clearRect(0, 0, w, h);
   if (!peaks || duration <= 0) return;
@@ -669,8 +689,8 @@ function drawWave(canvas, peaks, duration, t0, t1, color) {
       if (peaks[i * 2 + 1] > mx) mx = peaks[i * 2 + 1];
     }
     if (mx < mn) { mn = 0; mx = 0; }
-    const y0 = mid - mx * mid * 0.94;
-    const y1 = mid - mn * mid * 0.94;
+    const y0 = mid - clamp(mx * gain, -1, 1) * mid * 0.94;
+    const y1 = mid - clamp(mn * gain, -1, 1) * mid * 0.94;
     g.fillRect(x, y0, 1, Math.max(1, y1 - y0));
   }
 }
@@ -1210,7 +1230,11 @@ const LOUDNESS = {
   relativeGate: -10,     // LU below the ungated mean
   offset: -0.691,        // BS.1770 calibration, so 1 kHz reads its own level
   ceiling: -1,           // dBFS left free, because sample peaks understate the real ones
-  maxBoost: 12,          // dB; past this we would be amplifying hiss, not finding music
+  // Quiet classical masters really do sit 25 dB below a pop single, so this has
+  // to be generous or the very case the feature exists for gets refused. Its
+  // job is only to decline near-silence, which needs far more than this.
+  maxBoost: 24,          // dB
+  maxCrest: 22,          // dB of peak above loudness; beyond this a clip is an outlier
 };
 
 /**
@@ -1363,43 +1387,80 @@ function measureClip(buffer, from, to) {
  * staying both matched and clean, and it means a programme of quiet orchestral
  * cuts is not dragged down to the level of its quietest moment.
  *
- * Returns a gain per input clip, in the order given.
+ * `maxCrest` stops one freak clip doing exactly that. A cut that is mostly
+ * quiet with a single bang in it can sit 38 dB below its own peak, and letting
+ * it set the level would drag three ordinary songs down with it. Past that
+ * point the clip is the outlier, so it is the one that stays quiet.
+ *
+ * No clip can be pushed past the ceiling: each one's gain is capped by its own
+ * headroom, so a clip that cannot reach the target simply does not, and the
+ * others are unaffected. Returns a gain per input clip, in the order given,
+ * and the indices of any that fell short.
  */
 function solveGains(measures, opts = {}) {
   const ceiling = opts.ceiling ?? LOUDNESS.ceiling;
   const maxBoost = opts.maxBoost ?? LOUDNESS.maxBoost;
+  const maxCrest = opts.maxCrest ?? LOUDNESS.maxCrest;
   const measured = (m) => isFinite(m.loudness) && m.peak > 0;
 
   const usable = measures.filter(measured);
-  if (!usable.length) return { gains: measures.map(() => 1), loudness: -Infinity, capped: [] };
+  if (!usable.length) return { gains: measures.map(() => 1), loudness: -Infinity, short: [] };
 
   const crest = (m) => 20 * Math.log10(m.peak) - m.loudness;
-  let loudness = opts.target ?? ceiling - Math.max(...usable.map(crest));
+  const loudness = opts.target ?? ceiling - Math.min(maxCrest, Math.max(...usable.map(crest)));
 
-  const capped = [];
+  const short = [];
   const gains = measures.map((m, i) => {
     if (!measured(m)) return 1;                 // nothing to measure — leave it alone
     const wanted = loudness - m.loudness;
-    if (wanted > maxBoost + 1e-9) capped.push(i);
-    return Math.pow(10, Math.min(wanted, maxBoost) / 20);
+    // Two things stop a clip reaching the target: its own peaks would go over
+    // the ceiling, or it is so quiet that we would be raising hiss rather than
+    // music. Either way it stays put instead of pulling the others down.
+    const headroom = ceiling - 20 * Math.log10(m.peak);
+    const allowed = Math.min(wanted, headroom, maxBoost);
+    if (allowed < wanted - 1e-9) short.push(i);
+    return Math.pow(10, allowed / 20);
   });
 
-  // Whatever the target, nothing may clip. Pulling every clip down by the same
-  // amount keeps them matched, which is the whole point of the exercise.
-  //
-  // Only clips being changed take part. A clip that could not be measured is
-  // left exactly as it was — attenuating it to reach a headroom figure would be
-  // touching audio we just said we had no opinion about.
-  let worst = 0;
-  measures.forEach((m, i) => { if (measured(m)) worst = Math.max(worst, m.peak * gains[i]); });
-  const limit = Math.pow(10, ceiling / 20);
-  if (worst > limit) {
-    const scale = limit / worst;
-    measures.forEach((m, i) => { if (measured(m)) gains[i] *= scale; });
-    loudness += 20 * Math.log10(scale);
-  }
+  return { gains, loudness, short };
+}
 
-  return { gains, loudness, capped };
+/* The slider works in decibels because that is what tracks how loud a change
+   sounds — half the travel is half the change, which is not true of a plain
+   multiplier. The number beside it is a percentage, because that is what a
+   skater reads without being taught anything. */
+
+const LEVEL_SLIDER = { min: -24, max: 24, step: 0.5 };
+
+function gainToDb(gain) {
+  return gain > 0 ? 20 * Math.log10(gain) : LEVEL_SLIDER.min;
+}
+
+function dbToGain(db) {
+  return Math.pow(10, db / 20);
+}
+
+/** A clip's level as a percentage of the recording's own volume. */
+function levelPercent(gain) {
+  return Math.round(gain * 100);
+}
+
+/** One plain sentence for what evening out the volume did. */
+function describeLevels({ matched, short, unmeasured }) {
+  if (!matched) return 'Could not measure these songs, so nothing changed';
+  const notes = [];
+  if (short) {
+    notes.push(short === 1
+      ? 'one could not come all the way up, so it stays quieter than the rest'
+      : `${short} could not come all the way up, so they stay quieter than the rest`);
+  }
+  if (unmeasured) {
+    notes.push(unmeasured === 1
+      ? 'one could not be measured and was left as it was'
+      : `${unmeasured} could not be measured and were left as they were`);
+  }
+  const head = `Evened out ${matched} song${matched === 1 ? '' : 's'}`;
+  return notes.length ? `${head} — ${notes.join(', and ')}` : head;
 }
 
 /* --------------------------------------------------------------- library */
@@ -1523,6 +1584,7 @@ function addClip(entry) {
     fadeIn: state.clips.length === 0 ? 1.0 : 0,
     fadeOut: 0,
     crossfade: state.clips.length === 0 ? 0 : 1.5,
+    gain: 1,
   };
   state.clips.push(clip);
   state.selected = clip.id;
@@ -1781,7 +1843,7 @@ function drawClipEditor() {
   const canvas = $('clipCanvas');
   const duration = entry && entry.buffer ? entry.duration : Math.max(clip.srcEnd, 1);
 
-  drawWave(canvas, entry ? entry.peaks : null, duration, 0, duration, css('--wave'));
+  drawWave(canvas, entry ? entry.peaks : null, duration, 0, duration, css('--wave'), clipGain(clip));
 
   const { g, w, h } = fitCanvas(canvas);
   const x = (t) => (t / duration) * w;
@@ -1820,6 +1882,10 @@ function drawClipEditor() {
 
   $('lblStart').textContent = fmt(clip.srcStart);
   $('lblEnd').textContent = fmt(clip.srcEnd);
+
+  const gain = clipGain(clip);
+  $('level').value = String(clamp(gainToDb(gain), LEVEL_SLIDER.min, LEVEL_SLIDER.max));
+  $('valLevel').textContent = `${levelPercent(gain)}%`;
 
   const maxFade = Math.max(0.1, clipDuration(clip));
   for (const [key, slider, label] of [
@@ -1893,6 +1959,48 @@ function alignSelectedJoin() {
     refresh();
   }
   toast(describeJoin(result, was), 4200);
+}
+
+function updateEvenOutAvailability() {
+  const button = $('btnEvenOut');
+  const ready = state.clips.filter((c) => library.get(c.file)?.buffer).length;
+  const reason = state.clips.length < 2 ? 'Add at least two songs first'
+    : ready < 2 ? 'Some songs still need to be added'
+      : '';
+  button.disabled = Boolean(reason);
+  button.title = reason
+    || 'Sets each song so they all sound about equally loud, without letting any of them distort';
+}
+
+/**
+ * Put every clip at the same loudness.
+ *
+ * The measuring is done on what is actually kept of each song, so this has to
+ * be redone whenever anything is re-trimmed — which is why it is a button and
+ * not something that happens quietly in the background.
+ */
+function evenOutLevels() {
+  const measures = state.clips.map((clip) => {
+    const entry = library.get(clip.file);
+    return entry?.buffer
+      ? measureClip(entry.buffer, clip.srcStart, clip.srcEnd)
+      : { loudness: -Infinity, peak: 0 };
+  });
+
+  const { gains, short } = solveGains(measures);
+  const usable = measures.map((m) => isFinite(m.loudness) && m.peak > 0);
+  const matched = usable.filter(Boolean).length;
+
+  if (matched) {
+    pushUndo();
+    state.clips.forEach((clip, i) => { if (usable[i]) clip.gain = clamp(gains[i], 0, MAX_GAIN); });
+    refresh();
+  }
+  toast(describeLevels({
+    matched,
+    short: short.length,
+    unmeasured: usable.filter((u) => !u).length,
+  }), 4200);
 }
 
 function bindClipCanvas() {
@@ -2005,6 +2113,7 @@ function project() {
       fadeIn: Number((c.fadeIn || 0).toFixed(2)),
       fadeOut: Number((c.fadeOut || 0).toFixed(2)),
       crossfade: Number((c.crossfade || 0).toFixed(2)),
+      gain: Number(clipGain(c).toFixed(3)),
     })),
   };
 }
@@ -2036,6 +2145,9 @@ function loadProject(data) {
     fadeIn: c.fadeIn || 0,
     fadeOut: c.fadeOut || 0,
     crossfade: c.crossfade || 0,
+    // Older project files predate levels and have no gain at all; missing
+    // means "as recorded", not silent.
+    gain: clipGain(c),
   }));
   state.selected = state.clips.length ? state.clips[0].id : null;
   $('programName').value = state.name;
@@ -2405,6 +2517,7 @@ function updateMissingNotice() {
 function refresh() {
   updateMissingNotice();
   updateExportAvailability();
+  updateEvenOutAvailability();
   renderTimeline();
   drawScrubber();
   drawClipEditor();
@@ -2514,6 +2627,23 @@ function bind() {
   };
   $('btnRemoveClip').onclick = () => { if (state.selected) removeClip(state.selected); };
   $('btnAlignJoin').onclick = alignSelectedJoin;
+  $('btnEvenOut').onclick = evenOutLevels;
+
+  {
+    const slider = $('level');
+    let editing = false;
+    const begin = () => { if (!editing) { pushUndo(); editing = true; } };
+    slider.addEventListener('pointerdown', begin);
+    slider.addEventListener('keydown', begin);
+    slider.oninput = () => {
+      const clip = selectedClip();
+      if (!clip) return;
+      begin();
+      clip.gain = clamp(dbToGain(Number(slider.value)), 0, MAX_GAIN);
+      drawClipEditor();
+    };
+    slider.onchange = () => { editing = false; save(); };
+  }
 
   for (const key of ['fadeIn', 'fadeOut', 'crossfade']) {
     const slider = $(key);
@@ -2792,6 +2922,7 @@ if (typeof document !== 'undefined') {
     analyseBeats, suggestJoin, monoWindow, beatsAround, suggestJoinForBuffers,
     describeJoin, joinRoom,
     LOUDNESS, kWeighting, biquad, loudnessOf, peakOf, measureClip, solveGains,
+    clipGain, gainToDb, dbToGain, levelPercent, describeLevels, LEVEL_SLIDER, MAX_GAIN,
     parseClock, exportFileName, fmt, fmtShort, clamp,
     codecOf, qualityLabel, qualityDetail,
     id3Size, oggAudioStart, readMpegFrame, parseFrameHeader,
