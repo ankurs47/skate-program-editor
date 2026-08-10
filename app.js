@@ -679,6 +679,487 @@ function css(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
+/* ----------------------------------------------------------------- beats */
+
+/* A join sounds wrong for rhythmic reasons far more often than for any other:
+   the beats of the two songs don't coincide through the blend, or the cut lands
+   in the middle of a bar. Both are usually fixable by moving the cut a second
+   or two, which is what this section is for.
+
+   It is deliberately willing to give up. A lot of skating music is rubato — no
+   steady pulse to snap to — and tempo detection will happily return a confident
+   wrong answer on it. `analyseBeats` reports a confidence so the caller can
+   leave the cut alone instead of moving it somewhere arbitrary.
+
+   Everything here takes samples and returns numbers, so it is testable without
+   a browser. */
+
+const BEAT = {
+  frame: 1024,          // FFT size for the onset envelope, ~23 ms at 44100
+  hop: 512,             // ~12 ms between envelope samples
+  minBpm: 60,
+  maxBpm: 200,
+  centreBpm: 120,       // tempo prior, so 90 is preferred over 45 or 180
+  spreadOctaves: 0.9,   // width of that prior
+  compression: 100,     // γ in log(1 + γ|X|): lets quiet onsets count too
+  smoothing: 0.4,       // seconds of moving average removed from the envelope
+  window: 12,           // seconds of audio analysed around a cut
+  minConfidence: 0.3,   // below this we decline rather than guess
+  minOnsets: 0.05,      // flux, as a share of frame magnitude, for "notes start here"
+  maxDrift: 0.125,      // acceptable beat slip through a blend, in beats
+};
+
+/** In-place radix-2 FFT. `re` and `im` must be the same power-of-two length. */
+function fftInPlace(re, im) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) {
+    let bit = n >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if (i < j) {
+      let t = re[i]; re[i] = re[j]; re[j] = t;
+      t = im[i]; im[i] = im[j]; im[j] = t;
+    }
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const half = len >> 1;
+    const ang = (-2 * Math.PI) / len;
+    const wr = Math.cos(ang);
+    const wi = Math.sin(ang);
+    for (let i = 0; i < n; i += len) {
+      let cr = 1;
+      let ci = 0;
+      for (let k = 0; k < half; k++) {
+        const ar = re[i + k];
+        const ai = im[i + k];
+        const br = re[i + k + half] * cr - im[i + k + half] * ci;
+        const bi = re[i + k + half] * ci + im[i + k + half] * cr;
+        re[i + k] = ar + br;
+        im[i + k] = ai + bi;
+        re[i + k + half] = ar - br;
+        im[i + k + half] = ai - bi;
+        const nr = cr * wr - ci * wi;
+        ci = cr * wi + ci * wr;
+        cr = nr;
+      }
+    }
+  }
+}
+
+/**
+ * Spectral flux: how much energy appeared since the previous frame. Rising
+ * energy is what the ear hears as a note starting, so peaks in this signal are
+ * note onsets. Magnitudes are log-compressed first, otherwise a quiet passage
+ * contributes nothing and the grid drifts away during it.
+ *
+ * `level` is the mean magnitude of a frame. Flux measured against it says how
+ * much of what is playing is *starting* rather than continuing, which is how a
+ * held chord — where nothing ever starts — is told apart from music.
+ */
+function onsetEnvelope(samples, sampleRate) {
+  const n = BEAT.frame;
+  const hop = BEAT.hop;
+  const rate = sampleRate / hop;
+  const frames = Math.floor((samples.length - n) / hop) + 1;
+  if (frames < 2) return { env: new Float32Array(0), rate, offset: 0, level: 0 };
+
+  const shape = new Float32Array(n);
+  for (let i = 0; i < n; i++) shape[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / n);
+
+  const re = new Float32Array(n);
+  const im = new Float32Array(n);
+  const bins = n >> 1;
+  const prev = new Float32Array(bins);
+  const env = new Float32Array(frames - 1);
+  let level = 0;
+
+  for (let f = 0; f < frames; f++) {
+    const base = f * hop;
+    for (let i = 0; i < n; i++) re[i] = samples[base + i] * shape[i];
+    im.fill(0);
+    fftInPlace(re, im);
+    let flux = 0;
+    let magnitude = 0;
+    for (let k = 0; k < bins; k++) {
+      const mag = Math.log(1 + BEAT.compression * Math.sqrt(re[k] * re[k] + im[k] * im[k]));
+      magnitude += mag;
+      if (f > 0 && mag > prev[k]) flux += mag - prev[k];
+      prev[k] = mag;
+    }
+    level += magnitude;
+    if (f > 0) env[f - 1] = flux;
+  }
+
+  // env[i] compares frame i+1 against frame i, so it belongs at that frame's centre
+  return { env, rate, offset: (hop + n / 2) / sampleRate, level: level / frames };
+}
+
+/**
+ * Blur by a frame, then subtract a local mean and rectify.
+ *
+ * The local mean is so that loudness stops mattering — otherwise a loud chorus
+ * outvotes a quiet verse and the autocorrelation locks onto the wrong thing.
+ *
+ * The blur is subtler and matters more. A beat at a steady tempo lands at a
+ * different position within the analysis frame each time, because the period is
+ * never a whole number of frames, and the flux it produces is split between two
+ * frames in a proportion that changes from beat to beat. That makes alternate
+ * beats measure weaker, which is a period-two pattern the autocorrelation
+ * happily reports as half the real tempo. Spreading each frame into its
+ * neighbours restores the beats to roughly equal size.
+ */
+function flattenEnvelope(env, rate) {
+  const blurred = new Float32Array(env.length);
+  for (let i = 0; i < env.length; i++) {
+    blurred[i] = 0.25 * (i > 0 ? env[i - 1] : 0)
+      + 0.5 * env[i]
+      + 0.25 * (i + 1 < env.length ? env[i + 1] : 0);
+  }
+
+  const half = Math.max(1, Math.round((rate * BEAT.smoothing) / 2));
+  const sums = new Float64Array(blurred.length + 1);
+  for (let i = 0; i < blurred.length; i++) sums[i + 1] = sums[i] + blurred[i];
+  const out = new Float32Array(blurred.length);
+  for (let i = 0; i < blurred.length; i++) {
+    const a = Math.max(0, i - half);
+    const b = Math.min(blurred.length, i + half + 1);
+    out[i] = Math.max(0, blurred[i] - (sums[b] - sums[a]) / (b - a));
+  }
+  return out;
+}
+
+function envAt(env, x) {
+  if (x <= 0) return env[0] || 0;
+  const i = Math.floor(x);
+  if (i >= env.length - 1) return env[env.length - 1] || 0;
+  const f = x - i;
+  return env[i] * (1 - f) + env[i + 1] * f;
+}
+
+/** Mean envelope value at every pulse of a metronome with this period/phase. */
+function combScore(env, period, phase) {
+  if (period < 2) return 0;
+  let sum = 0;
+  let n = 0;
+  for (let x = phase; x < env.length - 1; x += period) {
+    sum += envAt(env, x);
+    n++;
+  }
+  return n ? sum / n : 0;
+}
+
+function bestPhaseFor(env, period) {
+  const steps = Math.max(12, Math.round(period));
+  let score = -1;
+  let phase = 0;
+  for (let s = 0; s < steps; s++) {
+    const candidate = (s / steps) * period;
+    const value = combScore(env, period, candidate);
+    if (value > score) { score = value; phase = candidate; }
+  }
+  return { phase, score };
+}
+
+/**
+ * Autocorrelation of the onset envelope, weighted by a log-normal prior around
+ * 120 BPM. The prior is what stops a 90 BPM song being reported as 45 or 180 —
+ * every multiple of the true period correlates just as well.
+ *
+ * Only whole-frame lags are tried. Fractional ones need the envelope
+ * interpolated, and interpolation flattens exactly the sharp peaks being
+ * correlated — by an amount that depends on the fractional part, so the scan
+ * quietly prefers round numbers. All this has to do is find the right
+ * neighbourhood; refinePeriod gets the actual value.
+ *
+ * Returns the best lag in envelope frames, or 0 if the range is unusable.
+ */
+function estimateTempoLag(env, rate) {
+  const minLag = Math.max(2, Math.round((rate * 60) / BEAT.maxBpm));
+  const maxLag = Math.min(env.length - 2, Math.round((rate * 60) / BEAT.minBpm));
+  if (maxLag <= minLag) return 0;
+
+  let best = -Infinity;
+  let bestLag = 0;
+  for (let lag = minLag; lag <= maxLag; lag++) {
+    let sum = 0;
+    for (let i = 0; i + lag < env.length; i++) sum += env[i] * env[i + lag];
+    const bpm = (60 * rate) / lag;
+    const octaves = Math.log2(bpm / BEAT.centreBpm) / BEAT.spreadOctaves;
+    const score = (sum / (env.length - lag)) * Math.exp(-0.5 * octaves * octaves);
+    if (score > best) { best = score; bestLag = lag; }
+  }
+  return bestLag;
+}
+
+/**
+ * Polish the autocorrelation's answer by fitting an actual metronome to it.
+ * A metronome is the accurate instrument here: a period half a frame out walks
+ * off the beat within a few bars and the score collapses, so the peak is sharp
+ * and lands where the music actually is.
+ */
+function refinePeriod(env, lag) {
+  let best = { period: lag, phase: 0, score: -1 };
+  for (let step = -150; step <= 150; step++) {
+    const period = lag + step * 0.01;
+    if (period < 2) continue;
+    const { phase, score } = bestPhaseFor(env, period);
+    if (score > best.score) best = { period, phase, score };
+  }
+  return best;
+}
+
+/**
+ * What a metronome scores here when its period means nothing.
+ *
+ * Needed because the score at the chosen period is the maximum over dozens of
+ * phases, and taking a maximum lifts the number even on formless audio — white
+ * noise looked 50% confident before this existed. Unrelated periods get the
+ * same free lift, so dividing by them cancels it out.
+ *
+ * Periods related to `period` by a simple ratio are skipped: half, double and
+ * three-halves of a real tempo all fit the music properly, and counting them as
+ * the unrelated case buries the very evidence being measured.
+ */
+function combBaseline(env, rate, period) {
+  const minLag = Math.max(2, (rate * 60) / BEAT.maxBpm);
+  const maxLag = Math.min(env.length - 2, (rate * 60) / BEAT.minBpm);
+  if (maxLag <= minLag) return 0;
+
+  const related = (lag) => [1 / 3, 0.5, 2 / 3, 1, 1.5, 2, 3]
+    .some((m) => Math.abs(lag / (period * m) - 1) < 0.08);
+
+  const probes = 24;
+  const scores = [];
+  for (let i = 0; i < probes; i++) {
+    const lag = minLag + ((maxLag - minLag) * i) / (probes - 1);
+    if (!related(lag)) scores.push(bestPhaseFor(env, lag).score);
+  }
+  if (scores.length < 4) return 0;   // nothing unrelated left to compare against
+  return scores.reduce((a, b) => a + b, 0) / scores.length;
+}
+
+/**
+ * Which beat starts the bar. Skating music is nearly always in 4, sometimes in
+ * 3, so try both and take whichever puts the strongest onsets on the downbeat —
+ * with a thumb on the scale for 4, because 3 fits any 4 by accident often
+ * enough to matter.
+ */
+function findBar(beats) {
+  let mean = 0;
+  for (const beat of beats) mean += beat.strength;
+  mean = beats.length ? mean / beats.length : 0;
+  if (mean <= 0) return { meter: 4, offset: 0 };
+
+  let best = { meter: 4, offset: 0, score: -1 };
+  for (const meter of [4, 3]) {
+    for (let offset = 0; offset < meter; offset++) {
+      let sum = 0;
+      let n = 0;
+      for (let i = offset; i < beats.length; i += meter) { sum += beats[i].strength; n++; }
+      const score = (n ? sum / n / mean : 0) * (meter === 3 ? 0.9 : 1);
+      if (score > best.score) best = { meter, offset, score };
+    }
+  }
+  return best;
+}
+
+/**
+ * Find the beat grid in a stretch of mono audio. Beat times are seconds from
+ * the start of `samples`.
+ *
+ * `confidence` combines how much better the grid fits than an unrelated one
+ * with whether there are any note onsets to fit. Near 0 means there is no
+ * steady pulse here and the grid, which will have been found regardless, should
+ * not be acted on.
+ */
+function analyseBeats(samples, sampleRate) {
+  const nothing = { bpm: 0, period: 0, confidence: 0, meter: 4, beats: [] };
+  const raw = onsetEnvelope(samples, sampleRate);
+  if (raw.env.length < 8) return nothing;
+
+  const env = flattenEnvelope(raw.env, raw.rate);
+  let mean = 0;
+  for (let i = 0; i < env.length; i++) mean += env[i];
+  mean /= env.length;
+  if (!(mean > 0)) return nothing;
+
+  const lag = estimateTempoLag(env, raw.rate);
+  if (!lag) return nothing;
+  const fit = refinePeriod(env, lag);
+  const baseline = combBaseline(env, raw.rate, fit.period);
+  if (fit.score <= 0 || baseline <= 0) return nothing;
+
+  const beats = [];
+  for (let x = fit.phase; x < env.length - 1; x += fit.period) {
+    beats.push({ t: x / raw.rate + raw.offset, strength: envAt(env, x), downbeat: false });
+  }
+  if (beats.length < 2) return nothing;
+
+  const bar = findBar(beats);
+  beats.forEach((beat, i) => { beat.downbeat = (i - bar.offset) % bar.meter === 0; });
+
+  // A grid can fit anything. Two things have to hold before we believe it: the
+  // onsets have to sit on it rather than anywhere else, and there have to be
+  // onsets at all — a sustained chord produces a faint, perfectly periodic
+  // flicker from the analysis itself, and it fits a grid beautifully.
+  let flux = 0;
+  for (let i = 0; i < raw.env.length; i++) flux += raw.env[i];
+  flux /= raw.env.length;
+  const onsets = raw.level > 0 ? flux / raw.level : 0;
+
+  const period = fit.period / raw.rate;
+  return {
+    bpm: 60 / period,
+    period,
+    confidence: clamp((fit.score / baseline - 1) / 2, 0, 1)
+      * clamp(onsets / BEAT.minOnsets, 0, 1),
+    meter: bar.meter,
+    beats,
+  };
+}
+
+/**
+ * Choose beat-aligned cut points for one join.
+ *
+ * `out` and `inc` are analyseBeats results for windows taken around the
+ * outgoing clip's end and the incoming clip's start; `cutOut` and `cutIn` say
+ * where those cuts currently sit inside those windows. `outRoom` and `incRoom`
+ * bound how far each cut may move before its clip runs out of song.
+ *
+ * Returns how far to move each cut, what to set the blend to, and how much
+ * longer or shorter the programme becomes as a result. `ok: false` means the
+ * join should be left exactly as it is.
+ */
+function suggestJoin(out, cutOut, inc, cutIn, opts = {}) {
+  const maxShift = opts.maxShift ?? 2.5;
+  const crossfade = Math.max(0, opts.crossfade || 0);
+  const maxCrossfade = opts.maxCrossfade ?? Infinity;
+  const outRoom = opts.outRoom || { min: -maxShift, max: maxShift };
+  const incRoom = opts.incRoom || { min: -maxShift, max: maxShift };
+  const minConfidence = opts.minConfidence ?? BEAT.minConfidence;
+  const confidence = Math.min(out.confidence || 0, inc.confidence || 0);
+
+  const decline = (reason) => ({
+    ok: false, reason, endShift: 0, startShift: 0, crossfade,
+    lengthDelta: 0, drift: 0, tempoMismatch: 0, confidence,
+    bpm: [out.bpm || 0, inc.bpm || 0],
+  });
+
+  if (!out.beats || !inc.beats || out.beats.length < 2 || inc.beats.length < 2) {
+    return decline('no-beat');
+  }
+  if (confidence < minConfidence) return decline('no-beat');
+
+  // Songs an octave apart in tempo still line up: every beat of the slower one
+  // lands on a beat of the faster.
+  let ratio = 1;
+  let tempoMismatch = Infinity;
+  for (const m of [1, 2, 0.5]) {
+    const err = Math.abs((inc.period * m) / out.period - 1);
+    if (err < tempoMismatch) { tempoMismatch = err; ratio = m; }
+  }
+
+  // With unequal tempos the two grids drift apart across the overlap. This is
+  // the mean slip, in beats, per second of blend — so a long blend between
+  // songs at different speeds costs more than a short one, and the search
+  // shortens the blend on its own rather than needing a special case.
+  const incPeriod = inc.period * ratio;
+  const driftPerSecond = Math.abs(out.period - incPeriod) / (2 * out.period * out.period);
+
+  const reachable = (beats, cut, room) => beats.filter((beat) => {
+    const shift = beat.t - cut;
+    return shift >= Math.max(-maxShift, room.min) && shift <= Math.min(maxShift, room.max);
+  });
+  const outs = reachable(out.beats, cutOut, outRoom);
+  const incs = reachable(inc.beats, cutIn, incRoom);
+  if (!outs.length || !incs.length) return decline('no-room');
+
+  // The blend has to be a whole number of the outgoing song's beats, otherwise
+  // the overlap starts off the grid however well the cuts themselves are
+  // placed. A hard cut stays a hard cut — that is a deliberate edit, not a
+  // mistake to fix.
+  const maxOverlap = driftPerSecond > 0
+    ? Math.min(maxCrossfade, BEAT.maxDrift / driftPerSecond)
+    : maxCrossfade;
+  let blends = [0];
+  if (crossfade > 0) {
+    blends = [...new Set([1, 2, out.meter, out.meter * 2])]
+      .map((k) => k * out.period)
+      .filter((x) => x <= maxOverlap);
+    // Even one beat may drift too far. Offer it anyway and let the cost say so:
+    // a short blend is still better advice than none.
+    if (!blends.length) blends = [Math.min(out.period, maxCrossfade)];
+  }
+
+  // Weights are judgement, not physics. Landing on a downbeat is worth roughly
+  // a second of movement; keeping the programme's length is worth slightly less
+  // than that, because the timer is visible and easy to correct elsewhere.
+  const cost = (endShift, startShift, blend, lengthDelta, a, b) =>
+    (0.8 * (Math.abs(endShift) + Math.abs(startShift))) / maxShift
+    + 0.7 * Math.abs(lengthDelta)
+    + 1.0 * ((a.downbeat ? 0 : 1) + (b.downbeat ? 0 : 1))
+    + (0.3 * Math.abs(blend - crossfade)) / Math.max(crossfade, 1)
+    + (1.5 * blend * driftPerSecond) / BEAT.maxDrift;
+
+  let best = null;
+  for (const a of outs) {
+    const endShift = a.t - cutOut;
+    for (const b of incs) {
+      const startShift = b.t - cutIn;
+      for (const blend of blends) {
+        // Moving the end out lengthens the programme, moving the start in
+        // shortens it, and a longer blend eats the difference.
+        const lengthDelta = endShift - startShift - (blend - crossfade);
+        const score = cost(endShift, startShift, blend, lengthDelta, a, b);
+        if (!best || score < best.score) best = { score, endShift, startShift, blend, lengthDelta };
+      }
+    }
+  }
+  if (!best) return decline('no-room');
+
+  return {
+    ok: true,
+    reason: tempoMismatch > 0.06 ? 'tempo-mismatch' : 'aligned',
+    endShift: best.endShift,
+    startShift: best.startShift,
+    crossfade: best.blend,
+    lengthDelta: best.lengthDelta,
+    drift: best.blend * driftPerSecond,
+    tempoMismatch,
+    confidence,
+    bpm: [out.bpm, inc.bpm],
+  };
+}
+
+/** Mono samples for a stretch of a buffer, plus where that stretch begins. */
+function monoWindow(buffer, from, to) {
+  const sr = buffer.sampleRate;
+  const a = clamp(Math.floor(from * sr), 0, buffer.length);
+  const b = clamp(Math.ceil(to * sr), a, buffer.length);
+  const samples = new Float32Array(b - a);
+  const channels = buffer.numberOfChannels;
+  for (let c = 0; c < channels; c++) {
+    const data = buffer.getChannelData(c);
+    for (let i = 0; i < samples.length; i++) samples[i] += data[a + i];
+  }
+  if (channels > 1) for (let i = 0; i < samples.length; i++) samples[i] /= channels;
+  return { samples, start: a / sr };
+}
+
+/** Beat grid around one cut, with the cut expressed in the same time base. */
+function beatsAround(buffer, at, opts = {}) {
+  const half = (opts.window ?? BEAT.window) / 2;
+  const { samples, start } = monoWindow(buffer, at - half, at + half);
+  return { beats: analyseBeats(samples, buffer.sampleRate), cut: at - start };
+}
+
+/** suggestJoin, straight from the two buffers either side of a join. */
+function suggestJoinForBuffers(outBuffer, cutOut, incBuffer, cutIn, opts = {}) {
+  const a = beatsAround(outBuffer, cutOut, opts);
+  const b = beatsAround(incBuffer, cutIn, opts);
+  return suggestJoin(a.beats, a.cut, b.beats, b.cut, opts);
+}
+
 /* --------------------------------------------------------------- library */
 
 async function addFiles(fileList) {
@@ -2004,6 +2485,8 @@ if (typeof document !== 'undefined') {
     allLevels, findLevel,
     clipDuration, crossfadeOf, layout,
     fadeEnvelope, crossfadeEnvelope, valueAt,
+    BEAT, fftInPlace, onsetEnvelope, flattenEnvelope, estimateTempoLag,
+    analyseBeats, suggestJoin, monoWindow, beatsAround, suggestJoinForBuffers,
     parseClock, exportFileName, fmt, fmtShort, clamp,
     codecOf, qualityLabel, qualityDetail,
     id3Size, oggAudioStart, readMpegFrame, parseFrameHeader,

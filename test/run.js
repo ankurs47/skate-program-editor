@@ -232,6 +232,282 @@ check('support check: passes a modern browser, blocks a hopeless one', () => {
   Object.assign(global, saved);
 });
 
+/* ----------------------------------------------------- 1b. beat detection */
+
+/* Fixtures are synthetic so the expected answer is known exactly. The random
+   number generator is seeded, because a test that fails one run in twenty is
+   worse than no test. */
+
+function rng(seed) {
+  let s = seed >>> 0;
+  return () => {
+    s ^= s << 13; s >>>= 0;
+    s ^= s >> 17;
+    s ^= s << 5; s >>>= 0;
+    return s / 4294967296;
+  };
+}
+
+/** Drum-machine audio: a short broadband burst on every beat. */
+function clickTrain(bpm, seconds, opts = {}) {
+  const sr = opts.sampleRate || 44100;
+  const random = rng(opts.seed || 12345);
+  const out = new Float32Array(Math.round(seconds * sr));
+  const period = 60 / bpm;
+  const burst = Math.round(0.03 * sr);
+  const decay = 0.006 * sr;
+  let k = 0;
+  for (let t = opts.offset || 0; t < seconds; t += period, k++) {
+    const at = Math.round(t * sr);
+    // `accent` marks every Nth click as the downbeat
+    const level = opts.accent && k % opts.accent === 0 ? 1 : 0.4;
+    for (let i = 0; i < burst && at + i < out.length; i++) {
+      out[at + i] += level * Math.exp(-i / decay) * (random() * 2 - 1);
+    }
+  }
+  return out;
+}
+
+function noise(seconds, sampleRate = 44100) {
+  const random = rng(999);
+  const out = new Float32Array(Math.round(seconds * sampleRate));
+  for (let i = 0; i < out.length; i++) out[i] = (random() * 2 - 1) * 0.3;
+  return out;
+}
+
+function tone(seconds, hz = 220, sampleRate = 44100) {
+  const out = new Float32Array(Math.round(seconds * sampleRate));
+  for (let i = 0; i < out.length; i++) out[i] = 0.5 * Math.sin((2 * Math.PI * hz * i) / sampleRate);
+  return out;
+}
+
+function fakeBuffer(samples, sampleRate = 44100) {
+  return {
+    sampleRate,
+    length: samples.length,
+    numberOfChannels: 1,
+    getChannelData: () => samples,
+  };
+}
+
+/** How far `t` sits from the nearest multiple of `period`, in seconds. */
+function offGrid(t, period, phase = 0) {
+  const x = (t - phase) / period;
+  return Math.abs(x - Math.round(x)) * period;
+}
+
+check('FFT: round trips a known signal', () => {
+  const n = 16;
+  const re = new Float32Array(n);
+  const im = new Float32Array(n);
+  for (let i = 0; i < n; i++) re[i] = Math.cos((2 * Math.PI * 3 * i) / n);
+  app.fftInPlace(re, im);
+  // a pure cosine at bin 3 puts all its energy in bins 3 and n−3, nowhere else
+  for (let k = 0; k < n; k++) {
+    const mag = Math.hypot(re[k], im[k]);
+    if (k === 3 || k === n - 3) near(mag, n / 2, 1e-3, `bin ${k}: `);
+    else near(mag, 0, 1e-3, `bin ${k} should be empty: `);
+  }
+});
+
+check('tempo: found within 1% for a range of speeds', () => {
+  for (const bpm of [90, 120, 150]) {
+    const found = app.analyseBeats(clickTrain(bpm, 12), 44100);
+    near(found.bpm, bpm, bpm * 0.01, `${bpm} BPM: `);
+    ok(found.confidence > 0.5, `${bpm} BPM: confidence only ${found.confidence.toFixed(2)}`);
+  }
+});
+
+check('tempo: the prior resolves the half-or-double ambiguity', () => {
+  // 76 BPM correlates just as well at 38 and 152; the prior should pick 76.
+  const found = app.analyseBeats(clickTrain(76, 14), 44100);
+  near(found.bpm, 76, 1.5);
+});
+
+check('beats: land on the clicks, whatever the phase', () => {
+  const offset = 0.23;
+  const found = app.analyseBeats(clickTrain(120, 12, { offset }), 44100);
+  ok(found.beats.length > 15, `only ${found.beats.length} beats found`);
+  for (const beat of found.beats) {
+    ok(offGrid(beat.t, 0.5, offset) < 0.02,
+      `beat at ${beat.t.toFixed(3)}s is ${(offGrid(beat.t, 0.5, offset) * 1000).toFixed(0)}ms off`);
+  }
+});
+
+check('beats: an accent every four bars gives a downbeat in 4', () => {
+  const found = app.analyseBeats(clickTrain(120, 14, { accent: 4 }), 44100);
+  eq(found.meter, 4);
+  const downbeats = found.beats.filter((b) => b.downbeat);
+  ok(downbeats.length > 3, 'no downbeats marked');
+  for (const beat of downbeats) {
+    ok(offGrid(beat.t, 2.0) < 0.03, `downbeat at ${beat.t.toFixed(3)}s is not on an accent`);
+  }
+});
+
+check('beats: material with no pulse reports no confidence', () => {
+  // The detector always returns *something*; the point is that it says so.
+  for (const [what, samples] of [['noise', noise(12)], ['a held tone', tone(12)]]) {
+    const found = app.analyseBeats(samples, 44100);
+    ok(found.confidence < app.BEAT.minConfidence,
+      `${what} scored ${found.confidence.toFixed(2)}, above the ${app.BEAT.minConfidence} threshold`);
+  }
+});
+
+check('beats: silence and near-empty input return nothing, not NaN', () => {
+  for (const samples of [new Float32Array(0), new Float32Array(100), new Float32Array(44100)]) {
+    const found = app.analyseBeats(samples, 44100);
+    eq(found.beats, []);
+    eq(found.confidence, 0);
+    ok(!Number.isNaN(found.bpm), 'bpm went NaN');
+  }
+});
+
+/* suggestJoin is fed grids directly here: the alignment maths is what is being
+   checked, and a hand-built grid makes the right answer unambiguous. */
+
+function grid(bpm, opts = {}) {
+  const period = 60 / bpm;
+  const meter = opts.meter || 4;
+  const beats = [];
+  for (let i = 0; i * period < (opts.seconds || 12); i++) {
+    beats.push({
+      t: (opts.phase || 0) + i * period,
+      strength: 1,
+      downbeat: (i - (opts.downbeat || 0)) % meter === 0,
+    });
+  }
+  return { bpm, period, confidence: opts.confidence ?? 0.8, meter, beats };
+}
+
+check('join: both cuts move onto the beat', () => {
+  const a = grid(120);                       // beats every 0.5s from 0
+  const b = grid(120, { phase: 0.23 });
+  const result = app.suggestJoin(a, 6.31, b, 4.12, { crossfade: 1.5 });
+  ok(result.ok, `declined: ${result.reason}`);
+  near(offGrid(6.31 + result.endShift, 0.5, 0), 0, 1e-6, 'outgoing cut off the grid: ');
+  near(offGrid(4.12 + result.startShift, 0.5, 0.23), 0, 1e-6, 'incoming cut off the grid: ');
+  ok(Math.abs(result.endShift) <= 2.5 && Math.abs(result.startShift) <= 2.5, 'moved too far');
+});
+
+check('join: the blend is a whole number of beats', () => {
+  const a = grid(100);
+  const result = app.suggestJoin(a, 6.0, grid(100), 4.0, { crossfade: 1.5 });
+  ok(result.ok, `declined: ${result.reason}`);
+  const beats = result.crossfade / a.period;
+  near(beats, Math.round(beats), 1e-6, 'blend is not a whole number of beats: ');
+  ok(beats >= 1, 'blend collapsed to nothing');
+});
+
+check('join: a hard cut stays a hard cut', () => {
+  const result = app.suggestJoin(grid(120), 6.3, grid(120, { phase: 0.1 }), 4.1,
+    { crossfade: 0 });
+  ok(result.ok, `declined: ${result.reason}`);
+  eq(result.crossfade, 0, 'a deliberate hard cut was turned into a blend: ');
+});
+
+check('join: reported length change matches what the shifts actually do', () => {
+  const before = 1.5;
+  const result = app.suggestJoin(grid(120), 6.31, grid(132, { phase: 0.4 }), 4.12,
+    { crossfade: before });
+  ok(result.ok, `declined: ${result.reason}`);
+  // outgoing clip grows by endShift, incoming shrinks by startShift, and the
+  // extra overlap comes off the total
+  const expected = result.endShift - result.startShift - (result.crossfade - before);
+  near(result.lengthDelta, expected, 1e-9);
+});
+
+check('join: a join that is already right is left alone', () => {
+  // Both cuts sit on a downbeat and the blend is already four beats. Every
+  // other candidate costs movement or length, so the answer must be to do
+  // nothing — a tidy-up that fidgets with correct edits is worse than useless.
+  const result = app.suggestJoin(grid(120), 6.0, grid(120), 4.0, { crossfade: 2.0 });
+  ok(result.ok, `declined: ${result.reason}`);
+  near(result.endShift, 0, 1e-9, 'moved the outgoing cut for no reason: ');
+  near(result.startShift, 0, 1e-9, 'moved the incoming cut for no reason: ');
+  near(result.crossfade, 2.0, 1e-9, 'changed a blend that was already on the beat: ');
+  near(result.lengthDelta, 0, 1e-9);
+});
+
+check('join: never moves a cut further than the clip allows', () => {
+  const result = app.suggestJoin(grid(120), 6.31, grid(120, { phase: 0.23 }), 4.12, {
+    crossfade: 1.5,
+    outRoom: { min: -0.1, max: 0.6 },
+    incRoom: { min: -0.8, max: 0 },
+  });
+  ok(result.ok, `declined: ${result.reason}`);
+  ok(result.endShift >= -0.1 && result.endShift <= 0.6, `endShift ${result.endShift} out of room`);
+  ok(result.startShift >= -0.8 && result.startShift <= 0, `startShift ${result.startShift} out of room`);
+});
+
+check('join: declines when there is no beat to snap to', () => {
+  const vague = grid(120, { confidence: 0.05 });
+  const result = app.suggestJoin(vague, 6.0, grid(120), 4.0, { crossfade: 1.5 });
+  eq(result.ok, false);
+  eq(result.reason, 'no-beat');
+  eq(result.endShift, 0, 'a declined join must not move anything: ');
+  eq(result.startShift, 0);
+  eq(result.crossfade, 1.5, 'a declined join must leave the blend alone: ');
+});
+
+check('join: declines when no beat is within reach', () => {
+  const result = app.suggestJoin(grid(120), 6.0, grid(120), 4.0, {
+    crossfade: 1.5,
+    outRoom: { min: 0.05, max: 0.09 },     // narrower than the gap between beats
+  });
+  eq(result.ok, false);
+  eq(result.reason, 'no-room');
+});
+
+check('join: mismatched tempos get a short blend, not a long one', () => {
+  const wide = app.suggestJoin(grid(120), 6.0, grid(120), 4.0, { crossfade: 4 });
+  const clash = app.suggestJoin(grid(120), 6.0, grid(97), 4.0, { crossfade: 4 });
+  ok(wide.ok && clash.ok, 'both should still return an answer');
+  ok(clash.crossfade < wide.crossfade,
+    `${clash.crossfade.toFixed(2)}s blend between clashing tempos is no shorter than ${wide.crossfade.toFixed(2)}s`);
+  eq(clash.reason, 'tempo-mismatch', 'the caller has to be able to say why: ');
+  ok(clash.drift <= app.BEAT.maxDrift + 1e-9, `slips ${clash.drift.toFixed(3)} beats through the blend`);
+});
+
+check('join: half-speed against double-speed still counts as matched', () => {
+  const result = app.suggestJoin(grid(80), 6.0, grid(160), 4.0, { crossfade: 2 });
+  ok(result.ok, `declined: ${result.reason}`);
+  eq(result.reason, 'aligned', 'an octave apart is not a mismatch: ');
+  near(result.drift, 0, 1e-9);
+});
+
+check('join: end to end from audio, the two grids agree through the blend', () => {
+  const a = fakeBuffer(clickTrain(120, 30, { seed: 1 }));               // beats from 0
+  const b = fakeBuffer(clickTrain(120, 30, { offset: 0.23, seed: 2 })); // beats from 0.23
+  const cutOut = 20.17;
+  const cutIn = 5.0;
+  const result = app.suggestJoinForBuffers(a, cutOut, b, cutIn, { crossfade: 1.5 });
+  ok(result.ok, `declined: ${result.reason}`);
+
+  const endAt = cutOut + result.endShift;
+  const startAt = cutIn + result.startShift;
+  ok(offGrid(endAt, 0.5, 0) < 0.03, `outgoing cut ${endAt.toFixed(3)}s is not on a click`);
+  ok(offGrid(startAt, 0.5, 0.23) < 0.03, `incoming cut ${startAt.toFixed(3)}s is not on a click`);
+
+  // The overlap begins `crossfade` before the outgoing cut. Both songs must be
+  // on their own beat there, which is the whole point of the exercise.
+  ok(offGrid(endAt - result.crossfade, 0.5, 0) < 0.03, 'the blend starts off the beat');
+});
+
+check('monoWindow: averages channels and clamps to the buffer', () => {
+  const left = new Float32Array([1, 1, 1, 1]);
+  const right = new Float32Array([0, 0, 0, 0]);
+  const stereo = {
+    sampleRate: 2, length: 4, numberOfChannels: 2,
+    getChannelData: (c) => (c === 0 ? left : right),
+  };
+  const mid = app.monoWindow(stereo, 0.5, 1.5);
+  eq(Array.from(mid.samples), [0.5, 0.5], 'channels should be averaged: ');
+  eq(mid.start, 0.5);
+  const clipped = app.monoWindow(stereo, -10, 99);
+  eq(clipped.samples.length, 4, 'a window past the ends should be trimmed: ');
+  eq(clipped.start, 0);
+});
+
 /* --------------------------------------------------------------- 2. wiring */
 
 check('every element the code reaches for exists in the HTML', () => {

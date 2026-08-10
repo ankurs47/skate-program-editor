@@ -111,7 +111,7 @@ is only for checking changes.
 
 ```bash
 npm install          # installs eslint, and enables the pre-commit hook
-npm test             # 27 checks: maths, wiring, and asset integrity
+npm test             # 46 checks: maths, wiring, and asset integrity
 npm run lint
 npm run check        # lint + test, what CI runs
 npm run test:net     # also re-verifies the pinned CDN hash
@@ -125,10 +125,12 @@ before it can merge.
 
 The test suite covers the parts that are easy to get quietly wrong — timeline
 maths with overlapping blends, fade and crossfade envelopes summing correctly,
-filename sanitising across platforms, per-codec quality thresholds, and the MPEG
-frame parser refusing to match non-MPEG data. It also checks that every element
-id the code reaches for exists in the HTML, that every help button has content,
-and that no personal information or local path ever ships.
+filename sanitising across platforms, per-codec quality thresholds, the MPEG
+frame parser refusing to match non-MPEG data, and beat detection reading the
+right tempo off a known one while declining to claim a beat in material that
+has none. It also checks that every element id the code reaches for exists in
+the HTML, that every help button has content, and that no personal information
+or local path ever ships.
 
 ## Licence
 

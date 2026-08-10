@@ -15,7 +15,7 @@ plain, and jargon is treated as a bug.
 index.html   structure, help topic content, dialogs
 app.js       everything: decode, waveforms, editing, playback, render, export
 style.css    theming via CSS custom properties, light and dark
-test/run.js  27 checks, no dependencies
+test/run.js  46 checks, no dependencies
 ```
 
 ## Commands
@@ -71,6 +71,15 @@ programme time, where overlapping blocks are blends. Seeking uses the scrubber.
 functions under Node. Keep new pure logic out of DOM handlers so it stays
 testable, and add it to the export list at the bottom.
 
+**Beat detection answers with a confidence, and callers must honour it.**
+`analyseBeats()` finds a tempo and a beat grid in a window of samples;
+`suggestJoin()` uses two of those to nudge a pair of cut points onto the beat.
+Both are pure, and beat times are relative to the window they were measured in,
+never to the song. The grid is *always* found — on applause, on a held chord, on
+silence — so `confidence` below `BEAT.minConfidence` means leave the edit alone.
+Snapping a rubato piece to an invented grid is the worst outcome available here,
+worse than doing nothing.
+
 ## Traps
 
 - **A single MPEG sync word means nothing.** Compressed audio is full of `0xFF`
@@ -92,6 +101,25 @@ testable, and add it to the export list at the bottom.
   `tri`, which matches Web Audio's `linearRampToValueAtTime`. The two sides of a
   crossfade sum to 1 through the overlap; a test asserts this. Switching to an
   equal-power curve would need both sides changed together.
+- **Whole-frame autocorrelation lags report half the tempo.** Two separate
+  causes, and both bit. A beat period is never a whole number of analysis
+  frames, so each beat straddles the frame boundary differently and alternate
+  beats measure weaker — a period-two pattern the autocorrelation reports as
+  half speed. The fix is the one-frame blur at the top of `flattenEnvelope()`.
+  Searching fractional lags instead is *not* a fix: interpolating the envelope
+  flattens the very peaks being correlated, by an amount that depends on the
+  fractional part, so the scan then prefers round lags for a different reason.
+  Integer lags find the neighbourhood; `refinePeriod()` finds the value.
+- **A confidence that is a maximum needs a baseline that is also a maximum.**
+  The grid score is the best over dozens of phases, and taking a best lifts the
+  number on anything, structure or not — white noise scored 0.5 before
+  `combBaseline()` existed. It scores unrelated periods the same way so the free
+  lift cancels. Periods related to the answer by a simple ratio are excluded
+  from it, or the evidence ends up in the denominator.
+- **A sustained chord fits a beat grid beautifully.** Nothing starts, so the
+  only flux is analysis leakage, which is faint and perfectly periodic. Contrast
+  alone rates it highly; the `BEAT.minOnsets` term is what rejects it, by asking
+  whether any notes start at all before believing the tempo.
 - **Grid and flex items need `min-width: 0`.** A long clip name once widened the
   whole column and pushed the buttons off-screen. Relatedly, the timeline sizes
   clips with `flex-grow`, not computed pixels — computing widths from the
