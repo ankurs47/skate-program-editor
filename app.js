@@ -12,6 +12,7 @@
 
 const SR = 44100;
 const MIN_CROSSFADE = 0.01;
+const MAX_GAIN = 16;             // a shade over the +24 dB the level slider reaches
 const STORE_KEY = 'skate.program.v1';
 
 /* ---------------------------------------------------------------------------
@@ -152,6 +153,20 @@ function clipDuration(clip) {
   return Math.max(0, clip.srcEnd - clip.srcStart);
 }
 
+/**
+ * A clip's level as a plain multiplier. Anything missing, negative or absurd
+ * becomes 1 — a hand-edited project file must not be able to silence the
+ * programme or blow the speakers.
+ */
+function clipGain(clip) {
+  const gain = clip ? clip.gain : undefined;
+  // Checked as a number before anything else: `Number(null)` is 0, so coercing
+  // first would read a null in a project file as "silent" rather than "absent".
+  return typeof gain === 'number' && isFinite(gain) && gain >= 0
+    ? clamp(gain, 0, MAX_GAIN)
+    : 1;
+}
+
 /** Overlap between clip i and the one before it, clamped to fit both. */
 function crossfadeOf(clips, i) {
   if (i === 0) return 0;
@@ -256,9 +271,14 @@ function scheduleProgram(context, destination, when, fromTime) {
 
     const src = context.createBufferSource();
     src.buffer = entry.buffer;
+    const level = context.createGain();
     const fade = context.createGain();
     const blend = context.createGain();
-    src.connect(fade).connect(blend).connect(destination);
+    // Level is a constant, so it sits before the two envelopes rather than
+    // being folded into either — the fade still runs 0 to 1, and the two sides
+    // of a crossfade still sum to 1, whatever the clips are set to.
+    level.gain.value = clipGain(clip);
+    src.connect(level).connect(fade).connect(blend).connect(destination);
 
     const now = context.currentTime;
     applyEnvelope(fade.gain, fadeEnvelope(clip), clipT0, skip, now);
@@ -648,7 +668,7 @@ function fitCanvas(canvas) {
   return { g, w, h };
 }
 
-function drawWave(canvas, peaks, duration, t0, t1, color) {
+function drawWave(canvas, peaks, duration, t0, t1, color, gain = 1) {
   const { g, w, h } = fitCanvas(canvas);
   g.clearRect(0, 0, w, h);
   if (!peaks || duration <= 0) return;
@@ -669,14 +689,778 @@ function drawWave(canvas, peaks, duration, t0, t1, color) {
       if (peaks[i * 2 + 1] > mx) mx = peaks[i * 2 + 1];
     }
     if (mx < mn) { mn = 0; mx = 0; }
-    const y0 = mid - mx * mid * 0.94;
-    const y1 = mid - mn * mid * 0.94;
+    const y0 = mid - clamp(mx * gain, -1, 1) * mid * 0.94;
+    const y1 = mid - clamp(mn * gain, -1, 1) * mid * 0.94;
     g.fillRect(x, y0, 1, Math.max(1, y1 - y0));
   }
 }
 
 function css(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+/* ----------------------------------------------------------------- beats */
+
+/* A join sounds wrong for rhythmic reasons far more often than for any other:
+   the beats of the two songs don't coincide through the blend, or the cut lands
+   in the middle of a bar. Both are usually fixable by moving the cut a second
+   or two, which is what this section is for.
+
+   It is deliberately willing to give up. A lot of skating music is rubato — no
+   steady pulse to snap to — and tempo detection will happily return a confident
+   wrong answer on it. `analyseBeats` reports a confidence so the caller can
+   leave the cut alone instead of moving it somewhere arbitrary.
+
+   Everything here takes samples and returns numbers, so it is testable without
+   a browser. */
+
+const BEAT = {
+  frame: 1024,          // FFT size for the onset envelope, ~23 ms at 44100
+  hop: 512,             // ~12 ms between envelope samples
+  minBpm: 60,
+  maxBpm: 200,
+  centreBpm: 120,       // tempo prior, so 90 is preferred over 45 or 180
+  spreadOctaves: 0.9,   // width of that prior
+  compression: 100,     // γ in log(1 + γ|X|): lets quiet onsets count too
+  smoothing: 0.4,       // seconds of moving average removed from the envelope
+  window: 12,           // seconds of audio analysed around a cut
+  minConfidence: 0.3,   // below this we decline rather than guess
+  minOnsets: 0.05,      // flux, as a share of frame magnitude, for "notes start here"
+  maxDrift: 0.125,      // acceptable beat slip through a blend, in beats
+};
+
+/** In-place radix-2 FFT. `re` and `im` must be the same power-of-two length. */
+function fftInPlace(re, im) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) {
+    let bit = n >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if (i < j) {
+      let t = re[i]; re[i] = re[j]; re[j] = t;
+      t = im[i]; im[i] = im[j]; im[j] = t;
+    }
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const half = len >> 1;
+    const ang = (-2 * Math.PI) / len;
+    const wr = Math.cos(ang);
+    const wi = Math.sin(ang);
+    for (let i = 0; i < n; i += len) {
+      let cr = 1;
+      let ci = 0;
+      for (let k = 0; k < half; k++) {
+        const ar = re[i + k];
+        const ai = im[i + k];
+        const br = re[i + k + half] * cr - im[i + k + half] * ci;
+        const bi = re[i + k + half] * ci + im[i + k + half] * cr;
+        re[i + k] = ar + br;
+        im[i + k] = ai + bi;
+        re[i + k + half] = ar - br;
+        im[i + k + half] = ai - bi;
+        const nr = cr * wr - ci * wi;
+        ci = cr * wi + ci * wr;
+        cr = nr;
+      }
+    }
+  }
+}
+
+/**
+ * Spectral flux: how much energy appeared since the previous frame. Rising
+ * energy is what the ear hears as a note starting, so peaks in this signal are
+ * note onsets. Magnitudes are log-compressed first, otherwise a quiet passage
+ * contributes nothing and the grid drifts away during it.
+ *
+ * `level` is the mean magnitude of a frame. Flux measured against it says how
+ * much of what is playing is *starting* rather than continuing, which is how a
+ * held chord — where nothing ever starts — is told apart from music.
+ */
+function onsetEnvelope(samples, sampleRate) {
+  const n = BEAT.frame;
+  const hop = BEAT.hop;
+  const rate = sampleRate / hop;
+  const frames = Math.floor((samples.length - n) / hop) + 1;
+  if (frames < 2) return { env: new Float32Array(0), rate, offset: 0, level: 0 };
+
+  const shape = new Float32Array(n);
+  for (let i = 0; i < n; i++) shape[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / n);
+
+  const re = new Float32Array(n);
+  const im = new Float32Array(n);
+  const bins = n >> 1;
+  const prev = new Float32Array(bins);
+  const env = new Float32Array(frames - 1);
+  let level = 0;
+
+  for (let f = 0; f < frames; f++) {
+    const base = f * hop;
+    for (let i = 0; i < n; i++) re[i] = samples[base + i] * shape[i];
+    im.fill(0);
+    fftInPlace(re, im);
+    let flux = 0;
+    let magnitude = 0;
+    for (let k = 0; k < bins; k++) {
+      const mag = Math.log(1 + BEAT.compression * Math.sqrt(re[k] * re[k] + im[k] * im[k]));
+      magnitude += mag;
+      if (f > 0 && mag > prev[k]) flux += mag - prev[k];
+      prev[k] = mag;
+    }
+    level += magnitude;
+    if (f > 0) env[f - 1] = flux;
+  }
+
+  // env[i] compares frame i+1 against frame i, so it belongs at that frame's centre
+  return { env, rate, offset: (hop + n / 2) / sampleRate, level: level / frames };
+}
+
+/**
+ * Blur by a frame, then subtract a local mean and rectify.
+ *
+ * The local mean is so that loudness stops mattering — otherwise a loud chorus
+ * outvotes a quiet verse and the autocorrelation locks onto the wrong thing.
+ *
+ * The blur is subtler and matters more. A beat at a steady tempo lands at a
+ * different position within the analysis frame each time, because the period is
+ * never a whole number of frames, and the flux it produces is split between two
+ * frames in a proportion that changes from beat to beat. That makes alternate
+ * beats measure weaker, which is a period-two pattern the autocorrelation
+ * happily reports as half the real tempo. Spreading each frame into its
+ * neighbours restores the beats to roughly equal size.
+ */
+function flattenEnvelope(env, rate) {
+  const blurred = new Float32Array(env.length);
+  for (let i = 0; i < env.length; i++) {
+    blurred[i] = 0.25 * (i > 0 ? env[i - 1] : 0)
+      + 0.5 * env[i]
+      + 0.25 * (i + 1 < env.length ? env[i + 1] : 0);
+  }
+
+  const half = Math.max(1, Math.round((rate * BEAT.smoothing) / 2));
+  const sums = new Float64Array(blurred.length + 1);
+  for (let i = 0; i < blurred.length; i++) sums[i + 1] = sums[i] + blurred[i];
+  const out = new Float32Array(blurred.length);
+  for (let i = 0; i < blurred.length; i++) {
+    const a = Math.max(0, i - half);
+    const b = Math.min(blurred.length, i + half + 1);
+    out[i] = Math.max(0, blurred[i] - (sums[b] - sums[a]) / (b - a));
+  }
+  return out;
+}
+
+function envAt(env, x) {
+  if (x <= 0) return env[0] || 0;
+  const i = Math.floor(x);
+  if (i >= env.length - 1) return env[env.length - 1] || 0;
+  const f = x - i;
+  return env[i] * (1 - f) + env[i + 1] * f;
+}
+
+/** Mean envelope value at every pulse of a metronome with this period/phase. */
+function combScore(env, period, phase) {
+  if (period < 2) return 0;
+  let sum = 0;
+  let n = 0;
+  for (let x = phase; x < env.length - 1; x += period) {
+    sum += envAt(env, x);
+    n++;
+  }
+  return n ? sum / n : 0;
+}
+
+function bestPhaseFor(env, period) {
+  const steps = Math.max(12, Math.round(period));
+  let score = -1;
+  let phase = 0;
+  for (let s = 0; s < steps; s++) {
+    const candidate = (s / steps) * period;
+    const value = combScore(env, period, candidate);
+    if (value > score) { score = value; phase = candidate; }
+  }
+  return { phase, score };
+}
+
+/**
+ * Autocorrelation of the onset envelope, weighted by a log-normal prior around
+ * 120 BPM. The prior is what stops a 90 BPM song being reported as 45 or 180 —
+ * every multiple of the true period correlates just as well.
+ *
+ * Only whole-frame lags are tried. Fractional ones need the envelope
+ * interpolated, and interpolation flattens exactly the sharp peaks being
+ * correlated — by an amount that depends on the fractional part, so the scan
+ * quietly prefers round numbers. All this has to do is find the right
+ * neighbourhood; refinePeriod gets the actual value.
+ *
+ * Returns the best lag in envelope frames, or 0 if the range is unusable.
+ */
+function estimateTempoLag(env, rate) {
+  const minLag = Math.max(2, Math.round((rate * 60) / BEAT.maxBpm));
+  const maxLag = Math.min(env.length - 2, Math.round((rate * 60) / BEAT.minBpm));
+  if (maxLag <= minLag) return 0;
+
+  let best = -Infinity;
+  let bestLag = 0;
+  for (let lag = minLag; lag <= maxLag; lag++) {
+    let sum = 0;
+    for (let i = 0; i + lag < env.length; i++) sum += env[i] * env[i + lag];
+    const bpm = (60 * rate) / lag;
+    const octaves = Math.log2(bpm / BEAT.centreBpm) / BEAT.spreadOctaves;
+    const score = (sum / (env.length - lag)) * Math.exp(-0.5 * octaves * octaves);
+    if (score > best) { best = score; bestLag = lag; }
+  }
+  return bestLag;
+}
+
+/**
+ * Polish the autocorrelation's answer by fitting an actual metronome to it.
+ * A metronome is the accurate instrument here: a period half a frame out walks
+ * off the beat within a few bars and the score collapses, so the peak is sharp
+ * and lands where the music actually is.
+ */
+function refinePeriod(env, lag) {
+  let best = { period: lag, phase: 0, score: -1 };
+  for (let step = -150; step <= 150; step++) {
+    const period = lag + step * 0.01;
+    if (period < 2) continue;
+    const { phase, score } = bestPhaseFor(env, period);
+    if (score > best.score) best = { period, phase, score };
+  }
+  return best;
+}
+
+/**
+ * What a metronome scores here when its period means nothing.
+ *
+ * Needed because the score at the chosen period is the maximum over dozens of
+ * phases, and taking a maximum lifts the number even on formless audio — white
+ * noise looked 50% confident before this existed. Unrelated periods get the
+ * same free lift, so dividing by them cancels it out.
+ *
+ * Periods related to `period` by a simple ratio are skipped: half, double and
+ * three-halves of a real tempo all fit the music properly, and counting them as
+ * the unrelated case buries the very evidence being measured.
+ */
+function combBaseline(env, rate, period) {
+  const minLag = Math.max(2, (rate * 60) / BEAT.maxBpm);
+  const maxLag = Math.min(env.length - 2, (rate * 60) / BEAT.minBpm);
+  if (maxLag <= minLag) return 0;
+
+  const related = (lag) => [1 / 3, 0.5, 2 / 3, 1, 1.5, 2, 3]
+    .some((m) => Math.abs(lag / (period * m) - 1) < 0.08);
+
+  const probes = 24;
+  const scores = [];
+  for (let i = 0; i < probes; i++) {
+    const lag = minLag + ((maxLag - minLag) * i) / (probes - 1);
+    if (!related(lag)) scores.push(bestPhaseFor(env, lag).score);
+  }
+  if (scores.length < 4) return 0;   // nothing unrelated left to compare against
+  return scores.reduce((a, b) => a + b, 0) / scores.length;
+}
+
+/**
+ * Which beat starts the bar. Skating music is nearly always in 4, sometimes in
+ * 3, so try both and take whichever puts the strongest onsets on the downbeat —
+ * with a thumb on the scale for 4, because 3 fits any 4 by accident often
+ * enough to matter.
+ */
+function findBar(beats) {
+  let mean = 0;
+  for (const beat of beats) mean += beat.strength;
+  mean = beats.length ? mean / beats.length : 0;
+  if (mean <= 0) return { meter: 4, offset: 0 };
+
+  let best = { meter: 4, offset: 0, score: -1 };
+  for (const meter of [4, 3]) {
+    for (let offset = 0; offset < meter; offset++) {
+      let sum = 0;
+      let n = 0;
+      for (let i = offset; i < beats.length; i += meter) { sum += beats[i].strength; n++; }
+      const score = (n ? sum / n / mean : 0) * (meter === 3 ? 0.9 : 1);
+      if (score > best.score) best = { meter, offset, score };
+    }
+  }
+  return best;
+}
+
+/**
+ * Find the beat grid in a stretch of mono audio. Beat times are seconds from
+ * the start of `samples`.
+ *
+ * `confidence` combines how much better the grid fits than an unrelated one
+ * with whether there are any note onsets to fit. Near 0 means there is no
+ * steady pulse here and the grid, which will have been found regardless, should
+ * not be acted on.
+ */
+function analyseBeats(samples, sampleRate) {
+  const nothing = { bpm: 0, period: 0, confidence: 0, meter: 4, beats: [] };
+  const raw = onsetEnvelope(samples, sampleRate);
+  if (raw.env.length < 8) return nothing;
+
+  const env = flattenEnvelope(raw.env, raw.rate);
+  let mean = 0;
+  for (let i = 0; i < env.length; i++) mean += env[i];
+  mean /= env.length;
+  if (!(mean > 0)) return nothing;
+
+  const lag = estimateTempoLag(env, raw.rate);
+  if (!lag) return nothing;
+  const fit = refinePeriod(env, lag);
+  const baseline = combBaseline(env, raw.rate, fit.period);
+  if (fit.score <= 0 || baseline <= 0) return nothing;
+
+  const beats = [];
+  for (let x = fit.phase; x < env.length - 1; x += fit.period) {
+    beats.push({ t: x / raw.rate + raw.offset, strength: envAt(env, x), downbeat: false });
+  }
+  if (beats.length < 2) return nothing;
+
+  const bar = findBar(beats);
+  beats.forEach((beat, i) => { beat.downbeat = (i - bar.offset) % bar.meter === 0; });
+
+  // A grid can fit anything. Two things have to hold before we believe it: the
+  // onsets have to sit on it rather than anywhere else, and there have to be
+  // onsets at all — a sustained chord produces a faint, perfectly periodic
+  // flicker from the analysis itself, and it fits a grid beautifully.
+  let flux = 0;
+  for (let i = 0; i < raw.env.length; i++) flux += raw.env[i];
+  flux /= raw.env.length;
+  const onsets = raw.level > 0 ? flux / raw.level : 0;
+
+  const period = fit.period / raw.rate;
+  return {
+    bpm: 60 / period,
+    period,
+    confidence: clamp((fit.score / baseline - 1) / 2, 0, 1)
+      * clamp(onsets / BEAT.minOnsets, 0, 1),
+    meter: bar.meter,
+    beats,
+  };
+}
+
+/**
+ * Choose beat-aligned cut points for one join.
+ *
+ * `out` and `inc` are analyseBeats results for windows taken around the
+ * outgoing clip's end and the incoming clip's start; `cutOut` and `cutIn` say
+ * where those cuts currently sit inside those windows. `outRoom` and `incRoom`
+ * bound how far each cut may move before its clip runs out of song.
+ *
+ * Returns how far to move each cut, what to set the blend to, and how much
+ * longer or shorter the programme becomes as a result. `ok: false` means the
+ * join should be left exactly as it is.
+ */
+function suggestJoin(out, cutOut, inc, cutIn, opts = {}) {
+  const maxShift = opts.maxShift ?? 2.5;
+  const crossfade = Math.max(0, opts.crossfade || 0);
+  const maxCrossfade = opts.maxCrossfade ?? Infinity;
+  const outRoom = opts.outRoom || { min: -maxShift, max: maxShift };
+  const incRoom = opts.incRoom || { min: -maxShift, max: maxShift };
+  const minConfidence = opts.minConfidence ?? BEAT.minConfidence;
+  const confidence = Math.min(out.confidence || 0, inc.confidence || 0);
+
+  const decline = (reason) => ({
+    ok: false, reason, endShift: 0, startShift: 0, crossfade,
+    lengthDelta: 0, drift: 0, tempoMismatch: 0, confidence,
+    bpm: [out.bpm || 0, inc.bpm || 0],
+  });
+
+  if (!out.beats || !inc.beats || out.beats.length < 2 || inc.beats.length < 2) {
+    return decline('no-beat');
+  }
+  if (confidence < minConfidence) return decline('no-beat');
+
+  // Songs an octave apart in tempo still line up: every beat of the slower one
+  // lands on a beat of the faster.
+  let ratio = 1;
+  let tempoMismatch = Infinity;
+  for (const m of [1, 2, 0.5]) {
+    const err = Math.abs((inc.period * m) / out.period - 1);
+    if (err < tempoMismatch) { tempoMismatch = err; ratio = m; }
+  }
+
+  // With unequal tempos the two grids drift apart across the overlap. This is
+  // the mean slip, in beats, per second of blend — so a long blend between
+  // songs at different speeds costs more than a short one, and the search
+  // shortens the blend on its own rather than needing a special case.
+  const incPeriod = inc.period * ratio;
+  const driftPerSecond = Math.abs(out.period - incPeriod) / (2 * out.period * out.period);
+
+  const reachable = (beats, cut, room) => beats.filter((beat) => {
+    const shift = beat.t - cut;
+    return shift >= Math.max(-maxShift, room.min) && shift <= Math.min(maxShift, room.max);
+  });
+  const outs = reachable(out.beats, cutOut, outRoom);
+  const incs = reachable(inc.beats, cutIn, incRoom);
+  if (!outs.length || !incs.length) return decline('no-room');
+
+  // The blend has to be a whole number of the outgoing song's beats, otherwise
+  // the overlap starts off the grid however well the cuts themselves are
+  // placed. A hard cut stays a hard cut — that is a deliberate edit, not a
+  // mistake to fix.
+  const maxOverlap = driftPerSecond > 0
+    ? Math.min(maxCrossfade, BEAT.maxDrift / driftPerSecond)
+    : maxCrossfade;
+  let blends = [0];
+  if (crossfade > 0) {
+    blends = [...new Set([1, 2, out.meter, out.meter * 2])]
+      .map((k) => k * out.period)
+      .filter((x) => x <= maxOverlap);
+    // Even one beat may drift too far. Offer it anyway and let the cost say so:
+    // a short blend is still better advice than none.
+    if (!blends.length) blends = [Math.min(out.period, maxCrossfade)];
+  }
+
+  // Weights are judgement, not physics. Landing on a downbeat is worth roughly
+  // a second of movement; keeping the programme's length is worth slightly less
+  // than that, because the timer is visible and easy to correct elsewhere.
+  const cost = (endShift, startShift, blend, lengthDelta, a, b) =>
+    (0.8 * (Math.abs(endShift) + Math.abs(startShift))) / maxShift
+    + 0.7 * Math.abs(lengthDelta)
+    + 1.0 * ((a.downbeat ? 0 : 1) + (b.downbeat ? 0 : 1))
+    + (0.3 * Math.abs(blend - crossfade)) / Math.max(crossfade, 1)
+    + (1.5 * blend * driftPerSecond) / BEAT.maxDrift;
+
+  let best = null;
+  for (const a of outs) {
+    const endShift = a.t - cutOut;
+    for (const b of incs) {
+      const startShift = b.t - cutIn;
+      for (const blend of blends) {
+        // Moving the end out lengthens the programme, moving the start in
+        // shortens it, and a longer blend eats the difference.
+        const lengthDelta = endShift - startShift - (blend - crossfade);
+        const score = cost(endShift, startShift, blend, lengthDelta, a, b);
+        if (!best || score < best.score) best = { score, endShift, startShift, blend, lengthDelta };
+      }
+    }
+  }
+  if (!best) return decline('no-room');
+
+  return {
+    ok: true,
+    reason: tempoMismatch > 0.06 ? 'tempo-mismatch' : 'aligned',
+    endShift: best.endShift,
+    startShift: best.startShift,
+    crossfade: best.blend,
+    lengthDelta: best.lengthDelta,
+    drift: best.blend * driftPerSecond,
+    tempoMismatch,
+    confidence,
+    bpm: [out.bpm, inc.bpm],
+  };
+}
+
+/** Mono samples for a stretch of a buffer, plus where that stretch begins. */
+function monoWindow(buffer, from, to) {
+  const sr = buffer.sampleRate;
+  const a = clamp(Math.floor(from * sr), 0, buffer.length);
+  const b = clamp(Math.ceil(to * sr), a, buffer.length);
+  const samples = new Float32Array(b - a);
+  const channels = buffer.numberOfChannels;
+  for (let c = 0; c < channels; c++) {
+    const data = buffer.getChannelData(c);
+    for (let i = 0; i < samples.length; i++) samples[i] += data[a + i];
+  }
+  if (channels > 1) for (let i = 0; i < samples.length; i++) samples[i] /= channels;
+  return { samples, start: a / sr };
+}
+
+/** Beat grid around one cut, with the cut expressed in the same time base. */
+function beatsAround(buffer, at, opts = {}) {
+  const half = (opts.window ?? BEAT.window) / 2;
+  const { samples, start } = monoWindow(buffer, at - half, at + half);
+  return { beats: analyseBeats(samples, buffer.sampleRate), cut: at - start };
+}
+
+/** suggestJoin, straight from the two buffers either side of a join. */
+function suggestJoinForBuffers(outBuffer, cutOut, incBuffer, cutIn, opts = {}) {
+  const a = beatsAround(outBuffer, cutOut, opts);
+  const b = beatsAround(incBuffer, cutIn, opts);
+  return suggestJoin(a.beats, a.cut, b.beats, b.cut, opts);
+}
+
+/**
+ * What to tell her afterwards, in one sentence.
+ *
+ * The change itself is visible — the waveform, the blocks and the timer all
+ * move — so this says the part that isn't: whether it worked, and what it cost
+ * in programme length, because that is the number she is working to.
+ */
+function describeJoin(result, wasCrossfade) {
+  if (!result.ok) {
+    return result.reason === 'no-room'
+      ? 'Not enough song either side to move the cut, so nothing changed'
+      : 'No steady beat to line up with here, so nothing changed';
+  }
+
+  const changed = Math.abs(result.endShift) >= 0.05
+    || Math.abs(result.startShift) >= 0.05
+    || Math.abs(result.crossfade - wasCrossfade) >= 0.05;
+  if (!changed) return 'This join is already on the beat';
+
+  const delta = result.lengthDelta;
+  const length = Math.abs(delta) < 0.05
+    ? 'Same length as before'
+    : `Program is ${Math.abs(delta).toFixed(1)}s ${delta > 0 ? 'longer' : 'shorter'}`;
+  const lead = result.reason === 'tempo-mismatch'
+    ? 'Lined up as closely as these two speeds allow'
+    : 'Lined up with the beat';
+  return `${lead}. ${length}`;
+}
+
+/* -------------------------------------------------------------- loudness */
+
+/* Songs cut from different records arrive at wildly different levels. A
+   remastered single can sit 15 dB above an orchestral recording that peaks
+   just as high, and at a rink — where the desk is set once and left alone —
+   that is the difference between a program you can hear and one you cannot.
+
+   Loudness here means ITU-R BS.1770 integrated loudness. Not peak, which says
+   nothing about how loud something sounds, and not plain RMS, which over-reads
+   anything with weight in the bass. The extra work over RMS is one filter and
+   one gating rule; both earn their place, and both are in the traps list.
+
+   Pure: takes channels of samples, returns numbers. */
+
+const LOUDNESS = {
+  block: 0.4,            // seconds per measurement block
+  step: 0.1,             // block spacing, so blocks overlap by 75%
+  absoluteGate: -70,     // LUFS; below this a block is silence, not quiet music
+  relativeGate: -10,     // LU below the ungated mean
+  offset: -0.691,        // BS.1770 calibration, so 1 kHz reads its own level
+  ceiling: -1,           // dBFS left free, because sample peaks understate the real ones
+  // Quiet classical masters really do sit 25 dB below a pop single, so this has
+  // to be generous or the very case the feature exists for gets refused. Its
+  // job is only to decline near-silence, which needs far more than this.
+  maxBoost: 24,          // dB
+  maxCrest: 22,          // dB of peak above loudness; beyond this a clip is an outlier
+};
+
+/**
+ * The two K-weighting biquads: a shelf that lifts everything above ~1.7 kHz,
+ * and a high pass at ~38 Hz.
+ *
+ * BS.1770 tabulates its coefficients at 48 kHz only, and everything here is
+ * decoded to 44100, so they have to be derived rather than copied. These are
+ * the prototype values the published table comes from — a test checks that
+ * passing 48000 reproduces that table.
+ */
+function kWeighting(sampleRate) {
+  const shelfHz = 1681.974450955533;
+  const shelfGain = 3.999843853973347;
+  const shelfQ = 0.7071752369554196;
+  const k1 = Math.tan((Math.PI * shelfHz) / sampleRate);
+  const vh = Math.pow(10, shelfGain / 20);
+  const vb = Math.pow(vh, 0.4996667741545416);
+  const d1 = 1 + k1 / shelfQ + k1 * k1;
+
+  const highHz = 38.13547087602444;
+  const highQ = 0.5003270373238773;
+  const k2 = Math.tan((Math.PI * highHz) / sampleRate);
+  const d2 = 1 + k2 / highQ + k2 * k2;
+
+  return {
+    shelf: {
+      b0: (vh + (vb * k1) / shelfQ + k1 * k1) / d1,
+      b1: (2 * (k1 * k1 - vh)) / d1,
+      b2: (vh - (vb * k1) / shelfQ + k1 * k1) / d1,
+      a1: (2 * (k1 * k1 - 1)) / d1,
+      a2: (1 - k1 / shelfQ + k1 * k1) / d1,
+    },
+    // The standard leaves this stage's numerator at exactly 1, −2, 1.
+    highpass: {
+      b0: 1,
+      b1: -2,
+      b2: 1,
+      a1: (2 * (k2 * k2 - 1)) / d2,
+      a2: (1 - k2 / highQ + k2 * k2) / d2,
+    },
+  };
+}
+
+/** One biquad, transposed direct form II, applied in place. */
+function biquad(samples, c) {
+  let s1 = 0;
+  let s2 = 0;
+  for (let i = 0; i < samples.length; i++) {
+    const x = samples[i];
+    const y = c.b0 * x + s1;
+    s1 = c.b1 * x - c.a1 * y + s2;
+    s2 = c.b2 * x - c.a2 * y;
+    samples[i] = y;
+  }
+}
+
+/**
+ * Integrated loudness in LUFS, or -Infinity for silence and for anything too
+ * short to hold a single 400 ms block.
+ *
+ * `channels` is an array of Float32Array. A mono source counts double, because
+ * Web Audio sends it to both speakers on playback — measured as one channel it
+ * would come out 3 dB quiet and every mono file would end up too loud.
+ */
+function loudnessOf(channels, sampleRate) {
+  const used = channels.slice(0, 2);
+  if (!used.length) return -Infinity;
+  const weight = used.length === 1 ? 2 : 1;
+
+  const sub = Math.round(LOUDNESS.step * sampleRate);
+  const per = Math.round(LOUDNESS.block / LOUDNESS.step);
+  const length = Math.min(...used.map((c) => c.length));
+  const count = Math.floor(length / sub);
+  if (sub < 1 || count < per) return -Infinity;
+
+  const coefficients = kWeighting(sampleRate);
+  const sums = new Float64Array(count);
+  for (const channel of used) {
+    // Copy before filtering: biquad works in place, and these samples belong to
+    // the decoded audio everything else is playing from.
+    const y = Float32Array.from(channel.subarray(0, count * sub));
+    biquad(y, coefficients.shelf);
+    biquad(y, coefficients.highpass);
+    for (let s = 0; s < count; s++) {
+      const end = (s + 1) * sub;
+      let acc = 0;
+      for (let i = s * sub; i < end; i++) acc += y[i] * y[i];
+      sums[s] += weight * acc;
+    }
+  }
+
+  // At 75% overlap every 400 ms block is four consecutive 100 ms sums, so the
+  // overlapping blocks cost nothing beyond the additions.
+  const size = per * sub;
+  const blocks = [];
+  for (let j = 0; j + per <= count; j++) {
+    let power = 0;
+    for (let k = 0; k < per; k++) power += sums[j + k];
+    blocks.push(power / size);
+  }
+
+  const level = (power) => LOUDNESS.offset + 10 * Math.log10(power);
+  const mean = (list) => list.reduce((a, b) => a + b, 0) / list.length;
+
+  // Silence is not quiet music: without this gate a cut that ends in a long
+  // fade measures far below what anyone hears, and gets boosted for it.
+  const heard = blocks.filter((p) => p > 0 && level(p) > LOUDNESS.absoluteGate);
+  if (!heard.length) return -Infinity;
+
+  // Nor is a genuinely quiet passage of the same piece — the second gate keeps
+  // the reading on the body of the music rather than its softest moments.
+  const threshold = level(mean(heard)) + LOUDNESS.relativeGate;
+  const kept = heard.filter((p) => level(p) > threshold);
+  if (!kept.length) return -Infinity;
+  return level(mean(kept));
+}
+
+/** Largest absolute sample across all channels, 0 to 1. */
+function peakOf(channels) {
+  let peak = 0;
+  for (const channel of channels) {
+    for (let i = 0; i < channel.length; i++) {
+      const v = Math.abs(channel[i]);
+      if (v > peak) peak = v;
+    }
+  }
+  return peak;
+}
+
+/** Loudness and peak of the kept part of a clip — not of the whole file. */
+function measureClip(buffer, from, to) {
+  const sr = buffer.sampleRate;
+  const a = clamp(Math.floor(from * sr), 0, buffer.length);
+  const b = clamp(Math.ceil(to * sr), a, buffer.length);
+  const channels = [];
+  for (let c = 0; c < buffer.numberOfChannels; c++) {
+    channels.push(buffer.getChannelData(c).subarray(a, b));
+  }
+  return { loudness: loudnessOf(channels, sr), peak: peakOf(channels) };
+}
+
+/**
+ * Gains that put every clip at the same loudness, as loud as the material
+ * allows without clipping.
+ *
+ * There is no fixed target. The clip with the widest gap between its peak and
+ * its loudness — the most dynamic one — runs out of headroom first, so it sets
+ * the level for everyone else. That is the loudest the programme can be while
+ * staying both matched and clean, and it means a programme of quiet orchestral
+ * cuts is not dragged down to the level of its quietest moment.
+ *
+ * `maxCrest` stops one freak clip doing exactly that. A cut that is mostly
+ * quiet with a single bang in it can sit 38 dB below its own peak, and letting
+ * it set the level would drag three ordinary songs down with it. Past that
+ * point the clip is the outlier, so it is the one that stays quiet.
+ *
+ * No clip can be pushed past the ceiling: each one's gain is capped by its own
+ * headroom, so a clip that cannot reach the target simply does not, and the
+ * others are unaffected. Returns a gain per input clip, in the order given,
+ * and the indices of any that fell short.
+ */
+function solveGains(measures, opts = {}) {
+  const ceiling = opts.ceiling ?? LOUDNESS.ceiling;
+  const maxBoost = opts.maxBoost ?? LOUDNESS.maxBoost;
+  const maxCrest = opts.maxCrest ?? LOUDNESS.maxCrest;
+  const measured = (m) => isFinite(m.loudness) && m.peak > 0;
+
+  const usable = measures.filter(measured);
+  if (!usable.length) return { gains: measures.map(() => 1), loudness: -Infinity, short: [] };
+
+  const crest = (m) => 20 * Math.log10(m.peak) - m.loudness;
+  const loudness = opts.target ?? ceiling - Math.min(maxCrest, Math.max(...usable.map(crest)));
+
+  const short = [];
+  const gains = measures.map((m, i) => {
+    if (!measured(m)) return 1;                 // nothing to measure — leave it alone
+    const wanted = loudness - m.loudness;
+    // Two things stop a clip reaching the target: its own peaks would go over
+    // the ceiling, or it is so quiet that we would be raising hiss rather than
+    // music. Either way it stays put instead of pulling the others down.
+    const headroom = ceiling - 20 * Math.log10(m.peak);
+    const allowed = Math.min(wanted, headroom, maxBoost);
+    if (allowed < wanted - 1e-9) short.push(i);
+    return Math.pow(10, allowed / 20);
+  });
+
+  return { gains, loudness, short };
+}
+
+/* The slider works in decibels because that is what tracks how loud a change
+   sounds — half the travel is half the change, which is not true of a plain
+   multiplier. The number beside it is a percentage, because that is what a
+   skater reads without being taught anything. */
+
+const LEVEL_SLIDER = { min: -24, max: 24, step: 0.5 };
+
+function gainToDb(gain) {
+  return gain > 0 ? 20 * Math.log10(gain) : LEVEL_SLIDER.min;
+}
+
+function dbToGain(db) {
+  return Math.pow(10, db / 20);
+}
+
+/** A clip's level as a percentage of the recording's own volume. */
+function levelPercent(gain) {
+  return Math.round(gain * 100);
+}
+
+/** One plain sentence for what evening out the volume did. */
+function describeLevels({ matched, short, unmeasured }) {
+  if (!matched) return 'Could not measure these songs, so nothing changed';
+  const notes = [];
+  if (short) {
+    notes.push(short === 1
+      ? 'one could not come all the way up, so it stays quieter than the rest'
+      : `${short} could not come all the way up, so they stay quieter than the rest`);
+  }
+  if (unmeasured) {
+    notes.push(unmeasured === 1
+      ? 'one could not be measured and was left as it was'
+      : `${unmeasured} could not be measured and were left as they were`);
+  }
+  const head = `Evened out ${matched} song${matched === 1 ? '' : 's'}`;
+  return notes.length ? `${head} — ${notes.join(', and ')}` : head;
 }
 
 /* --------------------------------------------------------------- library */
@@ -800,6 +1584,7 @@ function addClip(entry) {
     fadeIn: state.clips.length === 0 ? 1.0 : 0,
     fadeOut: 0,
     crossfade: state.clips.length === 0 ? 0 : 1.5,
+    gain: 1,
   };
   state.clips.push(clip);
   state.selected = clip.id;
@@ -1058,7 +1843,7 @@ function drawClipEditor() {
   const canvas = $('clipCanvas');
   const duration = entry && entry.buffer ? entry.duration : Math.max(clip.srcEnd, 1);
 
-  drawWave(canvas, entry ? entry.peaks : null, duration, 0, duration, css('--wave'));
+  drawWave(canvas, entry ? entry.peaks : null, duration, 0, duration, css('--wave'), clipGain(clip));
 
   const { g, w, h } = fitCanvas(canvas);
   const x = (t) => (t / duration) * w;
@@ -1098,6 +1883,10 @@ function drawClipEditor() {
   $('lblStart').textContent = fmt(clip.srcStart);
   $('lblEnd').textContent = fmt(clip.srcEnd);
 
+  const gain = clipGain(clip);
+  $('level').value = String(clamp(gainToDb(gain), LEVEL_SLIDER.min, LEVEL_SLIDER.max));
+  $('valLevel').textContent = `${levelPercent(gain)}%`;
+
   const maxFade = Math.max(0.1, clipDuration(clip));
   for (const [key, slider, label] of [
     ['fadeIn', $('fadeIn'), $('valFadeIn')],
@@ -1110,6 +1899,108 @@ function drawClipEditor() {
   }
   // the first clip has nothing before it to blend into
   $('crossfadeWrap').classList.toggle('hidden', state.clips.indexOf(clip) === 0);
+  updateAlignAvailability();
+}
+
+/** How far a join's two cuts may move without eating a clip whole. */
+function joinRoom(clip, entry, side) {
+  const keep = 0.5;
+  return side === 'end'
+    ? { min: Math.min(0, keep - clipDuration(clip)), max: Math.max(0, entry.duration - clip.srcEnd) }
+    : { min: Math.min(0, -clip.srcStart), max: Math.max(0, clipDuration(clip) - keep) };
+}
+
+function updateAlignAvailability() {
+  const button = $('btnAlignJoin');
+  const clip = selectedClip();
+  const i = clip ? state.clips.indexOf(clip) : -1;
+  const prev = i > 0 ? state.clips[i - 1] : null;
+  const ready = prev && library.get(prev.file)?.buffer && library.get(clip.file)?.buffer;
+
+  button.disabled = !ready;
+  button.title = ready
+    ? 'Moves this cut and the end of the song before it by up to 2.5 seconds each, '
+      + 'so both land on a beat and the blend lasts a whole number of beats'
+    : 'Add both songs first';
+}
+
+/**
+ * Nudge the selected clip's join with the one before it onto the beat.
+ *
+ * Nothing is touched unless there is a beat worth trusting on both sides —
+ * declining is a normal outcome here, not a failure, so it reports and stops.
+ */
+function alignSelectedJoin() {
+  const clip = selectedClip();
+  const i = clip ? state.clips.indexOf(clip) : -1;
+  if (i <= 0) return;
+  const prev = state.clips[i - 1];
+  const prevEntry = library.get(prev.file);
+  const entry = library.get(clip.file);
+  if (!prevEntry?.buffer || !entry?.buffer) { toast('Add both songs first'); return; }
+
+  const was = clip.crossfade || 0;
+  const result = suggestJoinForBuffers(prevEntry.buffer, prev.srcEnd, entry.buffer, clip.srcStart, {
+    crossfade: was,
+    // The blend slider tops out at 10s and cannot outlast either clip.
+    maxCrossfade: Math.min(10, clipDuration(prev), clipDuration(clip)),
+    outRoom: joinRoom(prev, prevEntry, 'end'),
+    incRoom: joinRoom(clip, entry, 'start'),
+  });
+
+  const moves = result.ok && (Math.abs(result.endShift) >= 0.005
+    || Math.abs(result.startShift) >= 0.005
+    || Math.abs(result.crossfade - was) >= 0.005);
+  if (moves) {
+    pushUndo();
+    prev.srcEnd = clamp(prev.srcEnd + result.endShift, prev.srcStart + 0.1, prevEntry.duration);
+    clip.srcStart = clamp(clip.srcStart + result.startShift, 0, clip.srcEnd - 0.1);
+    clip.crossfade = Math.max(0, result.crossfade);
+    refresh();
+  }
+  toast(describeJoin(result, was), 4200);
+}
+
+function updateEvenOutAvailability() {
+  const button = $('btnEvenOut');
+  const ready = state.clips.filter((c) => library.get(c.file)?.buffer).length;
+  const reason = state.clips.length < 2 ? 'Add at least two songs first'
+    : ready < 2 ? 'Some songs still need to be added'
+      : '';
+  button.disabled = Boolean(reason);
+  button.title = reason
+    || 'Sets each song so they all sound about equally loud, without letting any of them distort';
+}
+
+/**
+ * Put every clip at the same loudness.
+ *
+ * The measuring is done on what is actually kept of each song, so this has to
+ * be redone whenever anything is re-trimmed — which is why it is a button and
+ * not something that happens quietly in the background.
+ */
+function evenOutLevels() {
+  const measures = state.clips.map((clip) => {
+    const entry = library.get(clip.file);
+    return entry?.buffer
+      ? measureClip(entry.buffer, clip.srcStart, clip.srcEnd)
+      : { loudness: -Infinity, peak: 0 };
+  });
+
+  const { gains, short } = solveGains(measures);
+  const usable = measures.map((m) => isFinite(m.loudness) && m.peak > 0);
+  const matched = usable.filter(Boolean).length;
+
+  if (matched) {
+    pushUndo();
+    state.clips.forEach((clip, i) => { if (usable[i]) clip.gain = clamp(gains[i], 0, MAX_GAIN); });
+    refresh();
+  }
+  toast(describeLevels({
+    matched,
+    short: short.length,
+    unmeasured: usable.filter((u) => !u).length,
+  }), 4200);
 }
 
 function bindClipCanvas() {
@@ -1222,6 +2113,7 @@ function project() {
       fadeIn: Number((c.fadeIn || 0).toFixed(2)),
       fadeOut: Number((c.fadeOut || 0).toFixed(2)),
       crossfade: Number((c.crossfade || 0).toFixed(2)),
+      gain: Number(clipGain(c).toFixed(3)),
     })),
   };
 }
@@ -1253,6 +2145,9 @@ function loadProject(data) {
     fadeIn: c.fadeIn || 0,
     fadeOut: c.fadeOut || 0,
     crossfade: c.crossfade || 0,
+    // Older project files predate levels and have no gain at all; missing
+    // means "as recorded", not silent.
+    gain: clipGain(c),
   }));
   state.selected = state.clips.length ? state.clips[0].id : null;
   $('programName').value = state.name;
@@ -1622,6 +2517,7 @@ function updateMissingNotice() {
 function refresh() {
   updateMissingNotice();
   updateExportAvailability();
+  updateEvenOutAvailability();
   renderTimeline();
   drawScrubber();
   drawClipEditor();
@@ -1730,6 +2626,24 @@ function bind() {
     if (clip) playClipAudition(clip, state.cursor > clip.srcStart ? state.cursor : clip.srcStart);
   };
   $('btnRemoveClip').onclick = () => { if (state.selected) removeClip(state.selected); };
+  $('btnAlignJoin').onclick = alignSelectedJoin;
+  $('btnEvenOut').onclick = evenOutLevels;
+
+  {
+    const slider = $('level');
+    let editing = false;
+    const begin = () => { if (!editing) { pushUndo(); editing = true; } };
+    slider.addEventListener('pointerdown', begin);
+    slider.addEventListener('keydown', begin);
+    slider.oninput = () => {
+      const clip = selectedClip();
+      if (!clip) return;
+      begin();
+      clip.gain = clamp(dbToGain(Number(slider.value)), 0, MAX_GAIN);
+      drawClipEditor();
+    };
+    slider.onchange = () => { editing = false; save(); };
+  }
 
   for (const key of ['fadeIn', 'fadeOut', 'crossfade']) {
     const slider = $(key);
@@ -2004,6 +2918,11 @@ if (typeof document !== 'undefined') {
     allLevels, findLevel,
     clipDuration, crossfadeOf, layout,
     fadeEnvelope, crossfadeEnvelope, valueAt,
+    BEAT, fftInPlace, onsetEnvelope, flattenEnvelope, estimateTempoLag,
+    analyseBeats, suggestJoin, monoWindow, beatsAround, suggestJoinForBuffers,
+    describeJoin, joinRoom,
+    LOUDNESS, kWeighting, biquad, loudnessOf, peakOf, measureClip, solveGains,
+    clipGain, gainToDb, dbToGain, levelPercent, describeLevels, LEVEL_SLIDER, MAX_GAIN,
     parseClock, exportFileName, fmt, fmtShort, clamp,
     codecOf, qualityLabel, qualityDetail,
     id3Size, oggAudioStart, readMpegFrame, parseFrameHeader,

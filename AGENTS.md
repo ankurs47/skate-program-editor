@@ -15,7 +15,7 @@ plain, and jargon is treated as a bug.
 index.html   structure, help topic content, dialogs
 app.js       everything: decode, waveforms, editing, playback, render, export
 style.css    theming via CSS custom properties, light and dark
-test/run.js  27 checks, no dependencies
+test/run.js  78 checks, no dependencies
 ```
 
 ## Commands
@@ -71,6 +71,33 @@ programme time, where overlapping blocks are blends. Seeking uses the scrubber.
 functions under Node. Keep new pure logic out of DOM handlers so it stays
 testable, and add it to the export list at the bottom.
 
+**Beat detection answers with a confidence, and callers must honour it.**
+`analyseBeats()` finds a tempo and a beat grid in a window of samples;
+`suggestJoin()` uses two of those to nudge a pair of cut points onto the beat.
+Both are pure, and beat times are relative to the window they were measured in,
+never to the song. The grid is *always* found — on applause, on a held chord, on
+silence — so `confidence` below `BEAT.minConfidence` means leave the edit alone.
+Snapping a rubato piece to an invented grid is the worst outcome available here,
+worse than doing nothing. `alignSelectedJoin()` is the only caller: it takes the
+snapshot for undo *after* deciding to act, so a declined suggestion doesn't leave
+a no-op on the undo stack.
+
+**Loudness is measured on the kept part of a clip, never the whole file.** They
+trimmed twenty seconds out of a four-minute song; the rest is not in the
+programme and must not influence its level. `measureClip()` takes the trim
+bounds for that reason, and because the answer goes stale the moment anything is
+re-trimmed, it is recomputed on demand rather than cached against the file — a
+gating pass over thirty seconds is about 25 ms, which is cheaper than being
+wrong. `solveGains()` then turns those measurements into one gain per clip.
+
+**`gain` is a plain multiplier on the clip, applied by its own node.** It sits
+before the fade and blend nodes in `scheduleProgram()` rather than being folded
+into either, so the fade still runs 0 to 1 and the two sides of a crossfade
+still sum to 1 whatever the levels are. Preview and export therefore get it for
+free. The slider works in decibels, because that is what tracks how loud a
+change *sounds*, but stores and shows the multiplier — `LEVEL_SLIDER` and the
+`min`/`max` on the HTML input have to agree, and a test says so.
+
 ## Traps
 
 - **A single MPEG sync word means nothing.** Compressed audio is full of `0xFF`
@@ -92,6 +119,46 @@ testable, and add it to the export list at the bottom.
   `tri`, which matches Web Audio's `linearRampToValueAtTime`. The two sides of a
   crossfade sum to 1 through the overlap; a test asserts this. Switching to an
   equal-power curve would need both sides changed together.
+- **Whole-frame autocorrelation lags report half the tempo.** Two separate
+  causes, and both bit. A beat period is never a whole number of analysis
+  frames, so each beat straddles the frame boundary differently and alternate
+  beats measure weaker — a period-two pattern the autocorrelation reports as
+  half speed. The fix is the one-frame blur at the top of `flattenEnvelope()`.
+  Searching fractional lags instead is *not* a fix: interpolating the envelope
+  flattens the very peaks being correlated, by an amount that depends on the
+  fractional part, so the scan then prefers round lags for a different reason.
+  Integer lags find the neighbourhood; `refinePeriod()` finds the value.
+- **A confidence that is a maximum needs a baseline that is also a maximum.**
+  The grid score is the best over dozens of phases, and taking a best lifts the
+  number on anything, structure or not — white noise scored 0.5 before
+  `combBaseline()` existed. It scores unrelated periods the same way so the free
+  lift cancels. Periods related to the answer by a simple ratio are excluded
+  from it, or the evidence ends up in the denominator.
+- **A sustained chord fits a beat grid beautifully.** Nothing starts, so the
+  only flux is analysis leakage, which is faint and perfectly periodic. Contrast
+  alone rates it highly; the `BEAT.minOnsets` term is what rejects it, by asking
+  whether any notes start at all before believing the tempo.
+- **BS.1770 publishes its coefficients at 48 kHz and nothing else.** Everything
+  here is decoded to 44100, so `kWeighting()` derives them from the prototype
+  values instead. Copying the published table straight in gives a filter tuned
+  to the wrong frequencies. A test feeds it 48000 and checks it reproduces that
+  table to twelve decimals, which is what says the derivation is honest.
+- **Loudness gating is not a refinement.** Without the absolute gate, a cut that
+  ends in a long fade measures far below what anyone hears and gets boosted for
+  it; without the relative gate, a quiet passage does the same thing more
+  subtly. Both are tested with the size of the mistake they prevent — around
+  6 dB — asserted alongside, so neither can be dropped as an optimisation.
+- **Mono is measured 3 dB louder than the standard says.** Web Audio copies a
+  mono buffer to both speakers, so measuring it as a single channel would leave
+  every mono file reading 3 dB quiet and ending up that much too loud. This is a
+  deliberate departure from BS.1770 and the reason `loudnessOf()` weights a lone
+  channel by two. ffmpeg's meter differs from ours by exactly this much on mono,
+  and by nothing on stereo — that agreement is a test.
+- **Sample peaks understate the real ones.** Inter-sample peaks after encoding
+  run above anything visible in the samples, which is what `LOUDNESS.ceiling`
+  leaves room for. `encodeWav()` clamps, so overshoot is flat-topped distortion
+  rather than wrap-around noise — audible, not catastrophic, and still to be
+  prevented rather than survived.
 - **Grid and flex items need `min-width: 0`.** A long clip name once widened the
   whole column and pushed the buttons off-screen. Relatedly, the timeline sizes
   clips with `flex-grow`, not computed pixels — computing widths from the
