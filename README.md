@@ -21,10 +21,12 @@ order, blend, check the length, save the file.
 - **Trim** each song by dragging the ends of its waveform, or with `I` and `O`
 - **Reorder** by dragging the blocks
 - **Blend** one song into the next, or fade in and out
-- **Line up with the beat** — one button nudges a join by up to a couple of
-  seconds so both songs land on a beat, which is what stops a blend sounding
-  like a stumble. It says whether that made the program longer or shorter, and
-  if the music has no steady beat it says so and changes nothing
+- **Line up this join** — one button nudges a cut by up to a couple of seconds
+  to somewhere the music can take it, and says what that did to the running
+  total. With a steady beat it puts both songs on it, which is what stops a
+  blend sounding like a stumble. Piano and much orchestral music have no beat to
+  find, so there it looks for the end of a phrase instead — the breath between
+  one line and the next — and tells you that is what it did
 - **Even out the volume** — one button sets every song so they sound about
   equally loud, without letting any of them distort, and a per-song **Volume**
   slider adjusts it by hand afterwards
@@ -118,7 +120,7 @@ is only for checking changes.
 
 ```bash
 npm install          # installs eslint, and enables the pre-commit hook
-npm test             # 78 checks: maths, wiring, and asset integrity
+npm test             # 100 checks: maths, wiring, and asset integrity
 npm run lint
 npm run check        # lint + test, what CI runs
 npm run test:net     # also re-verifies the pinned CDN hash
