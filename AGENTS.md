@@ -15,8 +15,16 @@ plain, and jargon is treated as a bug.
 index.html   structure, help topic content, dialogs
 app.js       everything: decode, waveforms, editing, playback, render, export
 style.css    theming via CSS custom properties, light and dark
-test/run.js  100 checks, no dependencies
+test/run.js  101 checks, no dependencies
+tools/       music-get.sh and .cmd — optional YouTube downloader, not the app
 ```
+
+`tools/` sits outside the rules below. Nothing in it ships, the editor never
+calls it and does not know it exists, and it is the one place an external
+dependency is acceptable — the wrappers do nothing but hand arguments to yt-dlp,
+which the user installs themselves. The two scripts are the same tool written
+twice, once for a shell and once for cmd; a change to one belongs in the other,
+and a test asserts the flags that matter appear in both.
 
 ## Commands
 
