@@ -726,6 +726,7 @@ const BEAT = {
   window: 12,           // seconds of audio analysed around a cut
   minConfidence: 0.3,   // below this we decline rather than guess
   minOnsets: 0.05,      // flux, as a share of frame magnitude, for "notes start here"
+  minCoverage: 0.5,     // share of the grid's beats that must actually be played
   maxDrift: 0.125,      // acceptable beat slip through a blend, in beats
 };
 
@@ -987,10 +988,10 @@ function findBar(beats) {
  * Find the beat grid in a stretch of mono audio. Beat times are seconds from
  * the start of `samples`.
  *
- * `confidence` combines how much better the grid fits than an unrelated one
- * with whether there are any note onsets to fit. Near 0 means there is no
- * steady pulse here and the grid, which will have been found regardless, should
- * not be acted on.
+ * `confidence` combines how much better the grid fits than an unrelated one,
+ * whether there are any note onsets to fit, and how much of the grid is
+ * actually played. Near 0 means there is no steady pulse here and the grid,
+ * which will have been found regardless, should not be acted on.
  */
 function analyseBeats(samples, sampleRate) {
   const nothing = { bpm: 0, period: 0, confidence: 0, meter: 4, beats: [] };
@@ -1018,21 +1019,33 @@ function analyseBeats(samples, sampleRate) {
   const bar = findBar(beats);
   beats.forEach((beat, i) => { beat.downbeat = (i - bar.offset) % bar.meter === 0; });
 
-  // A grid can fit anything. Two things have to hold before we believe it: the
-  // onsets have to sit on it rather than anywhere else, and there have to be
-  // onsets at all — a sustained chord produces a faint, perfectly periodic
-  // flicker from the analysis itself, and it fits a grid beautifully.
+  // A grid can fit anything. Three things have to hold before we believe it.
+  //
+  // First, there have to be onsets at all — a sustained chord produces a faint,
+  // perfectly periodic flicker from the analysis itself, and it fits a grid
+  // beautifully.
   let flux = 0;
   for (let i = 0; i < raw.env.length; i++) flux += raw.env[i];
   flux /= raw.env.length;
   const onsets = raw.level > 0 ? flux / raw.level : 0;
 
+  // Second, most of the grid's beats have to have something on them. Sparse
+  // music — a dozen piano notes in twelve seconds — lets a metronome fit a
+  // handful of them by chance and score very well for it, and the contrast
+  // measure alone rates that as confidently as a drum track. Asking how much of
+  // the grid is actually occupied is what tells a pulse from a lucky period.
+  const occupied = beats.filter((beat) => beat.strength > mean).length;
+  const coverage = occupied / beats.length;
+
   const period = fit.period / raw.rate;
   return {
     bpm: 60 / period,
     period,
+    // Third, the grid has to fit better than an unrelated one.
     confidence: clamp((fit.score / baseline - 1) / 2, 0, 1)
-      * clamp(onsets / BEAT.minOnsets, 0, 1),
+      * clamp(onsets / BEAT.minOnsets, 0, 1)
+      * clamp(coverage / BEAT.minCoverage, 0, 1),
+    coverage,
     meter: bar.meter,
     beats,
   };
@@ -1173,11 +1186,380 @@ function beatsAround(buffer, at, opts = {}) {
   return { beats: analyseBeats(samples, buffer.sampleRate), cut: at - start };
 }
 
-/** suggestJoin, straight from the two buffers either side of a join. */
+/* --------------------------------------------------------------- phrases */
+
+/* Much skating music has no beat to find. Solo piano especially: the tempo
+   pushes and pulls, and there is no grid, so `analyseBeats` correctly refuses
+   to name one. That left the join button with nothing to offer on exactly the
+   repertoire skaters use most.
+
+   Rhythm is not the only structure music has, though. A pianist finishes a
+   phrase, the sound decays, the next begins — and cutting at one of those
+   breaths is what makes a join sound intended rather than accidental. That is
+   findable without any tempo at all, from two things: moments where nothing is
+   sounding, and moments where the harmony changes.
+
+   This is the second strategy behind the same button, used when the first one
+   declines. Pure, like the rest of the analysis. */
+
+const PHRASE = {
+  frame: 4096,          // ~10.8 Hz bins at 44100 — fine enough to tell semitones apart
+  hop: 2048,            // ~46 ms
+  quiet: 0.12,          // seconds; how wide a "nothing is happening" moment is
+  context: 1.6,         // seconds of surrounding music a lull is judged against
+  novelty: 1.5,         // seconds either side compared for a change of harmony
+  minLull: 0.4,         // seconds; shorter than this is a gap between notes, not a breath
+  maxLull: 2,           // seconds; longer than this is a section break, not a breath
+  smooth: 0.15,         // seconds of moving average before looking for peaks
+  separation: 0.6,      // seconds; two breaths closer together than this are one
+  minScore: 0.35,       // below this a candidate is not really a break at all
+  minBlend: 2,          // seconds; a short blend is exposed with no beat to carry it
+  chromaLow: 200,       // Hz; below this the bins are too coarse to name a note
+  chromaHigh: 3000,     // Hz; above this it is mostly harmonics and noise
+  gapWeight: 0.8,       // the rest is novelty
+};
+
+/**
+ * How much of a lull there is at each moment, from 0 to 1.
+ *
+ * Judged against the surrounding minute or so rather than an absolute level,
+ * because a lull in a quiet passage is still a lull. 1 means nothing at all is
+ * starting here while the music around it is busy.
+ */
+function gapScores(env, rate) {
+  const n = env.length;
+  const sums = new Float64Array(n + 1);
+  for (let i = 0; i < n; i++) sums[i + 1] = sums[i] + env[i];
+
+  const near = Math.max(1, Math.round((rate * PHRASE.quiet) / 2));
+  const far = Math.max(near + 1, Math.round((rate * PHRASE.context) / 2));
+  const mean = (i, half) => {
+    const a = Math.max(0, i - half);
+    const b = Math.min(n, i + half + 1);
+    return b > a ? (sums[b] - sums[a]) / (b - a) : 0;
+  };
+
+  const out = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const context = mean(i, far);
+    out[i] = context > 0 ? clamp(1 - mean(i, near) / context, 0, 1) : 0;
+  }
+  return out;
+}
+
+/** Short-term loudness, sampled at the onset envelope's frame rate. */
+function energyEnvelope(samples, sampleRate, rate) {
+  const step = Math.max(1, Math.round(sampleRate / rate));
+  const count = Math.floor(samples.length / step);
+  const out = new Float32Array(count);
+  for (let i = 0; i < count; i++) {
+    const end = (i + 1) * step;
+    let sum = 0;
+    for (let j = i * step; j < end; j++) sum += samples[j] * samples[j];
+    out[i] = Math.sqrt(sum / step);
+  }
+  return out;
+}
+
+/**
+ * Twelve pitch classes per frame, each frame normalised to unit length so two
+ * can be compared by angle alone.
+ *
+ * A longer frame than the beat detector uses: naming a note needs resolution in
+ * frequency, where finding an onset needs it in time. Only the middle of the
+ * range is counted — below `chromaLow` the bins are wider than a semitone, and
+ * above `chromaHigh` there is little but harmonics.
+ */
+function chromaFrames(samples, sampleRate) {
+  const n = PHRASE.frame;
+  const hop = PHRASE.hop;
+  const rate = sampleRate / hop;
+  const frames = Math.floor((samples.length - n) / hop) + 1;
+  if (frames < 1) return { chroma: [], rate, offset: 0 };
+
+  const shape = new Float32Array(n);
+  for (let i = 0; i < n; i++) shape[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / n);
+
+  const low = Math.max(1, Math.ceil((PHRASE.chromaLow * n) / sampleRate));
+  const high = Math.min(n >> 1, Math.floor((PHRASE.chromaHigh * n) / sampleRate));
+  const pitchClass = new Int8Array(high + 1);
+  for (let k = low; k <= high; k++) {
+    const hz = (k * sampleRate) / n;
+    const midi = Math.round(69 + 12 * Math.log2(hz / 440));
+    pitchClass[k] = ((midi % 12) + 12) % 12;
+  }
+
+  const re = new Float32Array(n);
+  const im = new Float32Array(n);
+  const chroma = [];
+  for (let f = 0; f < frames; f++) {
+    const base = f * hop;
+    for (let i = 0; i < n; i++) re[i] = samples[base + i] * shape[i];
+    im.fill(0);
+    fftInPlace(re, im);
+
+    const bins = new Float32Array(12);
+    for (let k = low; k <= high; k++) {
+      bins[pitchClass[k]] += Math.sqrt(re[k] * re[k] + im[k] * im[k]);
+    }
+    let energy = 0;
+    for (let p = 0; p < 12; p++) energy += bins[p] * bins[p];
+    energy = Math.sqrt(energy);
+    if (energy > 0) for (let p = 0; p < 12; p++) bins[p] /= energy;
+    chroma.push(bins);
+  }
+  return { chroma, rate, offset: n / 2 / sampleRate };
+}
+
+/** Angle between two chroma vectors, 0 for identical and 1 for unrelated. */
+function chromaDistance(a, b) {
+  let dot = 0;
+  let na = 0;
+  let nb = 0;
+  for (let p = 0; p < 12; p++) {
+    dot += a[p] * b[p];
+    na += a[p] * a[p];
+    nb += b[p] * b[p];
+  }
+  // Nothing sounding on one side is not a change of harmony, it is silence —
+  // and the gap score is the right instrument for that. Reporting a change here
+  // made every moment of a silent passage look like a phrase boundary.
+  if (na <= 0 || nb <= 0) return 0;
+  return clamp(1 - dot / Math.sqrt(na * nb), 0, 1);
+}
+
+/**
+ * How much the harmony changes at each moment, from 0 to 1: the distance
+ * between the chord before and the chord after. This catches the phrase
+ * boundaries that are not quiet — where the music simply moves somewhere else.
+ */
+function noveltyScores(chroma, rate) {
+  const n = chroma.length;
+  const out = new Float32Array(n);
+  if (!n) return out;
+  const span = Math.max(1, Math.round(rate * PHRASE.novelty));
+
+  // running sums per pitch class, so each window mean is a subtraction
+  const sums = [];
+  for (let p = 0; p < 12; p++) sums.push(new Float64Array(n + 1));
+  for (let i = 0; i < n; i++) {
+    for (let p = 0; p < 12; p++) sums[p][i + 1] = sums[p][i] + chroma[i][p];
+  }
+  const window = (from, to) => {
+    const a = clamp(from, 0, n);
+    const b = clamp(to, a, n);
+    const mean = new Float32Array(12);
+    if (b === a) return mean;
+    let energy = 0;
+    for (let p = 0; p < 12; p++) {
+      mean[p] = (sums[p][b] - sums[p][a]) / (b - a);
+      energy += mean[p] * mean[p];
+    }
+    energy = Math.sqrt(energy);
+    if (energy > 0) for (let p = 0; p < 12; p++) mean[p] /= energy;
+    return mean;
+  };
+
+  for (let i = 0; i < n; i++) {
+    out[i] = chromaDistance(window(i - span, i), window(i, i + span));
+  }
+  return out;
+}
+
+/**
+ * Places in a stretch of audio where the music takes a breath.
+ *
+ * Each point carries `t`, the middle of the lull — where an outgoing clip
+ * should stop — and `resumes`, where the music picks up again, which is where
+ * an incoming clip should start so it does not open with silence.
+ */
+function phrasePoints(samples, sampleRate) {
+  const raw = onsetEnvelope(samples, sampleRate);
+  if (raw.env.length < 8) return [];
+  const env = flattenEnvelope(raw.env, raw.rate);
+
+  /* A lull needs two things, and the onset envelope only knows one of them.
+     Between two notes of a phrase nothing is starting either — what separates
+     that from the end of a phrase is that here the sound has died away, and
+     there it is still ringing. Taking the smaller of the two scores means a
+     break has to be both: nothing beginning, and nothing still sounding. */
+  const rms = energyEnvelope(samples, sampleRate, raw.rate);
+  const quietOnsets = gapScores(env, raw.rate);
+  const quietSound = gapScores(rms, raw.rate);
+  const shift = Math.round(raw.offset * raw.rate);
+  const gaps = new Float32Array(quietOnsets.length);
+  for (let i = 0; i < gaps.length; i++) {
+    const j = clamp(i + shift, 0, quietSound.length - 1);
+    gaps[i] = quietSound.length ? Math.min(quietOnsets[i], quietSound[j]) : quietOnsets[i];
+  }
+
+  // "The music resumes" means the next note actually starts, not the point
+  // where the lull's score happens to tail off.
+  let busy = 0;
+  for (let i = 0; i < env.length; i++) busy += env[i];
+  busy = (busy / Math.max(1, env.length)) * 0.6;
+
+  const { chroma, rate: chromaRate, offset: chromaOffset } = chromaFrames(samples, sampleRate);
+  const novelty = noveltyScores(chroma, chromaRate);
+
+  const at = (i) => {
+    const t = i / raw.rate + raw.offset;
+    if (!novelty.length) return 0;
+    const j = clamp(Math.round((t - chromaOffset) * chromaRate), 0, novelty.length - 1);
+    return novelty[j];
+  };
+
+  // Novelty can promote a shallow lull that happens to be a real turning point,
+  // but it must never carry a candidate on its own: with `minScore` above the
+  // novelty weight, a change of harmony in the middle of a continuous line
+  // scores too low to qualify. Cutting there chops the line in half, which is
+  // precisely the thing this is meant to avoid.
+  const score = new Float32Array(gaps.length);
+  for (let i = 0; i < gaps.length; i++) {
+    score[i] = PHRASE.gapWeight * gaps[i] + (1 - PHRASE.gapWeight) * at(i);
+  }
+
+  // Peak-pick on a smoothed curve. Frame-to-frame wobble in the envelope
+  // otherwise yields hundreds of "boundaries" a few milliseconds apart, which
+  // is the same as having none.
+  const half = Math.max(1, Math.round((raw.rate * PHRASE.smooth) / 2));
+  const running = new Float64Array(score.length + 1);
+  for (let i = 0; i < score.length; i++) running[i + 1] = running[i] + score[i];
+  const smooth = new Float32Array(score.length);
+  for (let i = 0; i < score.length; i++) {
+    const a = Math.max(0, i - half);
+    const b = Math.min(score.length, i + half + 1);
+    smooth[i] = (running[b] - running[a]) / (b - a);
+  }
+
+  const points = [];
+  for (let i = 1; i < smooth.length - 1; i++) {
+    if (smooth[i] < PHRASE.minScore) continue;
+    if (smooth[i] < smooth[i - 1] || smooth[i] < smooth[i + 1]) continue;
+    // Measure how long the lull lasts, in both directions. This is what tells a
+    // breath between phrases from the ordinary gap between two notes — a
+    // pianist's phrase ending leaves half a second or more, where notes within
+    // a line are a couple of hundred milliseconds apart. Without it, cuts
+    // landed in the middle of a phrase on the strength of one such gap.
+    const floor = Math.max(gaps[i] * 0.5, 0.05);
+    const reach = Math.round(raw.rate * PHRASE.maxLull);
+    let begin = i;
+    while (begin - 1 >= Math.max(0, i - reach) && gaps[begin - 1] >= floor) begin--;
+    let end = i;
+    const limit = Math.min(env.length - 1, i + reach);
+    while (end + 1 <= limit && env[end + 1] <= busy) end++;
+    if ((end - begin) / raw.rate < PHRASE.minLull) continue;
+
+    points.push({
+      t: i / raw.rate + raw.offset,
+      resumes: end / raw.rate + raw.offset,
+      score: smooth[i],
+      gap: gaps[i],
+      lull: (end - begin) / raw.rate,
+      novelty: at(i),
+    });
+  }
+
+  // One breath, one point: keep the best of any cluster. A phrase boundary is
+  // an event, not a region, and the join search should not be choosing between
+  // forty descriptions of the same pause.
+  const kept = [];
+  for (const point of [...points].sort((a, b) => b.score - a.score)) {
+    if (kept.every((other) => Math.abs(other.t - point.t) >= PHRASE.separation)) {
+      kept.push(point);
+    }
+  }
+  return kept.sort((a, b) => a.t - b.t);
+}
+
+/**
+ * Choose cut points at phrase boundaries, for music with no beat to snap to.
+ *
+ * Same shape of answer as `suggestJoin`, so the caller does not care which
+ * strategy produced it. The outgoing clip stops where its phrase died away;
+ * the incoming one starts where its next phrase picks up.
+ */
+function suggestPhraseJoin(out, cutOut, inc, cutIn, opts = {}) {
+  const maxShift = opts.maxShift ?? 2.5;
+  const crossfade = Math.max(0, opts.crossfade || 0);
+  const maxCrossfade = opts.maxCrossfade ?? Infinity;
+  const outRoom = opts.outRoom || { min: -maxShift, max: maxShift };
+  const incRoom = opts.incRoom || { min: -maxShift, max: maxShift };
+
+  const decline = (reason) => ({
+    ok: false, reason, endShift: 0, startShift: 0, crossfade,
+    lengthDelta: 0, drift: 0, tempoMismatch: 0, confidence: 0, bpm: [0, 0],
+  });
+  if (!out.length || !inc.length) return decline('no-phrase');
+
+  const reachable = (points, cut, room, key) => points.filter((p) => {
+    const shift = p[key] - cut;
+    return shift >= Math.max(-maxShift, room.min) && shift <= Math.min(maxShift, room.max);
+  });
+  const outs = reachable(out, cutOut, outRoom, 't');
+  const incs = reachable(inc, cutIn, incRoom, 'resumes');
+  if (!outs.length || !incs.length) return decline('no-room');
+
+  // With no beat, a blend has nothing to drift out of — and a short one over
+  // free tempo is the most exposed a join can be. A hard cut stays a hard cut.
+  const blend = crossfade > 0
+    ? Math.min(Math.max(crossfade, PHRASE.minBlend), maxCrossfade)
+    : 0;
+
+  let best = null;
+  for (const a of outs) {
+    const endShift = a.t - cutOut;
+    for (const b of incs) {
+      const startShift = b.resumes - cutIn;
+      const lengthDelta = endShift - startShift - (blend - crossfade);
+      const cost = 1.2 * ((1 - a.score) + (1 - b.score))
+        + (0.8 * (Math.abs(endShift) + Math.abs(startShift))) / maxShift
+        + 0.7 * Math.abs(lengthDelta);
+      if (!best || cost < best.cost) best = { cost, endShift, startShift, lengthDelta, a, b };
+    }
+  }
+
+  return {
+    ok: true,
+    reason: 'phrase',
+    endShift: best.endShift,
+    startShift: best.startShift,
+    crossfade: blend,
+    lengthDelta: best.lengthDelta,
+    drift: 0,
+    tempoMismatch: 0,
+    confidence: Math.min(best.a.score, best.b.score),
+    bpm: [0, 0],
+  };
+}
+
+/** Mono samples around one cut, with the cut expressed in the same time base. */
+function windowAround(buffer, at, opts = {}) {
+  const half = (opts.window ?? BEAT.window) / 2;
+  const { samples, start } = monoWindow(buffer, at - half, at + half);
+  return { samples, sampleRate: buffer.sampleRate, cut: at - start };
+}
+
+/**
+ * The join button's whole decision, from the two buffers either side.
+ *
+ * Beats first, because a shared pulse is the strongest thing two pieces of
+ * music can have in common. When there isn't one — rubato piano, a free-time
+ * introduction, most of the orchestral repertoire — fall back to phrasing
+ * rather than giving up, which is what this used to do.
+ */
 function suggestJoinForBuffers(outBuffer, cutOut, incBuffer, cutIn, opts = {}) {
-  const a = beatsAround(outBuffer, cutOut, opts);
-  const b = beatsAround(incBuffer, cutIn, opts);
-  return suggestJoin(a.beats, a.cut, b.beats, b.cut, opts);
+  const a = windowAround(outBuffer, cutOut, opts);
+  const b = windowAround(incBuffer, cutIn, opts);
+
+  const beat = suggestJoin(
+    analyseBeats(a.samples, a.sampleRate), a.cut,
+    analyseBeats(b.samples, b.sampleRate), b.cut, opts);
+  if (beat.ok || beat.reason !== 'no-beat') return beat;
+
+  return suggestPhraseJoin(
+    phrasePoints(a.samples, a.sampleRate), a.cut,
+    phrasePoints(b.samples, b.sampleRate), b.cut, opts);
 }
 
 /**
@@ -1189,23 +1571,31 @@ function suggestJoinForBuffers(outBuffer, cutOut, incBuffer, cutIn, opts = {}) {
  */
 function describeJoin(result, wasCrossfade) {
   if (!result.ok) {
-    return result.reason === 'no-room'
-      ? 'Not enough song either side to move the cut, so nothing changed'
-      : 'No steady beat to line up with here, so nothing changed';
+    return {
+      'no-room': 'Not enough song either side to move the cut, so nothing changed',
+      'no-beat': 'No steady beat to line up with here, so nothing changed',
+    }[result.reason] || 'Could not find a natural break in the music, so nothing changed';
   }
 
   const changed = Math.abs(result.endShift) >= 0.05
     || Math.abs(result.startShift) >= 0.05
     || Math.abs(result.crossfade - wasCrossfade) >= 0.05;
-  if (!changed) return 'This join is already on the beat';
+  if (!changed) {
+    return result.reason === 'phrase'
+      ? 'This join is already at a natural break'
+      : 'This join is already on the beat';
+  }
 
   const delta = result.lengthDelta;
   const length = Math.abs(delta) < 0.05
     ? 'Same length as before'
     : `Program is ${Math.abs(delta).toFixed(1)}s ${delta > 0 ? 'longer' : 'shorter'}`;
-  const lead = result.reason === 'tempo-mismatch'
-    ? 'Lined up as closely as these two speeds allow'
-    : 'Lined up with the beat';
+  const lead = {
+    'tempo-mismatch': 'Lined up as closely as these two speeds allow',
+    // Saying which of the two things happened matters: it tells her the music
+    // has no steady beat, which is why the advice for it is different.
+    phrase: 'No steady beat here, so the cut moved to where the phrase ends',
+  }[result.reason] || 'Lined up with the beat';
   return `${lead}. ${length}`;
 }
 
@@ -1920,7 +2310,8 @@ function updateAlignAvailability() {
   button.disabled = !ready;
   button.title = ready
     ? 'Moves this cut and the end of the song before it by up to 2.5 seconds each, '
-      + 'so both land on a beat and the blend lasts a whole number of beats'
+      + 'so they land on a beat — or, if the music has no steady beat, where a '
+      + 'phrase ends'
     : 'Add both songs first';
 }
 
@@ -2921,6 +3312,8 @@ if (typeof document !== 'undefined') {
     BEAT, fftInPlace, onsetEnvelope, flattenEnvelope, estimateTempoLag,
     analyseBeats, suggestJoin, monoWindow, beatsAround, suggestJoinForBuffers,
     describeJoin, joinRoom,
+    PHRASE, gapScores, energyEnvelope, chromaFrames, chromaDistance, noveltyScores,
+    phrasePoints, suggestPhraseJoin, windowAround,
     LOUDNESS, kWeighting, biquad, loudnessOf, peakOf, measureClip, solveGains,
     clipGain, gainToDb, dbToGain, levelPercent, describeLevels, LEVEL_SLIDER, MAX_GAIN,
     parseClock, exportFileName, fmt, fmtShort, clamp,

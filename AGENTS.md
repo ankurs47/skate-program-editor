@@ -15,7 +15,7 @@ plain, and jargon is treated as a bug.
 index.html   structure, help topic content, dialogs
 app.js       everything: decode, waveforms, editing, playback, render, export
 style.css    theming via CSS custom properties, light and dark
-test/run.js  78 checks, no dependencies
+test/run.js  100 checks, no dependencies
 ```
 
 ## Commands
@@ -81,6 +81,16 @@ Snapping a rubato piece to an invented grid is the worst outcome available here,
 worse than doing nothing. `alignSelectedJoin()` is the only caller: it takes the
 snapshot for undo *after* deciding to act, so a declined suggestion doesn't leave
 a no-op on the undo stack.
+
+**The join button has two strategies, and beats is only the first.** Much
+skating music — solo piano especially — has no steady pulse, and `analyseBeats`
+correctly refuses to name one. `suggestJoinForBuffers()` then falls back to
+`suggestPhraseJoin()`, which cuts at phrase boundaries found from lulls in the
+onset envelope and changes of harmony in a chroma curve. Both strategies return
+the same shape of answer, distinguished by `reason`, so callers do not care
+which ran — but the message to the user does say which, because it tells her
+the music has no beat and that the advice for it is different. Only when both
+decline does nothing happen.
 
 **Loudness is measured on the kept part of a clip, never the whole file.** They
 trimmed twenty seconds out of a four-minute song; the rest is not in the
@@ -159,6 +169,32 @@ change *sounds*, but stores and shows the multiplier — `LEVEL_SLIDER` and the
   leaves room for. `encodeWav()` clamps, so overshoot is flat-topped distortion
   rather than wrap-around noise — audible, not catastrophic, and still to be
   prevented rather than survived.
+- **Two silences are not a change of harmony.** Chroma vectors for silence are
+  all zero, and a cosine distance between two zero vectors reads as maximally
+  different — so every moment of a quiet passage scored as a phrase boundary.
+  `chromaDistance()` returns 0 when either side has no energy; silence is the
+  gap score's job, not the novelty score's.
+- **Peak-picking an unsmoothed curve finds hundreds of boundaries.** Frame to
+  frame wobble in the onset envelope produced 568 "phrase breaks" in a twelve
+  second window, which is the same as finding none. `phrasePoints()` smooths
+  before looking for peaks and then keeps only the best of each cluster — a
+  boundary is an event, not a region.
+- **A free-tempo test fixture must be genuinely irregular.** The first one
+  spaced its phrases about 3.5 s apart, which the beat detector duly locked
+  onto, so the fallback never ran and the test proved nothing. Fixtures for this
+  path assert that `analyseBeats` is below `BEAT.minConfidence` on the exact
+  window under test, so they fail loudly rather than silently testing the wrong
+  branch.
+- **Sparse music still reads as having a beat more often than it should.**
+  A dozen piano notes in a twelve second window let a metronome fit a few of
+  them by chance, and the contrast measure in `analyseBeats` rates that as
+  confidently as a drum track. `BEAT.minCoverage` — what share of the grid's
+  beats are actually played — damps it, and cut the affected windows of the test
+  fixture from 33 of 55 to 12. It is not a cure. Finishing this needs real piano
+  recordings to calibrate against, not more work against synthetic fixtures,
+  which is why the tests assert that coverage *separates* the two cases rather
+  than that every sparse window is rejected. Until then some free-tempo music
+  gets the beat strategy when it should get phrasing.
 - **Grid and flex items need `min-width: 0`.** A long clip name once widened the
   whole column and pushed the buttons off-screen. Relatedly, the timeline sizes
   clips with `flex-grow`, not computed pixels — computing widths from the

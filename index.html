@@ -153,7 +153,7 @@
             <span>Blend into previous <b id="valCrossfade">0.0s</b></span>
             <input id="crossfade" type="range" min="0" max="10" step="0.1" value="0">
           </label>
-          <button id="btnAlignJoin" class="small">Line up with the beat</button>
+          <button id="btnAlignJoin" class="small">Line up this join</button>
         </div>
       </div>
     </div>
@@ -241,13 +241,18 @@
           you can hear the join, it&rsquo;s usually in the wrong place.</li>
       <li>Set <b>Blend into previous</b> to 1 or 2 seconds to ease from one song
           into the next. Leave it at 0 for a sudden, dramatic change.</li>
-      <li><b>Line up with the beat</b> shifts the join by up to a couple of
-          seconds so both songs land on a beat, which is what stops a blend
-          sounding like a stumble. It tells you if it made the program longer or
-          shorter. If the music has no steady beat &mdash; a lot of piano and
-          orchestral pieces don&rsquo;t &mdash; it says so and changes nothing,
-          and you place the cut by ear. <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes it
-          either way.</li>
+      <li><b>Line up this join</b> shifts the cut by up to a couple of seconds
+          to somewhere the music can take it, and tells you if that made the
+          program longer or shorter. When both songs have a steady beat it puts
+          them on it, which is what stops a blend sounding like a stumble.</li>
+      <li>Piano and a lot of orchestral music have no steady beat to find. There
+          the button looks for the <b>end of a phrase</b> instead &mdash; the
+          breath between one musical line and the next &mdash; and says that is
+          what it did. Cutting there is what makes a join sound intended rather
+          than accidental.</li>
+      <li>If it can&rsquo;t find either, it says so and changes nothing, and you
+          place the cut by ear with <kbd>I</kbd> and <kbd>O</kbd>.
+          <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes it either way.</li>
       <li><b>Even out the volume</b> sets every song so they all sound about
           equally loud. Records are mastered at wildly different levels, and the
           rink&rsquo;s sound desk is set once and left, so a quiet cut in the

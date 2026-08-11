@@ -550,6 +550,346 @@ check('describeJoin: plain language, no audio jargon', () => {
   }
 });
 
+/* ------------------------------------------------------------ 1d. phrases */
+
+/**
+ * A piano-ish note: a few decaying harmonics, struck at `at` seconds.
+ *
+ * The taper at the end is not cosmetic. Stopping the decay dead at 5% of full
+ * level leaves a step in the waveform, which is a broadband click — a false
+ * onset in the middle of what the fixture calls silence, and it had the phrase
+ * detector correctly reporting a note that only existed because of this.
+ */
+function note(out, at, hz, seconds = 1.2, level = 0.6, sampleRate = 44100) {
+  const start = Math.round(at * sampleRate);
+  const len = Math.round(seconds * sampleRate);
+  const taper = Math.round(0.05 * sampleRate);
+  for (let i = 0; i < len && start + i < out.length; i++) {
+    const t = i / sampleRate;
+    const decay = Math.exp(-t * 2.6) * Math.min(1, (len - i) / taper);
+    out[start + i] += level * decay * (
+      Math.sin(2 * Math.PI * hz * t)
+      + 0.4 * Math.sin(2 * Math.PI * hz * 2 * t)
+      + 0.2 * Math.sin(2 * Math.PI * hz * 3 * t));
+  }
+  return out;
+}
+
+const HZ = { C4: 261.63, E4: 329.63, G4: 392.00, A4: 440, D4: 293.66, F4: 349.23, B4: 493.88 };
+
+/**
+ * Free-tempo piano: phrases of a few notes, separated by real silences, with
+ * every interval drawn from a wide range so nothing repeats.
+ *
+ * The irregularity is load-bearing. An earlier version spaced notes evenly
+ * enough that the beat detector accepted it, and the fallback under test never
+ * ran — so the fixture asserts its own premise below, and every test using it
+ * checks that `analyseBeats` really is declining before drawing a conclusion.
+ *
+ * Returns the audio and the spans where nothing is sounding. Spans, not
+ * midpoints: anywhere inside a pause is a legitimate cut, and asserting against
+ * the middle of one fails a cut that is perfectly good.
+ */
+function rubato(seconds, sampleRate = 44100) {
+  const out = new Float32Array(Math.round(seconds * sampleRate));
+  const random = rng(20260810);
+  const scale = [261.63, 277.18, 293.66, 329.63, 349.23, 392.00, 440, 466.16, 493.88];
+  const silences = [];
+  let t = 0.4;
+  while (t < seconds - 1.2) {
+    const notes = 3 + Math.floor(random() * 3);
+    for (let i = 0; i < notes; i++) {
+      note(out, t, scale[Math.floor(random() * scale.length)], 1.1, 0.5, sampleRate);
+      if (i < notes - 1) t += 0.24 + random() * 0.62;      // within a line
+    }
+    const died = t + 1.0;                                   // the last note has decayed
+    const pause = 0.7 + random() * 1.9;                     // the breath after it
+    if (died + pause < seconds) silences.push([died, died + pause]);
+    t = died + pause;
+  }
+  return { audio: out, silences };
+}
+
+/** Distance from `t` into the nearest silence — 0 when it is inside one. */
+function outsideSilence(t, silences) {
+  return Math.min(...silences.map(([from, to]) => Math.max(0, from - t, t - to)));
+}
+
+check('gaps: a silence in the middle of busy music scores high', () => {
+  const rate = 86;
+  const env = new Float32Array(rate * 10).fill(1);
+  for (let i = rate * 4; i < rate * 4.5; i++) env[i] = 0;   // half a second of nothing
+  const scores = app.gapScores(env, rate);
+  const inTheGap = scores[Math.round(rate * 4.25)];
+  const inTheMusic = scores[Math.round(rate * 8)];
+  ok(inTheGap > 0.8, `the silence only scored ${inTheGap.toFixed(2)}`);
+  ok(inTheMusic < 0.1, `steady music scored ${inTheMusic.toFixed(2)}, should be near zero`);
+});
+
+check('gaps: judged against the surroundings, not an absolute level', () => {
+  // The same silence in a quiet passage must score the same as in a loud one.
+  const rate = 86;
+  const make = (level) => {
+    const env = new Float32Array(rate * 10).fill(level);
+    for (let i = rate * 4; i < rate * 4.5; i++) env[i] = 0;
+    return app.gapScores(env, rate)[Math.round(rate * 4.25)];
+  };
+  near(make(1), make(0.02), 1e-6, 'a lull is a lull at any volume: ');
+});
+
+check('gaps: silence throughout scores nothing, rather than everything', () => {
+  const scores = app.gapScores(new Float32Array(860), 86);
+  for (const s of scores) eq(s, 0, 'with no music there is no break to find: ');
+});
+
+check('chroma: names the notes actually being played', () => {
+  const sampleRate = 44100;
+  const chord = new Float32Array(sampleRate * 2);
+  for (const hz of [HZ.C4, HZ.E4, HZ.G4]) note(chord, 0, hz, 2, 0.5, sampleRate);
+  const { chroma } = app.chromaFrames(chord, sampleRate);
+  ok(chroma.length > 4, 'no chroma frames produced');
+
+  const mid = chroma[Math.floor(chroma.length / 2)];
+  const ranked = [...mid.keys()].sort((a, b) => mid[b] - mid[a]).slice(0, 3);
+  // C is pitch class 0, E is 4, G is 7
+  eq(ranked.slice().sort((a, b) => a - b), [0, 4, 7], 'the three strongest classes: ');
+  near(mid.reduce((sum, v) => sum + v * v, 0), 1, 1e-5, 'frames are unit length: ');
+});
+
+check('chroma: a single tone lands on its own pitch class', () => {
+  const sampleRate = 44100;
+  const tone = new Float32Array(sampleRate * 2);
+  for (let i = 0; i < tone.length; i++) tone[i] = 0.5 * Math.sin((2 * Math.PI * HZ.A4 * i) / sampleRate);
+  const { chroma } = app.chromaFrames(tone, sampleRate);
+  const mid = chroma[Math.floor(chroma.length / 2)];
+  const loudest = [...mid.keys()].reduce((best, p) => (mid[p] > mid[best] ? p : best), 0);
+  eq(loudest, 9, 'A is pitch class 9: ');
+});
+
+check('chroma: too short to analyse returns nothing, not a crash', () => {
+  const { chroma } = app.chromaFrames(new Float32Array(100), 44100);
+  eq(chroma, []);
+  eq(app.noveltyScores([], 21).length, 0);
+});
+
+check('chromaDistance: identical chords are close, unrelated ones are far', () => {
+  const unit = (classes) => {
+    const v = new Float32Array(12);
+    for (const p of classes) v[p] = 1;
+    let e = Math.sqrt(v.reduce((sum, x) => sum + x * x, 0));
+    for (let p = 0; p < 12; p++) v[p] /= e;
+    return v;
+  };
+  near(app.chromaDistance(unit([0, 4, 7]), unit([0, 4, 7])), 0, 1e-6, 'the same chord: ');
+  near(app.chromaDistance(unit([0, 4, 7]), unit([1, 5, 8])), 1, 1e-6, 'no notes shared: ');
+  const related = app.chromaDistance(unit([0, 4, 7]), unit([0, 4, 9]));
+  ok(related > 0 && related < 0.5, `chords sharing two notes should be close, got ${related}`);
+});
+
+check('novelty: rises where the harmony moves, stays flat inside a chord', () => {
+  const sampleRate = 44100;
+  const audio = new Float32Array(sampleRate * 8);
+  // four seconds of C major, then four of F sharp major — as far away as it gets
+  for (let s = 0; s < 4; s += 0.5) for (const hz of [HZ.C4, HZ.E4, HZ.G4]) note(audio, s, hz, 0.6, 0.5, sampleRate);
+  for (let s = 4; s < 8; s += 0.5) for (const hz of [369.99, 466.16, 277.18]) note(audio, s, hz, 0.6, 0.5, sampleRate);
+
+  const { chroma, rate, offset } = app.chromaFrames(audio, sampleRate);
+  const novelty = app.noveltyScores(chroma, rate);
+  const at = (t) => novelty[Math.round((t - offset) * rate)];
+  ok(at(4) > 0.5, `the change of key only scored ${at(4).toFixed(2)}`);
+  ok(at(2) < at(4) / 2, `the middle of a steady chord scored ${at(2).toFixed(2)}, too high`);
+});
+
+check('phrases: found in free-tempo music that has no beat at all', () => {
+  const { audio, silences } = rubato(16);
+  // the premise: the beat detector should be declining this
+  const beats = app.analyseBeats(audio, 44100);
+  ok(beats.confidence < app.BEAT.minConfidence,
+    `this fixture has a beat after all (${beats.confidence.toFixed(2)}), so it tests nothing`);
+
+  const points = app.phrasePoints(audio, 44100);
+  ok(points.length >= silences.length,
+    `only found ${points.length} breaks for ${silences.length} pauses`);
+
+  // every real pause is found
+  for (const [from, to] of silences) {
+    ok(points.some((p) => p.t > from - 0.3 && p.t < to + 0.3),
+      `no break found in the pause from ${from.toFixed(2)}s to ${to.toFixed(2)}s`);
+  }
+  // and nothing is offered that is not one
+  for (const p of points) {
+    ok(outsideSilence(p.t, silences) < 0.35,
+      `a break was offered at ${p.t.toFixed(2)}s, ${outsideSilence(p.t, silences).toFixed(2)}s `
+      + 'from any pause — that is in the middle of a phrase');
+  }
+});
+
+check('phrases: every point says where the music picks up again', () => {
+  for (const p of app.phrasePoints(rubato(16).audio, 44100)) {
+    ok(p.resumes >= p.t, 'the music cannot resume before the lull starts');
+    ok(p.resumes - p.t < 3, `a ${(p.resumes - p.t).toFixed(1)}s lull is not a phrase break`);
+    ok(p.score >= app.PHRASE.minScore, 'a point below the threshold was kept');
+  }
+});
+
+check('phrases: silence has no breaks in it', () => {
+  eq(app.phrasePoints(new Float32Array(44100 * 8), 44100), []);
+  eq(app.phrasePoints(new Float32Array(64), 44100), []);
+});
+
+check('phrase join: both cuts move to a break in the music', () => {
+  const points = app.phrasePoints(rubato(16).audio, 44100);
+  const result = app.suggestPhraseJoin(points, 7.3, points, 4.1, { crossfade: 1.5 });
+  ok(result.ok, `declined: ${result.reason}`);
+  eq(result.reason, 'phrase');
+
+  const isPoint = (t, key) => points.some((p) => Math.abs(p[key] - t) < 1e-6);
+  ok(isPoint(7.3 + result.endShift, 't'), 'the outgoing cut is not at a break');
+  ok(isPoint(4.1 + result.startShift, 'resumes'), 'the incoming cut is not where music resumes');
+  ok(Math.abs(result.endShift) <= 2.5 && Math.abs(result.startShift) <= 2.5, 'moved too far');
+});
+
+check('phrase join: the cut lands in a pause that is really there', () => {
+  /* The check above only says the cut is at one of the points we returned,
+     which proves nothing if the points are wrong. This one measures against
+     where the fixture actually left silence, and it is what caught the scoring
+     cutting in the middle of a line on the strength of a harmony change, and
+     then again on the ordinary gap between two notes. */
+  const { audio, silences } = rubato(40);
+  const buffer = fakeBuffer(audio);
+
+  for (const [cutOut, cutIn] of [[16.4, 9.2], [20, 12], [27, 19]]) {
+    const result = app.suggestJoinForBuffers(buffer, cutOut, buffer, cutIn, { crossfade: 1.2 });
+    ok(result.ok, `declined at ${cutOut}s: ${result.reason}`);
+    const endAt = cutOut + result.endShift;
+    const startAt = cutIn + result.startShift;
+    ok(outsideSilence(endAt, silences) < 0.25,
+      `outgoing cut ${endAt.toFixed(2)}s is ${outsideSilence(endAt, silences).toFixed(2)}s `
+      + 'outside any pause — it is cutting through the music');
+    ok(outsideSilence(startAt, silences) < 0.25,
+      `incoming cut ${startAt.toFixed(2)}s is ${outsideSilence(startAt, silences).toFixed(2)}s `
+      + 'outside any pause');
+    // the incoming side aims at where the music picks up, so it should sit in
+    // the later part of its pause rather than at the front of it
+    const pause = silences.find(([from, to]) => startAt > from - 0.25 && startAt < to + 0.25);
+    ok(startAt > (pause[0] + pause[1]) / 2,
+      `incoming cut ${startAt.toFixed(2)}s opens with silence: the pause runs to ${pause[1].toFixed(2)}s`);
+  }
+});
+
+check('phrase join: the outgoing clip stops in the lull, the incoming starts after it', () => {
+  // The asymmetry is the point: ending in silence sounds finished, but opening
+  // with silence just wastes seconds off the clock.
+  const points = [
+    { t: 5.0, resumes: 5.6, score: 0.9, gap: 0.9, novelty: 0.5 },
+    { t: 9.0, resumes: 9.4, score: 0.9, gap: 0.9, novelty: 0.5 },
+  ];
+  const result = app.suggestPhraseJoin(points, 5.0, points, 5.6, { crossfade: 2 });
+  ok(result.ok, `declined: ${result.reason}`);
+  near(result.endShift, 0, 1e-9, 'the outgoing cut was already in the lull: ');
+  near(result.startShift, 0, 1e-9, 'the incoming cut was already where music resumes: ');
+});
+
+check('phrase join: a short blend is lengthened, a hard cut is left alone', () => {
+  const points = app.phrasePoints(rubato(16).audio, 44100);
+  const blended = app.suggestPhraseJoin(points, 7.3, points, 4.1, { crossfade: 0.6 });
+  ok(blended.crossfade >= app.PHRASE.minBlend,
+    `a ${blended.crossfade}s blend is exposed with no beat to carry it`);
+  const hard = app.suggestPhraseJoin(points, 7.3, points, 4.1, { crossfade: 0 });
+  eq(hard.crossfade, 0, 'a deliberate hard cut must survive: ');
+  const capped = app.suggestPhraseJoin(points, 7.3, points, 4.1, { crossfade: 0.6, maxCrossfade: 1 });
+  ok(capped.crossfade <= 1, 'the blend cannot outlast the clip');
+});
+
+check('phrase join: reported length change matches the shifts', () => {
+  const points = app.phrasePoints(rubato(16).audio, 44100);
+  const before = 1.5;
+  const result = app.suggestPhraseJoin(points, 7.3, points, 4.1, { crossfade: before });
+  near(result.lengthDelta,
+    result.endShift - result.startShift - (result.crossfade - before), 1e-9);
+});
+
+check('phrase join: declines rather than inventing a break', () => {
+  const empty = app.suggestPhraseJoin([], 5, [], 5, { crossfade: 1.5 });
+  eq(empty.ok, false);
+  eq(empty.reason, 'no-phrase');
+  eq(empty.endShift, 0);
+  eq(empty.crossfade, 1.5, 'a declined join leaves the blend alone: ');
+
+  const points = app.phrasePoints(rubato(16).audio, 44100);
+  const boxed = app.suggestPhraseJoin(points, 7.3, points, 4.1, {
+    crossfade: 1.5,
+    outRoom: { min: 0.01, max: 0.02 },
+  });
+  eq(boxed.ok, false);
+  eq(boxed.reason, 'no-room');
+});
+
+check('the join button falls back to phrasing whenever the beat path declines', () => {
+  // Deterministic: forcing the beat path to decline proves the wiring without
+  // depending on how the detector happens to judge a synthetic fixture.
+  const buffer = fakeBuffer(rubato(40).audio);
+  const forced = app.suggestJoinForBuffers(buffer, 14.5, buffer, 23, {
+    crossfade: 1.5, minConfidence: 1,
+  });
+  ok(forced.ok, `declined: ${forced.reason}`);
+  eq(forced.reason, 'phrase');
+});
+
+check('the join button falls back to phrasing on free-tempo music', () => {
+  const buffer = fakeBuffer(rubato(40).audio);
+  for (const [cutOut, cutIn] of [[14.5, 23], [21, 9.5]]) {
+    // the premise, per window: the beat path has to be the one declining
+    for (const at of [cutOut, cutIn]) {
+      const w = app.windowAround(buffer, at);
+      ok(app.analyseBeats(w.samples, w.sampleRate).confidence < app.BEAT.minConfidence,
+        `the window at ${at}s reads as having a beat, so this tests nothing`);
+    }
+    const result = app.suggestJoinForBuffers(buffer, cutOut, buffer, cutIn, { crossfade: 1.5 });
+    ok(result.ok, `declined: ${result.reason}`);
+    eq(result.reason, 'phrase', `free-tempo music at ${cutOut}s should get the phrase strategy: `);
+    ok(Math.abs(result.endShift) <= 2.5, 'moved too far');
+  }
+});
+
+check('beats: a grid mostly nobody plays is not a pulse', () => {
+  /* Sparse music lets a metronome fit a few notes by chance, and the contrast
+     measure rates that as confidently as a drum track — which had free-tempo
+     music being snapped to an invented grid. Coverage is what separates them.
+
+     It is a damper, not a cure: some windows of sparse music still read as
+     having a beat. Finishing that needs real recordings to calibrate against,
+     and it is written up in AGENTS.md rather than tuned against fixtures. */
+  const sparse = app.analyseBeats(rubato(14).audio, 44100);
+  const steady = app.analyseBeats(clickTrain(120, 14, { accent: 4 }), 44100);
+
+  ok(sparse.coverage < app.BEAT.minCoverage,
+    `sparse piano covers ${sparse.coverage.toFixed(2)} of its grid, which is not sparse`);
+  ok(steady.coverage > 0.9, `a drum track covers only ${steady.coverage.toFixed(2)} of its grid`);
+  ok(steady.confidence > 0.5,
+    `the damper must not touch rhythmic music, which scored ${steady.confidence.toFixed(2)}`);
+  ok(sparse.confidence < steady.confidence / 2,
+    `sparse piano at ${sparse.confidence.toFixed(2)} is not clearly below `
+    + `a drum track at ${steady.confidence.toFixed(2)}`);
+});
+
+check('the join button still prefers the beat when there is one', () => {
+  const audio = fakeBuffer(clickTrain(120, 30, { accent: 4 }));
+  const result = app.suggestJoinForBuffers(audio, 16.4, audio, 9.2, { crossfade: 1.5 });
+  ok(result.ok, `declined: ${result.reason}`);
+  ok(result.reason !== 'phrase', 'a steady beat must not be given up for phrasing');
+});
+
+check('describeJoin: says which of the two things it did', () => {
+  const phrase = { ok: true, reason: 'phrase', endShift: 0.8, startShift: 0, crossfade: 2, lengthDelta: 0 };
+  eq(app.describeJoin(phrase, 2),
+    'No steady beat here, so the cut moved to where the phrase ends. Same length as before');
+  eq(app.describeJoin({ ...phrase, endShift: 0, startShift: 0 }, 2),
+    'This join is already at a natural break');
+  eq(app.describeJoin({ ok: false, reason: 'no-phrase' }, 1.5),
+    'Could not find a natural break in the music, so nothing changed');
+});
+
 check('monoWindow: averages channels and clamps to the buffer', () => {
   const left = new Float32Array([1, 1, 1, 1]);
   const right = new Float32Array([0, 0, 0, 0]);
