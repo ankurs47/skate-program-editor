@@ -1329,6 +1329,40 @@ check('both colour themes define the same variables', () => {
   eq(onlyDark, [], 'defined only in dark mode: ');
 });
 
+/* The two music-get wrappers are the same tool written twice, once for a shell
+   and once for cmd. Nothing forces them to agree, and a fix applied to one and
+   forgotten on the other is the obvious way for that to rot, so the flags that
+   define the behaviour are asserted in both. */
+check('the music-get wrappers agree on what they do', () => {
+  const sh = fs.readFileSync(path.join(ROOT, 'tools/music-get.sh'), 'utf8');
+  const cmd = fs.readFileSync(path.join(ROOT, 'tools/music-get.cmd'), 'utf8');
+  const flags = [
+    '--format bestaudio',   // the native stream, never re-encoded
+    '--no-overwrites',
+    '--no-playlist',
+    '--yes-playlist',
+    '--playlist-items 1',   // one song means one song, even off a stray feed
+    '--print-to-file',      // how "did anything actually arrive" is answered
+  ];
+  for (const flag of flags) {
+    ok(sh.includes(flag), `music-get.sh no longer passes ${flag}`);
+    ok(cmd.includes(flag), `music-get.cmd no longer passes ${flag}`);
+  }
+  // Comments only, stripped out: both scripts say the word ffmpeg while
+  // explaining that they don't need it, which is the opposite of the problem.
+  const code = (sh + cmd)
+    .split('\n')
+    .filter((line) => !/^\s*(#|rem\b)/i.test(line))
+    .join('\n');
+  ok(!/--extract-audio|--audio-format|\bffmpeg\b/i.test(code),
+    'a wrapper converts the audio; it is meant to take the stream as it is');
+  ok(!/\/home\/|file:\/\/\//.test(code), 'a wrapper references a local path');
+  if (process.platform !== 'win32') {
+    ok(fs.statSync(path.join(ROOT, 'tools/music-get.sh')).mode & 0o111,
+      'music-get.sh is not executable');
+  }
+});
+
 if (process.argv.includes('--net')) {
   check('the pinned MP3 encoder hash still matches the CDN', () => {
     const body = execFileSync('curl', ['-sSL', '--max-time', '30', app.LAME_URL],

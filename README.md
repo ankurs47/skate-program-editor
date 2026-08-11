@@ -65,6 +65,41 @@ It works on a tablet but warns you first: trimming by touch is fiddly, and
 decoded audio is uncompressed — roughly 90 MB of memory per four minutes of
 stereo — so a few long songs can exhaust what a mobile browser allows.
 
+## Getting the music off YouTube
+
+The editor works on files that are already on your computer, and often the song
+you want is one you have only ever heard on YouTube. `tools/` has a small
+helper for that — one script for Mac and Linux, one for Windows, doing the same
+thing:
+
+```bash
+./tools/music-get.sh "https://www.youtube.com/watch?v=..."     # Mac, Linux
+tools\music-get.cmd "https://www.youtube.com/watch?v=..."      # Windows
+```
+
+```
+  -o DIR      where to put the files (default: here)
+  --playlist  the link is part of a playlist and you want all of it,
+              not just the one song
+```
+
+It saves the sound exactly as YouTube already stores it — usually a `.webm`
+file, which Chrome and Firefox open without complaint. Nothing is converted, so
+no quality is lost before you start cutting and there is no ffmpeg to install.
+Give it several links at once and it works through them in turn.
+
+The one thing to install is [yt-dlp][yt-dlp], which does the actual work
+(`brew install yt-dlp`, `sudo apt install yt-dlp`, `winget install
+yt-dlp.yt-dlp`). The script says so, with the command for your system, if it
+isn't there. YouTube changes often enough that a download failing usually means
+yt-dlp is due an update — `yt-dlp -U`.
+
+Competition music is normally covered by the licence your rink or federation
+holds, but that is between you and them; this tool just moves audio onto your
+own disk.
+
+[yt-dlp]: https://github.com/yt-dlp/yt-dlp
+
 ## Running it yourself
 
 Clone the repo and open `index.html`. That's the whole build process.
@@ -120,7 +155,7 @@ is only for checking changes.
 
 ```bash
 npm install          # installs eslint, and enables the pre-commit hook
-npm test             # 100 checks: maths, wiring, and asset integrity
+npm test             # 101 checks: maths, wiring, and asset integrity
 npm run lint
 npm run check        # lint + test, what CI runs
 npm run test:net     # also re-verifies the pinned CDN hash
