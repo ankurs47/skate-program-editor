@@ -15,7 +15,7 @@ plain, and jargon is treated as a bug.
 index.html   structure, help topic content, dialogs
 app.js       everything: decode, waveforms, editing, playback, render, export
 style.css    theming via CSS custom properties, light and dark
-test/run.js  110 checks, no dependencies
+test/run.js  120 checks, no dependencies
 tools/       music-get.sh and .cmd — optional YouTube downloader, not the app
 ```
 
@@ -203,6 +203,20 @@ change *sounds*, but stores and shows the multiplier — `LEVEL_SLIDER` and the
   which is why the tests assert that coverage *separates* the two cases rather
   than that every sparse window is rejected. Until then some free-tempo music
   gets the beat strategy when it should get phrasing.
+- **A project's trims are unchecked until the audio turns up.** The file is not
+  in the project, so nothing has compared `srcEnd` against a real duration until
+  `addFiles` decodes one. Web Audio does not complain when a source is asked to
+  play past its end — it plays silence — so a shorter copy of a song gave a clip
+  duration that was a lie and an exported programme of the wrong length, with
+  nothing said. `clampClipsToFile()` runs on every decode and reports what it
+  had to change.
+- **Waiting on a frame in a background tab waits forever.** `withBusy()` yields
+  two frames so the disabled state paints before the work blocks the thread. A
+  hidden tab stops painting entirely, so `requestAnimationFrame` never fires and
+  the button would sit on "Working…" with the work never run — which is exactly
+  what happened the first time this was exercised in a background tab. The
+  `setTimeout` alongside it is not belt-and-braces; it is the only thing that
+  runs when the tab is not visible.
 - **A drop is not a reorder just because something landed on a clip.** The
   timeline read `text/plain` off the drag and passed it to `moveClip`, checking
   only the destination index. A dragged text selection parses to NaN, every

@@ -12,6 +12,7 @@
 
 const SR = 44100;
 const MIN_CROSSFADE = 0.01;
+const MIN_CLIP = 0.1;            // the shortest a clip may be trimmed to, in seconds
 const MAX_GAIN = 16;             // a shade over the +24 dB the level slider reaches
 const STORE_KEY = 'skate.program.v1';
 
@@ -135,8 +136,11 @@ function clamp(v, lo, hi) {
 
 function toast(message, ms = 2600) {
   const el = $('toast');
-  el.textContent = message;
+  // Shown before the text is set, not after: this is a live region, and a
+  // change made while it is still display:none may never be announced at all.
+  // Every outcome the app reports goes through here.
   el.classList.remove('hidden');
+  el.textContent = message;
   clearTimeout(toast._t);
   toast._t = setTimeout(() => el.classList.add('hidden'), ms);
 }
@@ -305,7 +309,8 @@ function stopPlayback() {
   drawScrubber();   // the playhead stays where it is, so Space resumes there
 }
 
-function playProgram(fromTime = 0) {
+/** `until` stops playback at a point in programme time, for auditioning a join. */
+function playProgram(fromTime = 0, until = Infinity) {
   const { total } = layout(state.clips);
   if (total <= 0) return;
   stopPlayback();
@@ -313,7 +318,7 @@ function playProgram(fromTime = 0) {
   const when = context.currentTime + 0.08;   // small lead so nothing is late
   const nodes = scheduleProgram(context, context.destination, when, fromTime);
   if (!nodes.length) { toast('Add some music files first'); return; }
-  playing = { nodes, startedAt: when, fromTime, mode: 'program', total };
+  playing = { nodes, startedAt: when, fromTime, mode: 'program', total, until };
   $('btnPlayLabel').textContent = 'Pause';
   tickPlayhead();
 }
@@ -364,7 +369,8 @@ function tickPlayhead() {
       state.playPosition = at;
       $('playhead').textContent = fmt(at);
       drawScrubber();
-      if (at >= playing.total) { stopPlayback(); return; }
+      const stopAt = Math.min(playing.total, playing.until ?? Infinity);
+      if (at >= stopAt) { stopPlayback(); return; }
     } else {
       const at = playing.fromTime + elapsed;
       state.cursor = at;
@@ -1889,10 +1895,39 @@ function describeLevels({ matched, short, unmeasured }) {
 
 /* --------------------------------------------------------------- library */
 
+/**
+ * Bring clips back inside a file that has just been decoded.
+ *
+ * A project records trims but not the audio, so until the file actually arrives
+ * nothing has checked those numbers against a real duration. If the file turns
+ * out shorter than the project expects — a different copy of the song, a fresh
+ * download, a hand-edited project — the clip is claiming time that does not
+ * exist. Web Audio plays silence past the end rather than failing, so the strip
+ * shows a duration that is a lie and the finished programme comes out the wrong
+ * length with nothing said about it.
+ *
+ * Mutates the clips it has to, and returns how many that was.
+ */
+function clampClipsToFile(clips, entry) {
+  const duration = entry.duration;
+  let changed = 0;
+  for (const clip of clips) {
+    if (clip.file !== entry.name) continue;
+    const start = clamp(clip.srcStart, 0, Math.max(0, duration - MIN_CLIP));
+    const end = clamp(clip.srcEnd, start + MIN_CLIP, duration);
+    if (start === clip.srcStart && end === clip.srcEnd) continue;
+    clip.srcStart = start;
+    clip.srcEnd = end;
+    changed++;
+  }
+  return changed;
+}
+
 async function addFiles(fileList) {
   const files = Array.from(fileList).filter(
     (f) => /audio|\.(mp3|wav|flac|m4a|ogg|opus|aac|webm|aiff?)$/i.test(f.type + f.name));
   if (!files.length) { toast('No audio files in that drop'); return; }
+  let shortened = 0;
 
   for (const file of files) {
     if (library.has(file.name)) continue;
@@ -1919,6 +1954,9 @@ async function addFiles(fileList) {
       entry.peaks = computePeaks(buffer);
       entry.quality = analyseSource(head, tagEnd, file, buffer);
       entry.state = 'ready';
+      // Now that there is a real duration, the trims can finally be checked
+      // against it. Silently playing silence off the end is the alternative.
+      shortened += clampClipsToFile(state.clips, entry);
     } catch (err) {
       entry.state = 'error';
       toast(`Could not read ${file.name}`);
@@ -1931,6 +1969,13 @@ async function addFiles(fileList) {
     drawClipEditor();
   }
   updateBudget();
+  if (shortened) {
+    save();
+    toast(shortened === 1
+      ? 'One song asked for more music than its file holds, so it was shortened to fit'
+      : `${shortened} songs asked for more music than their files hold, so they were shortened to fit`,
+    6000);
+  }
 }
 
 /** How many clips in the program are playing from this file. */
@@ -2458,6 +2503,39 @@ function moveSelected(by) {
   moveClip(i, i + by);
 }
 
+/* Enough music either side to hear the join in context. Four seconds is about
+   two bars at a walking tempo — long enough to have settled into the first song
+   before it hands over, short enough not to be a wait. */
+const JOIN_PREVIEW = { lead: 4, tail: 4 };
+
+/**
+ * The stretch of programme time to play when auditioning one join.
+ *
+ * The join is where clip `i` begins; the blend, if there is one, runs on from
+ * there, so the tail is measured from the end of the overlap rather than from
+ * the cut. Returns null when there is no join — the first clip has nothing
+ * before it.
+ */
+function joinPreviewRange(clips, i, opts = {}) {
+  if (!(i > 0) || i >= clips.length) return null;
+  const lead = opts.lead ?? JOIN_PREVIEW.lead;
+  const tail = opts.tail ?? JOIN_PREVIEW.tail;
+  const { parts, total } = layout(clips);
+  const at = parts[i].start;
+  return {
+    from: Math.max(0, at - lead),
+    until: Math.min(total, at + parts[i].xf + tail),
+  };
+}
+
+/** Play across the selected clip's join with the one before it. */
+function previewJoin() {
+  const range = joinPreviewRange(state.clips, state.clips.indexOf(selectedClip()));
+  if (!range) return;
+  seekTo(range.from);
+  playProgram(range.from, range.until);
+}
+
 /** How far a join's two cuts may move without eating a clip whole. */
 function joinRoom(clip, entry, side) {
   const keep = 0.5;
@@ -2478,6 +2556,13 @@ function updateAlignAvailability() {
     ? 'Moves this cut and the end of the song before it by up to 2.5 seconds each, '
       + 'so they land on a beat — or, if the music has no steady beat, where a '
       + 'phrase ends'
+    : 'Add both songs first';
+
+  const play = $('btnPlayJoin');
+  play.disabled = !ready;
+  play.title = ready
+    ? 'Plays the few seconds either side of this join, so you can hear how the '
+      + 'two songs meet without hunting for it on the bar above'
     : 'Add both songs first';
 }
 
@@ -2516,6 +2601,42 @@ function alignSelectedJoin() {
     refresh();
   }
   toast(describeJoin(result, was), 4200);
+}
+
+/**
+ * Run a piece of analysis that takes long enough to look like a hang.
+ *
+ * Measuring a four-minute programme is around half a second, and lining up a
+ * join runs FFTs over two twelve-second windows. Neither is worth moving off
+ * the main thread — but both are long enough that a button which does not
+ * change reads as broken and gets clicked a second time. The double frame yield
+ * is what lets the disabled state actually paint before the work blocks.
+ *
+ * The availability rules are re-run afterwards rather than the old `disabled`
+ * being restored, because the work itself may have changed whether the button
+ * should be live at all.
+ */
+async function withBusy(button, work) {
+  const label = button.textContent;
+  button.disabled = true;
+  button.textContent = 'Working…';
+  // Two frames, so the disabled state is actually on screen before the work
+  // blocks — but never *only* frames: a hidden or backgrounded tab stops
+  // painting entirely, and waiting on a frame that will never come would leave
+  // the button stuck on "Working…" with the work never run at all.
+  await new Promise((done) => {
+    let settled = false;
+    const go = () => { if (!settled) { settled = true; done(); } };
+    requestAnimationFrame(() => requestAnimationFrame(go));
+    setTimeout(go, 50);
+  });
+  try {
+    work();
+  } finally {
+    button.textContent = label;
+    updateEvenOutAvailability();
+    updateAlignAvailability();
+  }
 }
 
 function updateEvenOutAvailability() {
@@ -2746,6 +2867,27 @@ function exportFileName(extension) {
   return `${name} (${length}).${extension}`;
 }
 
+/* Set once the warning has been shown and the choice made, so the second click
+   on "Save it anyway" goes through instead of warning again. Reset every time
+   the dialog opens. */
+let clippingAccepted = false;
+
+/**
+ * Say that the programme is too loud to store cleanly, and what fixes it.
+ *
+ * Deliberately the same shape as the length warning: the route through is still
+ * open, because a draft is a legitimate thing to want, but it stops looking like
+ * the routine path.
+ */
+function showClippingWarning() {
+  $('clipWarning').classList.remove('hidden');
+  const go = $('btnExportGo');
+  go.textContent = 'Save it anyway';
+  go.classList.remove('primary');
+  go.classList.add('danger-solid');
+  go.focus();
+}
+
 /**
  * Length is the one thing that can get a program marked down no matter how good
  * the edit is, so say plainly how far off it is and what would fix it — a red
@@ -2781,6 +2923,29 @@ function showLengthWarning(total) {
       + 'overlap them.'
     : 'Add more music, or reduce a blend so the songs overlap less.';
   return true;
+}
+
+/* A hair above 1, so a programme that merely touches full scale is not nagged
+ * about. Anything genuinely past it is flat-topped by the encoders below. */
+const PEAK_TOLERANCE = 1e-4;
+
+/**
+ * Does the finished programme go past what a sound file can hold?
+ *
+ * `solveGains` guards the automatic path carefully, but the Volume slider
+ * reaches +24 dB by hand and nothing downstream stops it. `encodeWav` clamps,
+ * so the result is flat-topped distortion rather than wrap-around noise —
+ * audible, and worth catching here rather than at the rink.
+ */
+function clipsOnExport(peak) {
+  return peak > 1 + PEAK_TOLERANCE;
+}
+
+/** Every channel of a rendered buffer, for measuring. */
+function channelsOf(buffer) {
+  const channels = [];
+  for (let c = 0; c < buffer.numberOfChannels; c++) channels.push(buffer.getChannelData(c));
+  return channels;
 }
 
 /* ---------------------------------------------------------------- export */
@@ -2881,6 +3046,16 @@ async function doExport() {
   try {
     const rendered = await renderProgram();
     bar.style.width = '40%';
+
+    // Rendering is the cheap half; the encode is what takes the time. Checking
+    // the peak here means a distorted programme is caught before any of that,
+    // and before a file anyone might take to a competition exists.
+    if (clipsOnExport(peakOf(channelsOf(rendered))) && !clippingAccepted) {
+      clippingAccepted = true;          // saying "anyway" once is enough
+      showClippingWarning();
+      return;
+    }
+
     let blob, ext;
     if (format === 'mp3') {
       blob = await encodeMp3(rendered, (p) => { bar.style.width = `${40 + p * 58}%`; });
@@ -2893,7 +3068,7 @@ async function doExport() {
     const filename = exportFileName(ext);
     download(blob, filename);
     toast(`Saved “${filename}” — ${fmt(rendered.duration)}`, 4500);
-    $('exportDialog').classList.add('hidden');
+    closeExportDialog();
   } catch (err) {
     toast(`Could not make the file: ${err.message}`);
   } finally {
@@ -2903,25 +3078,78 @@ async function doExport() {
   }
 }
 
-/* ----------------------------------------------------------- help popups */
+/* --------------------------------------------------------------- dialogs */
 
-let helpReturnFocus = null;
+/* Every modal is a plain div over a backdrop rather than a <dialog>, so the
+   three things the platform would have given us — a role, focus that starts
+   inside and cannot leave, and focus that goes back afterwards — have to be
+   done here. Without the trap, Tab walks straight out of the card and onto the
+   controls behind it, which are unreachable by mouse and still operable by
+   keyboard. */
+
+const DIALOGS = ['helpModal', 'startDialog', 'exportDialog'];
+
+/** Whichever dialog is on top, or null when none is open. */
+function openDialog() {
+  return DIALOGS.map($).find((el) => !el.classList.contains('hidden')) || null;
+}
+
+let returnFocusTo = null;
+
+function rememberFocus() {
+  returnFocusTo = document.activeElement;
+}
+
+/** Send focus back where it came from, so keyboard users don't lose their place. */
+function restoreFocus() {
+  if (returnFocusTo && returnFocusTo.focus) returnFocusTo.focus();
+  returnFocusTo = null;
+}
+
+const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
+/** Keep Tab inside the open dialog rather than letting it wander behind. */
+function trapFocus(e, dialog) {
+  if (e.key !== 'Tab') return;
+  const items = [...dialog.querySelectorAll(FOCUSABLE)]
+    .filter((el) => !el.disabled && el.offsetParent !== null);
+  if (!items.length) return;
+  const first = items[0];
+  const last = items[items.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+}
+
+function closeExportDialog() {
+  $('exportDialog').classList.add('hidden');
+  restoreFocus();
+}
+
+/** Close whichever dialog is on top. Returns false when none was open. */
+function closeTopDialog() {
+  const el = openDialog();
+  if (!el) return false;
+  if (el.id === 'helpModal') closeHelp();
+  else if (el.id === 'startDialog') closeStartDialog();
+  else closeExportDialog();
+  return true;
+}
+
+/* ----------------------------------------------------------- help popups */
 
 function openHelp(topic) {
   const source = document.querySelector(`#helpSources [data-help="${topic}"]`);
   if (!source) return;
   $('helpTitle').textContent = source.dataset.title;
   $('helpBody').innerHTML = source.innerHTML;
-  helpReturnFocus = document.activeElement;
+  rememberFocus();
   $('helpModal').classList.remove('hidden');
   $('helpClose').focus();
 }
 
 function closeHelp() {
   $('helpModal').classList.add('hidden');
-  // Send focus back where it came from, so keyboard users don't lose their place.
-  if (helpReturnFocus && helpReturnFocus.focus) helpReturnFocus.focus();
-  helpReturnFocus = null;
+  restoreFocus();
 }
 
 function bindHelp() {
@@ -3188,8 +3416,9 @@ function bind() {
   $('btnRemoveClip').onclick = () => { if (state.selected) removeClip(state.selected); };
   $('btnMoveLeft').onclick = () => moveSelected(-1);
   $('btnMoveRight').onclick = () => moveSelected(1);
-  $('btnAlignJoin').onclick = alignSelectedJoin;
-  $('btnEvenOut').onclick = evenOutLevels;
+  $('btnPlayJoin').onclick = previewJoin;
+  $('btnAlignJoin').onclick = () => withBusy($('btnAlignJoin'), alignSelectedJoin);
+  $('btnEvenOut').onclick = () => withBusy($('btnEvenOut'), evenOutLevels);
 
   {
     const slider = $('level');
@@ -3232,7 +3461,11 @@ function bind() {
     if (total <= 0) { toast('Add some music to your program first'); return; }
     $('exportSummary').textContent =
       `${fmt(total)} — target ${fmtShort(state.targetSeconds)} ±${state.toleranceSeconds}s`;
-    showLengthWarning(total);
+    // A fresh look at the programme: whatever was too loud last time may have
+    // been turned down since.
+    clippingAccepted = false;
+    $('clipWarning').classList.add('hidden');
+    const tooLong = showLengthWarning(total);
 
     // Exporting at 320k cannot recover detail a bad source never had, so say so
     // here rather than after she has taken the file to the rink.
@@ -3268,9 +3501,13 @@ function bind() {
         + 'a better copy of the song itself. You can carry on anyway.';
       box.appendChild(tail);
     }
+    rememberFocus();
     $('exportDialog').classList.remove('hidden');
+    // The safe option takes focus when the length is wrong, so the keyboard
+    // route through a warning is never the one that ignores it.
+    (tooLong ? $('btnExportCancel') : $('btnExportGo')).focus();
   };
-  $('btnExportCancel').onclick = () => $('exportDialog').classList.add('hidden');
+  $('btnExportCancel').onclick = closeExportDialog;
   $('btnExportGo').onclick = doExport;
 
   $('btnSaveProject').onclick = () => {
@@ -3301,19 +3538,14 @@ function bind() {
 
 function onKey(e) {
   // Escape closes whichever dialog is open, wherever focus happens to be.
-  if (e.key === 'Escape') {
-    if (!$('helpModal').classList.contains('hidden')) { closeHelp(); return; }
-    if (!$('startDialog').classList.contains('hidden')) { closeStartDialog(); return; }
-    for (const id of ['exportDialog']) {
-      if (!$(id).classList.contains('hidden')) {
-        $(id).classList.add('hidden');
-        return;
-      }
-    }
-  }
-  // A dialog is open — let it have the keyboard.
-  if (!$('helpModal').classList.contains('hidden')) return;
-  if (!$('startDialog').classList.contains('hidden')) return;
+  if (e.key === 'Escape' && closeTopDialog()) return;
+
+  // A dialog is open — it owns the keyboard, and Tab stays inside it. The
+  // export dialog used to be left out of this, so Space, Delete and the trim
+  // keys all still reached the programme behind it.
+  const dialog = openDialog();
+  if (dialog) { trapFocus(e, dialog.querySelector('.modal-card') || dialog); return; }
+
   if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
   const clip = selectedClip();
   const nudge = e.shiftKey ? 1 : 0.1;
@@ -3482,7 +3714,8 @@ if (typeof document !== 'undefined') {
   module.exports = {
     state, LEVELS, QUALITY, CODEC_EFFICIENCY, CUSTOM_LEVEL,
     allLevels, findLevel,
-    clipDuration, crossfadeOf, layout, reordered,
+    clipDuration, crossfadeOf, layout, reordered, clampClipsToFile, MIN_CLIP,
+    joinPreviewRange, JOIN_PREVIEW, clipsOnExport,
     fadeEnvelope, crossfadeEnvelope, valueAt,
     BEAT, fftInPlace, onsetEnvelope, flattenEnvelope, estimateTempoLag,
     analyseBeats, suggestJoin, monoWindow, beatsAround, suggestJoinForBuffers,

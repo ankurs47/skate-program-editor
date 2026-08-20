@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>Skate Program Editor</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -155,7 +156,10 @@
             <span>Blend into previous <b id="valCrossfade">0.0s</b></span>
             <input id="crossfade" type="range" min="0" max="10" step="0.1" value="0">
           </label>
-          <button id="btnAlignJoin" class="small">Line up this join</button>
+          <div class="join-buttons">
+            <button id="btnPlayJoin" class="small">Play this join</button>
+            <button id="btnAlignJoin" class="small">Line up this join</button>
+          </div>
         </div>
       </div>
     </div>
@@ -164,8 +168,8 @@
 </main>
 
 <div id="startDialog" class="modal hidden">
-  <div class="modal-card start-card">
-    <h2>Skate Program Editor</h2>
+  <div class="modal-card start-card" role="dialog" aria-modal="true" aria-labelledby="startTitle">
+    <h2 id="startTitle">Skate Program Editor</h2>
 
     <div id="startWarn" class="warn hidden">
       <p class="warn-head">This replaces the program on screen</p>
@@ -205,7 +209,7 @@
 </div>
 
 <div id="helpModal" class="modal hidden">
-  <div class="modal-card help-card">
+  <div class="modal-card help-card" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
     <div class="help-head">
       <h2 id="helpTitle"></h2>
       <button id="helpClose" class="small" aria-label="Close">Close</button>
@@ -362,13 +366,20 @@
 </div>
 
 <div id="exportDialog" class="modal hidden">
-  <div class="modal-card">
-    <h2>Make the music file</h2>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="exportTitle">
+    <h2 id="exportTitle">Make the music file</h2>
     <p id="exportSummary" class="hint"></p>
     <div id="lengthWarning" class="warn hidden">
       <p class="warn-head" id="lengthWarnHead"></p>
       <p class="hint" id="lengthWarnDetail"></p>
       <p class="hint" id="lengthWarnFix"></p>
+    </div>
+    <div id="clipWarning" class="warn hidden">
+      <p class="warn-head">The music is too loud in places</p>
+      <p class="hint">Some moments are louder than a music file can hold, so they
+         will sound harsh or crackly however good the songs are.</p>
+      <p class="hint">Turn the <b>Volume</b> down on the loudest songs, or use
+         <b>Even out the volume</b>, which keeps everything below the limit.</p>
     </div>
     <div id="exportWarnings" class="warn hidden"></div>
     <label class="row"><span>Format</span>
@@ -386,9 +397,10 @@
   </div>
 </div>
 
-<input id="fileInput" type="file" accept="audio/*" multiple hidden>
+<input id="fileInput" type="file" multiple hidden
+       accept="audio/*,.mp3,.wav,.flac,.m4a,.ogg,.opus,.aac,.webm,.aif,.aiff">
 <input id="projectInput" type="file" accept="application/json,.json" hidden>
-<div id="toast" class="toast hidden"></div>
+<div id="toast" class="toast hidden" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <script src="app.js"></script>
 </body>
