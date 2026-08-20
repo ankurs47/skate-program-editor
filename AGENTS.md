@@ -15,7 +15,7 @@ plain, and jargon is treated as a bug.
 index.html   structure, help topic content, dialogs
 app.js       everything: decode, waveforms, editing, playback, render, export
 style.css    theming via CSS custom properties, light and dark
-test/run.js  120 checks, no dependencies
+test/run.js  140 checks, no dependencies
 tools/       music-get.sh and .cmd — optional YouTube downloader, not the app
 ```
 
@@ -203,6 +203,13 @@ change *sounds*, but stores and shows the multiplier — `LEVEL_SLIDER` and the
   which is why the tests assert that coverage *separates* the two cases rather
   than that every sparse window is rejected. Until then some free-tempo music
   gets the beat strategy when it should get phrasing.
+- **Round to the precision you display, then split the minutes off.** Both
+  clock formatters did it the other way round, so any value that came to 60 once
+  rounded was shown as sixty seconds instead of carrying: a 59.98 second
+  programme read `0:60.0` on the timer, and a 119.6 second song was listed as
+  `1:60`. Neither was noticed for the length of the project, because the level
+  times that dominate the interface are all whole minutes. This is what writing
+  a test for an untested export is *for*.
 - **A project's trims are unchecked until the audio turns up.** The file is not
   in the project, so nothing has compared `srcEnd` against a real duration until
   `addFiles` decodes one. Web Audio does not complain when a source is asked to

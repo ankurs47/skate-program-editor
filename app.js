@@ -114,16 +114,23 @@ let mp3Ready = false;
 
 const $ = (id) => document.getElementById(id);
 
+/* Both of these round to the precision they display *before* splitting the
+   minutes off, not after. Rounding afterwards means a value that comes to 60
+   once rounded is shown as sixty seconds rather than carried: 59.98 read as
+   "0:60.0" on the programme timer, and a 119.6 second song listed as "1:60". */
+
 function fmt(seconds) {
   if (!isFinite(seconds) || seconds < 0) seconds = 0;
-  const m = Math.floor(seconds / 60);
-  const s = seconds - m * 60;
+  const tenths = Math.round(seconds * 10);
+  const m = Math.floor(tenths / 600);
+  const s = (tenths - m * 600) / 10;
   return `${m}:${s.toFixed(1).padStart(4, '0')}`;
 }
 
 function fmtShort(seconds) {
-  const m = Math.floor(seconds / 60);
-  return `${m}:${String(Math.round(seconds - m * 60)).padStart(2, '0')}`;
+  const whole = isFinite(seconds) && seconds > 0 ? Math.round(seconds) : 0;
+  const m = Math.floor(whole / 60);
+  return `${m}:${String(whole - m * 60).padStart(2, '0')}`;
 }
 
 function uid() {
@@ -2802,32 +2809,62 @@ function save() {
   } catch (_) { /* private mode, or quota — Save project still works */ }
 }
 
-function loadProject(data) {
-  state.name = data.name || 'my program';
+/**
+ * Read a saved project document into the state it describes.
+ *
+ * Pure — no DOM, nothing global touched — because this is the contract with
+ * every project anyone has already saved, and `loadProject` could not be
+ * checked at all while the parsing and the wiring were the same function.
+ * Anything absent or nonsense falls back to something usable rather than
+ * throwing: a project file is a plain text document people do edit by hand.
+ *
+ * `retargeted` names the level whose length no longer matches the stored time,
+ * for the caller to mention. It is not an error — the stored time is the one
+ * that wins.
+ */
+function readProject(data) {
   // The stored time wins over the level's current table value, so reopening an
   // old program never silently retargets it because a rulebook number changed.
-  state.level = data.level || CUSTOM_LEVEL;
-  state.targetSeconds = data.targetSeconds || 135;
-  state.toleranceSeconds = data.toleranceSeconds || 10;
-  const level = findLevel(state.level);
-  if (level && level.seconds !== state.targetSeconds) {
-    state.level = CUSTOM_LEVEL;
-    toast(`This program targets ${fmtShort(state.targetSeconds)}, which no longer matches ${level.label}`, 6000);
-  }
-  state.clips = (data.clips || []).map((c) => ({
-    id: uid(),
-    file: c.file,
-    title: c.title || String(c.file).replace(/\.[^.]+$/, ''),
-    srcStart: c.srcStart || 0,
-    srcEnd: c.srcEnd || 0,
-    fadeIn: c.fadeIn || 0,
-    fadeOut: c.fadeOut || 0,
-    crossfade: c.crossfade || 0,
-    // Older project files predate levels and have no gain at all; missing
-    // means "as recorded", not silent.
-    gain: clipGain(c),
-  }));
+  const targetSeconds = data.targetSeconds || 135;
+  let levelId = data.level || CUSTOM_LEVEL;
+  const level = findLevel(levelId);
+  const retargeted = level && level.seconds !== targetSeconds ? level : null;
+  if (retargeted) levelId = CUSTOM_LEVEL;
+
+  return {
+    name: data.name || 'my program',
+    level: levelId,
+    targetSeconds,
+    toleranceSeconds: data.toleranceSeconds || 10,
+    retargeted,
+    clips: (data.clips || []).map((c) => ({
+      id: uid(),
+      file: c.file,
+      title: c.title || String(c.file).replace(/\.[^.]+$/, ''),
+      srcStart: c.srcStart || 0,
+      srcEnd: c.srcEnd || 0,
+      fadeIn: c.fadeIn || 0,
+      fadeOut: c.fadeOut || 0,
+      crossfade: c.crossfade || 0,
+      // Older project files predate levels and have no gain at all; missing
+      // means "as recorded", not silent.
+      gain: clipGain(c),
+    })),
+  };
+}
+
+function loadProject(data) {
+  const read = readProject(data);
+  state.name = read.name;
+  state.level = read.level;
+  state.targetSeconds = read.targetSeconds;
+  state.toleranceSeconds = read.toleranceSeconds;
+  state.clips = read.clips;
   state.selected = state.clips.length ? state.clips[0].id : null;
+  if (read.retargeted) {
+    toast(`This program targets ${fmtShort(state.targetSeconds)}, `
+      + `which no longer matches ${read.retargeted.label}`, 6000);
+  }
   $('programName').value = state.name;
   syncLevelPicker();
   refresh();
@@ -3725,6 +3762,7 @@ if (typeof document !== 'undefined') {
     LOUDNESS, kWeighting, biquad, loudnessOf, peakOf, measureClip, solveGains,
     clipGain, gainToDb, dbToGain, levelPercent, describeLevels, LEVEL_SLIDER, MAX_GAIN,
     parseClock, exportFileName, fmt, fmtShort, clamp,
+    project, readProject,
     undoStack, pushUndo, endUndoRun, UNDO_COALESCE_MS, UNDO_DEPTH,
     clipsUsing,
     codecOf, qualityLabel, qualityDetail, qualityKind,

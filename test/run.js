@@ -140,6 +140,15 @@ check('join preview: stays inside the programme, and declines when there is no j
   eq(app.joinPreviewRange(clips, 0), null, 'the first clip has nothing before it: ');
   eq(app.joinPreviewRange(clips, 9), null, 'a clip that is not there: ');
   eq(app.joinPreviewRange([], 1), null, 'an empty programme: ');
+
+  // With room either side the defaults are what decide the window, and they
+  // have to be long enough to judge a join by and short enough not to be a wait.
+  const roomy = app.joinPreviewRange(
+    [{ srcStart: 0, srcEnd: 60, crossfade: 0 }, { srcStart: 0, srcEnd: 60, crossfade: 0 }], 1);
+  eq(roomy.from, 60 - app.JOIN_PREVIEW.lead, 'the lead comes from the defaults: ');
+  eq(roomy.until, 60 + app.JOIN_PREVIEW.tail, 'and so does the tail: ');
+  ok(roomy.until - roomy.from >= 4 && roomy.until - roomy.from <= 20,
+    `a ${(roomy.until - roomy.from).toFixed(0)}s preview is not a preview`);
 });
 
 check('export: too loud is caught before anything is encoded', () => {
@@ -220,6 +229,73 @@ check('blends: the two sides sum to 1 through the overlap', () => {
     const sum = app.valueAt(outgoing, 60 - 2.5 + t) + app.valueAt(incoming, t);
     near(sum, 1, 1e-9, `no dip or bump at ${Math.round(frac * 100)}% through: `);
   }
+});
+
+check('fmt: carries the minute rather than showing sixty seconds', () => {
+  /* Both formatters used to round the seconds after splitting the minutes off,
+     so anything that rounded up to 60 was displayed as sixty seconds: a 59.98s
+     programme read "0:60.0" on the timer, and a 119.6s song listed as "1:60". */
+  eq(app.fmt(59.98), '1:00.0', 'rounding up to a whole minute has to carry: ');
+  eq(app.fmt(119.97), '2:00.0');
+  eq(app.fmtShort(59.7), '1:00');
+  eq(app.fmtShort(119.6), '2:00');
+
+  eq(app.fmt(0), '0:00.0');
+  eq(app.fmt(65.25), '1:05.3', 'tenths are shown, and padded: ');
+  eq(app.fmt(3599.9), '59:59.9', 'no hours field, by design: ');
+  eq(app.fmtShort(0), '0:00');
+  eq(app.fmtShort(65.25), '1:05');
+  eq(app.fmtShort(135), '2:15', 'the level times in the dropdown: ');
+});
+
+check('fmt: nothing measurable shows as zero, never NaN', () => {
+  // These land in the programme timer and the library, where "NaN:aN" would be
+  // alarming and meaningless.
+  for (const bad of [NaN, -5, -0.4, Infinity, -Infinity]) {
+    eq(app.fmt(bad), '0:00.0', `fmt(${bad}): `);
+    eq(app.fmtShort(bad), '0:00', `fmtShort(${bad}): `);
+  }
+});
+
+check('clamp: holds a value between its ends, whichever way round', () => {
+  eq(app.clamp(5, 0, 10), 5);
+  eq(app.clamp(-3, 0, 10), 0, 'below the floor: ');
+  eq(app.clamp(99, 0, 10), 10, 'above the ceiling: ');
+  eq(app.clamp(5, 0, 0), 0, 'a collapsed range: ');
+  // Deliberate: several callers pass a lo above the hi when a clip is shorter
+  // than a minimum, and rely on getting the hi rather than an inverted range.
+  eq(app.clamp(5, 10, 0), 0, 'an inverted range yields the ceiling: ');
+});
+
+check('clipDuration: never negative, however the trims are set', () => {
+  eq(app.clipDuration({ srcStart: 10, srcEnd: 70 }), 60);
+  eq(app.clipDuration({ srcStart: 10, srcEnd: 10 }), 0);
+  eq(app.clipDuration({ srcStart: 70, srcEnd: 10 }), 0, 'inverted trims are not negative time: ');
+});
+
+check('qualityDetail: the tooltip says the numbers the badge refuses to', () => {
+  // The badge is a word on purpose; this is where the figures live.
+  const detail = app.qualityDetail({
+    kind: 'good', bitrate: 256, sampleRate: 44100, channels: 2,
+    lossless: false, codec: 'mp3', estimated: false, vbr: false, notes: [],
+  });
+  for (const part of ['256 kbps', 'mp3', '44.1 kHz', 'stereo']) {
+    ok(detail.includes(part), `"${detail}" is missing ${part}`);
+  }
+
+  const lossless = app.qualityDetail({
+    kind: 'good', bitrate: null, sampleRate: null, channels: 1,
+    lossless: true, codec: 'wav', estimated: false, vbr: false, notes: [],
+  });
+  ok(lossless.startsWith('Lossless source'), `"${lossless}" should lead with that`);
+  ok(lossless.includes('mono'), 'channel count is always worth saying');
+  ok(!/kbps/.test(lossless), 'a lossless file has no bitrate worth quoting');
+
+  const guessed = app.qualityDetail({
+    kind: 'caution', bitrate: 130, sampleRate: null, channels: 2,
+    lossless: false, codec: 'opus', estimated: true, vbr: false, notes: [],
+  });
+  ok(guessed.includes('estimated'), 'a measured-by-file-size figure must say so');
 });
 
 check('parseClock: accepts the sensible forms, rejects nonsense', () => {
@@ -306,6 +382,33 @@ check('MPEG parser: rejects data that merely looks like a frame', () => {
   eq(app.readMpegFrame(noise.buffer.slice(0), 0), null);
 });
 
+check('parseFrameHeader: decodes a real MPEG-1 Layer III header', () => {
+  // FF FB 90 00 — MPEG1, Layer III, 128 kbps, 44100, joint stereo, no padding.
+  const view = new DataView(new Uint8Array([0xff, 0xfb, 0x90, 0x00]).buffer);
+  const frame = app.parseFrameHeader(view, 0);
+  ok(frame, 'a valid header was rejected');
+  eq(frame.bitrate, 128);
+  eq(frame.sampleRate, 44100);
+  eq(frame.channels, 2);
+  eq(frame.samplesPerFrame, 1152);
+  // 144 * 128000 / 44100 = 417.9, floored, plus no padding
+  eq(frame.frameLength, 417, 'frame length is what the chain walk steps by: ');
+});
+
+check('parseFrameHeader: refuses the reserved and impossible encodings', () => {
+  const header = (b1, b2, b3 = 0x00) =>
+    app.parseFrameHeader(new DataView(new Uint8Array([0xff, b1, b2, b3]).buffer), 0);
+  eq(header(0xfb, 0x00), null, 'bitrate index 0 is "free", not a rate: ');
+  eq(header(0xfb, 0xf0), null, 'bitrate index 15 is reserved: ');
+  eq(header(0xfb, 0x9c), null, 'sample rate index 3 is reserved: ');
+  eq(header(0xff, 0x90), null, 'layer bits 3 is Layer I, not III: ');
+  eq(header(0xeb, 0x90), null, 'version bits 1 is reserved: ');
+  eq(app.parseFrameHeader(new DataView(new Uint8Array([0x00, 0x00, 0x00, 0x00]).buffer), 0), null,
+    'no sync word at all: ');
+  eq(app.parseFrameHeader(new DataView(new Uint8Array([0xff, 0xfb]).buffer), 0), null,
+    'a header cut short by the end of the window: ');
+});
+
 check('id3Size: reads the syncsafe length, tolerates untagged files', () => {
   const tagged = Buffer.alloc(20);
   tagged.write('ID3');
@@ -313,6 +416,127 @@ check('id3Size: reads the syncsafe length, tolerates untagged files', () => {
   eq(app.id3Size(tagged.buffer.slice(0)), (2 << 7 | 1) + 10);
   eq(app.id3Size(Buffer.alloc(20).buffer.slice(0)), 0, 'no tag: ');
   eq(app.id3Size(Buffer.alloc(4).buffer.slice(0)), 0, 'too short to have one: ');
+});
+
+/* ------------------------------------------------- 1g. the project file */
+
+/* The saved project is the contract with every edit anyone has already put on
+   disk, and with the format written down in the README. Nothing checked it
+   until `readProject` was split out of the DOM half of `loadProject`. */
+
+/** Runs `fn` with a throwaway program, then puts the real state back. */
+function withProgram(fields, fn) {
+  const keys = ['name', 'level', 'targetSeconds', 'toleranceSeconds', 'clips'];
+  const saved = {};
+  for (const k of keys) saved[k] = app.state[k];
+  Object.assign(app.state, fields);
+  try { fn(); } finally { Object.assign(app.state, saved); }
+}
+
+check('project file: an edit survives being saved and opened again', () => {
+  withProgram({
+    name: 'my 2026 junior long program',
+    level: 'usfs-jr',
+    targetSeconds: 210,
+    toleranceSeconds: 10,
+    clips: [
+      { id: 'a', file: 'one.mp3', title: 'opening', srcStart: 4.7615, srcEnd: 77.0824,
+        fadeIn: 1.5, fadeOut: 0, crossfade: 0, gain: 1 },
+      { id: 'b', file: 'two.mp3', title: 'finale', srcStart: 0, srcEnd: 60.5,
+        fadeIn: 0, fadeOut: 2.5, crossfade: 1.5, gain: 0.5012 },
+    ],
+  }, () => {
+    // Through JSON, because that is what actually happens to it on the way out
+    // and back — a value that does not survive stringify is not really saved.
+    const read = app.readProject(JSON.parse(JSON.stringify(app.project())));
+
+    eq(read.name, 'my 2026 junior long program');
+    eq(read.level, 'usfs-jr', 'a level whose time still matches is kept: ');
+    eq(read.targetSeconds, 210);
+    eq(read.toleranceSeconds, 10);
+    eq(read.retargeted, null, 'nothing to report about the level: ');
+    eq(read.clips.length, 2);
+
+    for (const key of ['file', 'title', 'fadeIn', 'fadeOut', 'crossfade']) {
+      eq(read.clips.map((c) => c[key]), app.state.clips.map((c) => c[key]), `${key}: `);
+    }
+    // Trims are stored to the millisecond and levels to a thousandth, so the
+    // round trip is lossy by exactly that much and no more.
+    near(read.clips[0].srcStart, 4.7615, 0.001, 'srcStart: ');
+    near(read.clips[0].srcEnd, 77.0824, 0.001, 'srcEnd: ');
+    near(read.clips[1].srcEnd, 60.5, 1e-9, 'a round number stays exact: ');
+    near(read.clips[1].gain, 0.5012, 0.001, 'gain: ');
+  });
+});
+
+check('project file: the document holds exactly the fields it is documented to', () => {
+  // Adding or dropping a field changes what older versions of the app can read,
+  // so it should be a deliberate act rather than a side effect.
+  withProgram({
+    name: 'x', level: 'usfs-juv', targetSeconds: 135, toleranceSeconds: 10,
+    clips: [{ id: 'a', file: 'a.mp3', title: 'a', srcStart: 0, srcEnd: 1,
+      fadeIn: 0, fadeOut: 0, crossfade: 0, gain: 1 }],
+  }, () => {
+    const doc = app.project();
+    eq(Object.keys(doc).sort(),
+      ['clips', 'level', 'levelLabel', 'name', 'targetSeconds', 'toleranceSeconds']);
+    eq(Object.keys(doc.clips[0]).sort(),
+      ['crossfade', 'fadeIn', 'fadeOut', 'file', 'gain', 'srcEnd', 'srcStart', 'title']);
+    eq(doc.levelLabel, 'Juvenile', 'the label is denormalised so an old file still reads: ');
+  });
+});
+
+check('project file: a level whose length has changed reopens as custom', () => {
+  /* The rulebook numbers move between seasons. A project stores the seconds it
+     was actually built to, so reopening it must keep that time and give up the
+     level — never quietly retarget the programme to the new number. */
+  const level = app.allLevels()[0];
+  const read = app.readProject({
+    name: 'last season', level: level.id,
+    targetSeconds: level.seconds + 25, toleranceSeconds: 10, clips: [],
+  });
+  eq(read.targetSeconds, level.seconds + 25, 'the stored time wins: ');
+  eq(read.level, app.CUSTOM_LEVEL, 'and the level falls back to custom: ');
+  ok(read.retargeted && read.retargeted.id === level.id,
+    'the caller has to be able to say which level it no longer matches');
+});
+
+check('project file: an older or damaged file opens with usable defaults', () => {
+  const empty = app.readProject({});
+  eq(empty.name, 'my program');
+  eq(empty.clips, []);
+  ok(empty.targetSeconds > 0 && empty.toleranceSeconds > 0, 'defaults have to be usable');
+
+  // Files written before levels existed carry no gain at all.
+  const old = app.readProject({ clips: [{ file: 'chosen song.mp3', srcStart: 1, srcEnd: 50 }] });
+  eq(old.clips[0].gain, 1, 'a missing gain means "as recorded", not silent: ');
+  eq(old.clips[0].title, 'chosen song', 'a title is taken from the file name: ');
+  eq([old.clips[0].fadeIn, old.clips[0].fadeOut, old.clips[0].crossfade], [0, 0, 0]);
+});
+
+check('project file: hand-edited nonsense cannot blow the speakers', () => {
+  const read = app.readProject({
+    clips: [
+      { file: 'a.mp3', gain: 9999 },
+      { file: 'b.mp3', gain: -3 },
+      { file: 'c.mp3', gain: 'loud' },
+      { file: 'd.mp3', gain: 0 },
+    ],
+  });
+  eq(read.clips.map((c) => c.gain), [app.MAX_GAIN, 1, 1, 0],
+    'clamped, defaulted, defaulted, and a deliberate zero kept: ');
+  for (const clip of read.clips) {
+    ok(Number.isFinite(clip.srcStart) && Number.isFinite(clip.srcEnd), 'trims went non-numeric');
+  }
+});
+
+check('project file: every clip gets its own id, however the file was written', () => {
+  // Selection and removal are by id, so two clips sharing one would take each
+  // other out. The file does not carry ids at all — they are made on load.
+  const read = app.readProject({ clips: [{ file: 'a.mp3' }, { file: 'a.mp3' }, { file: 'a.mp3' }] });
+  const ids = read.clips.map((c) => c.id);
+  eq(new Set(ids).size, ids.length, 'duplicate clip ids: ');
+  for (const id of ids) ok(id && typeof id === 'string', `unusable id ${JSON.stringify(id)}`);
 });
 
 /* ------------------------------------------------------------- 1e. undo */
@@ -346,6 +570,16 @@ check('undo: a held key is one gesture, not thirty entries', () => {
     app.pushUndo('trim-in:b');
     eq(app.undoStack.length, 4, 'so is a different key: ');
   });
+});
+
+check('undo: the coalescing window covers a key repeat without merging real edits', () => {
+  /* Too short and a held key still floods the stack; too long and two separate
+     deliberate nudges become one undo step. Key repeat runs at roughly 30 a
+     second, so anything from a repeat interval up to about a second works. */
+  ok(app.UNDO_COALESCE_MS >= 200,
+    `${app.UNDO_COALESCE_MS}ms is shorter than the gap between key repeats`);
+  ok(app.UNDO_COALESCE_MS <= 1500,
+    `${app.UNDO_COALESCE_MS}ms would swallow edits a second apart into one step`);
 });
 
 check('undo: untagged callers never coalesce, and end the run before them', () => {
@@ -610,6 +844,120 @@ check('beats: silence and near-empty input return nothing, not NaN', () => {
     eq(found.confidence, 0);
     ok(!Number.isNaN(found.bpm), 'bpm went NaN');
   }
+});
+
+check('onsetEnvelope: measures energy arriving, and how much is playing', () => {
+  const clicks = app.onsetEnvelope(clickTrain(120, 6), 44100);
+  eq(clicks.rate, 44100 / app.BEAT.hop, 'one envelope sample per hop: ');
+  near(clicks.offset, (app.BEAT.hop + app.BEAT.frame / 2) / 44100, 1e-12,
+    'env[i] compares frame i+1 with i, so it belongs at that frame centre: ');
+  ok(clicks.env.length > 400, `only ${clicks.env.length} envelope samples`);
+  ok(clicks.level > 0, 'a click track has energy in it');
+
+  // The peaks have to be where the clicks are: 120 BPM is one every 0.5s.
+  let peak = 0;
+  let peakAt = 0;
+  for (let i = 0; i < clicks.env.length; i++) {
+    if (clicks.env[i] > peak) { peak = clicks.env[i]; peakAt = i; }
+  }
+  const t = peakAt / clicks.rate + clicks.offset;
+  ok(offGrid(t, 0.5) < 0.03, `the strongest onset at ${t.toFixed(3)}s is not on a click`);
+
+  // Silence has nothing starting and nothing playing — the pair `analyseBeats`
+  // uses to tell a held chord from music.
+  const quiet = app.onsetEnvelope(new Float32Array(44100 * 4), 44100);
+  eq(quiet.level, 0, 'silence has no level: ');
+  for (const v of quiet.env) eq(v, 0, 'silence has no onsets: ');
+  eq(app.onsetEnvelope(new Float32Array(100), 44100).env.length, 0,
+    'too short for two frames: ');
+});
+
+check('flattenEnvelope: removes the local level and never goes negative', () => {
+  // Loudness must stop mattering, or a loud chorus outvotes a quiet verse and
+  // the autocorrelation locks onto the wrong thing.
+  const rate = 86;
+  const flat = app.flattenEnvelope(new Float32Array(rate * 4).fill(3), rate);
+  // Away from the ends, a constant envelope has to flatten to nothing.
+  const margin = Math.round(rate * app.BEAT.smoothing) + 2;
+  for (let i = margin; i < flat.length - margin; i++) {
+    near(flat[i], 0, 1e-6, `a constant envelope carries no onsets (at ${i}): `);
+  }
+  // The blur reads past the ends as zero, so the first and last samples sit
+  // low and lift their neighbourhood slightly. Small, and bounded — but real,
+  // so it is pinned here rather than discovered as a surprise later.
+  ok(flat[0] < 3 * 0.02, `the edge lift is ${flat[0].toFixed(3)} on a level of 3`);
+
+  const spikes = new Float32Array(rate * 6);
+  for (let i = 0; i < spikes.length; i += rate) spikes[i] = 1;   // one a second
+  const out = app.flattenEnvelope(spikes, rate);
+  for (const v of out) ok(v >= 0, `rectified output went to ${v}`);
+  ok(out[rate * 2] > 0, 'a real onset should survive the flattening');
+  ok(out[rate * 2 + Math.round(rate / 3)] === 0, 'the gap between onsets should not');
+
+  // The one-frame blur is what stops alternate beats measuring weaker; it puts
+  // a quarter of each spike into each neighbour.
+  ok(out[rate * 2 - 1] > 0 && out[rate * 2 + 1] > 0, 'the blur should reach both neighbours');
+});
+
+check('estimateTempoLag: lands in the right neighbourhood for a known tempo', () => {
+  // It only has to find the neighbourhood — refinePeriod finds the value.
+  for (const bpm of [90, 120, 150]) {
+    const raw = app.onsetEnvelope(clickTrain(bpm, 12), 44100);
+    const env = app.flattenEnvelope(raw.env, raw.rate);
+    const lag = app.estimateTempoLag(env, raw.rate);
+    const expected = (raw.rate * 60) / bpm;
+    near(lag, expected, 1.5, `${bpm} BPM should give a lag near ${expected.toFixed(1)}: `);
+  }
+  eq(app.estimateTempoLag(new Float32Array(4), 86), 0, 'too short to hold a period: ');
+});
+
+check('energyEnvelope: reads the RMS of what is sounding', () => {
+  const rate = 86;
+  const amplitude = 0.5;
+  const rms = app.energyEnvelope(sine(440, 4, amplitude), 44100, rate);
+  ok(rms.length > 300, `only ${rms.length} samples`);
+  // RMS of a sine is its amplitude over root two.
+  for (const v of rms.slice(2, -2)) near(v, amplitude / Math.SQRT2, 0.01, 'sine RMS: ');
+  for (const v of app.energyEnvelope(new Float32Array(44100), 44100, rate)) {
+    eq(v, 0, 'silence has no energy: ');
+  }
+});
+
+check('biquad: filters in place, and the high pass really blocks DC', () => {
+  const pass = new Float32Array([1, -0.5, 0.25, 2]);
+  const before = Array.from(pass);
+  app.biquad(pass, { b0: 1, b1: 0, b2: 0, a1: 0, a2: 0 });
+  eq(Array.from(pass), before, 'a unity filter must change nothing: ');
+
+  const halved = new Float32Array([1, 1, 1, 1]);
+  app.biquad(halved, { b0: 0.5, b1: 0, b2: 0, a1: 0, a2: 0 });
+  eq(Array.from(halved), [0.5, 0.5, 0.5, 0.5], 'and it works in place: ');
+
+  // The K-weighting high pass has numerator 1, -2, 1, which sums to zero — so a
+  // constant input has to settle to nothing. This is the stage that stops a DC
+  // offset or subsonic rumble being counted as loudness.
+  const dc = new Float32Array(44100).fill(0.5);
+  app.biquad(dc, app.kWeighting(44100).highpass);
+  near(dc[dc.length - 1], 0, 1e-3, 'DC should have decayed away: ');
+});
+
+check('beatsAround: reports the cut in the window it measured, not the song', () => {
+  /* Beat times are relative to the window, never to the file — getting this
+     wrong would place every cut by the offset of the window it came from. */
+  const buffer = fakeBuffer(clickTrain(120, 40));
+  const at = 20.17;
+  const found = app.beatsAround(buffer, at, { window: 12 });
+  near(found.cut, 6, 0.001, 'the cut sits in the middle of a 12s window: ');
+  ok(found.beats.beats.length > 15, 'no grid found in a click track');
+  ok(found.beats.confidence > 0.5, `confidence only ${found.beats.confidence.toFixed(2)}`);
+  for (const beat of found.beats.beats) {
+    ok(beat.t >= 0 && beat.t <= 12.001, `beat at ${beat.t} is outside its own window`);
+  }
+
+  // Up against the start of the file the window is clipped, and the cut moves
+  // with it rather than staying at the halfway mark.
+  const early = app.beatsAround(buffer, 2, { window: 12 });
+  near(early.cut, 2, 0.001, 'a window clipped at the start still locates the cut: ');
 });
 
 /* suggestJoin is fed grids directly here: the alignment maths is what is being
