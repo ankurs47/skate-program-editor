@@ -38,6 +38,11 @@
 
 * { box-sizing: border-box; }
 
+/* Every focusable thing shows where the keyboard is. Only .help-btn used to,
+   so everywhere else fell back to the UA default, which is close to invisible
+   against the dark panel. */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 body {
   margin: 0;
   background: var(--bg);
@@ -261,7 +266,9 @@ aside, section {
 }
 .badge.good { color: var(--good); border-color: var(--good); }
 .badge.unknown { color: var(--muted); border-color: var(--line); }
-.badge.caution { color: #b4770e; border-color: #b4770e; }
+/* 5.56:1 on the panel — 10px bold needs at least 4.5:1, and the old #b4770e
+   only reached 3.76:1. The dark-mode value below is already well clear. */
+.badge.caution { color: #8f5e0b; border-color: #8f5e0b; }
 .badge.poor { color: var(--bad); border-color: var(--bad); background: color-mix(in srgb, var(--bad) 10%, transparent); }
 @media (prefers-color-scheme: dark) {
   .badge.caution { color: #e0a33c; border-color: #e0a33c; }
@@ -395,6 +402,7 @@ aside, section {
    the column and pushes the other controls off. */
 .join-cell { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; min-width: 0; }
 .join-cell label { width: 100%; }
+.join-buttons { display: flex; gap: 6px; flex-wrap: wrap; max-width: 100%; }
 
 /* ---- help ---- */
 /* Help lives behind header buttons rather than on the page. The buttons are
@@ -440,7 +448,6 @@ aside, section {
   background: rgba(255, 255, 255, .11);
   border-color: transparent;
 }
-.help-btn:focus-visible { outline: 2px solid var(--topbar-ink); outline-offset: -2px; }
 .help-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 /* ---- start dialog ---- */
@@ -450,8 +457,6 @@ aside, section {
 .start-field { display: flex; flex-direction: column; gap: 5px; }
 .start-field input, .start-field select { width: 100%; }
 button.wide { width: 100%; padding: 9px 14px; }
-.start-continue { display: flex; flex-direction: column; gap: 8px; }
-.start-continue .hint { text-align: center; }
 /* A rule with the word sitting in the gap, separating the routes. */
 .start-or {
   display: flex;

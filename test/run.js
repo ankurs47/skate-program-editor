@@ -88,6 +88,71 @@ check('layout: empty programme is zero, not NaN', () => {
   eq(total, 0);
 });
 
+check('clips: trims are brought inside the file that actually arrives', () => {
+  /* A project records trims but not the audio, so nothing checks those numbers
+     against a real duration until the file turns up. Web Audio plays silence
+     past the end rather than failing, so an overrun used to show a clip
+     duration that was a lie and export a programme of the wrong length. */
+  const clips = [
+    { file: 'a.mp3', srcStart: 0, srcEnd: 200 },    // the file is only 120s long
+    { file: 'a.mp3', srcStart: 10, srcEnd: 60 },    // already fits
+    { file: 'b.mp3', srcStart: 0, srcEnd: 900 },    // a different file entirely
+  ];
+  eq(app.clampClipsToFile(clips, { name: 'a.mp3', duration: 120 }), 1,
+    'only the clip that overran should be counted: ');
+  eq(clips[0].srcEnd, 120, 'the end is pulled back to the end of the file: ');
+  eq([clips[1].srcStart, clips[1].srcEnd], [10, 60], 'a clip that fits is untouched: ');
+  eq(clips[2].srcEnd, 900, 'another file is not this file: ');
+});
+
+check('clips: even a start past the end of the file leaves a usable clip', () => {
+  const clips = [{ file: 'a.mp3', srcStart: 300, srcEnd: 400 }];
+  app.clampClipsToFile(clips, { name: 'a.mp3', duration: 10 });
+  const { srcStart, srcEnd } = clips[0];
+  ok(srcStart >= 0 && srcEnd <= 10, `clip ${srcStart}–${srcEnd} is outside a 10s file`);
+  near(srcEnd - srcStart, app.MIN_CLIP, 1e-9, 'it should collapse to the minimum, not invert: ');
+
+  // A zero-length file is degenerate, but must not produce NaN trims.
+  const empty = [{ file: 'a.mp3', srcStart: 5, srcEnd: 9 }];
+  app.clampClipsToFile(empty, { name: 'a.mp3', duration: 0 });
+  for (const v of [empty[0].srcStart, empty[0].srcEnd]) ok(Number.isFinite(v), 'trim went NaN');
+});
+
+check('join preview: plays a few seconds either side of the join', () => {
+  const clips = [
+    { srcStart: 0, srcEnd: 60, crossfade: 0 },
+    { srcStart: 0, srcEnd: 60, crossfade: 2 },
+  ];
+  // the second clip starts at 58, and the blend runs from there to 60
+  const range = app.joinPreviewRange(clips, 1, { lead: 4, tail: 4 });
+  eq(range.from, 54, 'four seconds before the join: ');
+  eq(range.until, 64, 'the tail is measured from the end of the blend, not the cut: ');
+});
+
+check('join preview: stays inside the programme, and declines when there is no join', () => {
+  const clips = [
+    { srcStart: 0, srcEnd: 3, crossfade: 0 },
+    { srcStart: 0, srcEnd: 3, crossfade: 0 },
+  ];
+  const range = app.joinPreviewRange(clips, 1);
+  eq(range.from, 0, 'cannot start before the programme does: ');
+  eq(range.until, 6, 'cannot run past the end of it: ');
+  eq(app.joinPreviewRange(clips, 0), null, 'the first clip has nothing before it: ');
+  eq(app.joinPreviewRange(clips, 9), null, 'a clip that is not there: ');
+  eq(app.joinPreviewRange([], 1), null, 'an empty programme: ');
+});
+
+check('export: too loud is caught before anything is encoded', () => {
+  // solveGains guards the automatic path, but the Volume slider reaches +24 dB
+  // by hand and the encoders clamp, which is flat-topped distortion.
+  ok(app.clipsOnExport(1.2), 'a boosted programme clips');
+  ok(app.clipsOnExport(1.01), 'a little over is still flat-topped');
+  ok(!app.clipsOnExport(1), 'exactly full scale is not clipping');
+  ok(!app.clipsOnExport(Math.pow(10, app.LOUDNESS.ceiling / 20)),
+    'the ceiling solveGains aims at must never trip this: ');
+  ok(!app.clipsOnExport(0), 'silence does not clip');
+});
+
 check('reorder: moves on a real pair of positions, and only then', () => {
   const clips = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
   const ids = (list) => (list ? list.map((c) => c.id).join('') : null);
@@ -331,6 +396,58 @@ check('library: a file is removable only once the program has stopped using it',
   withClips([], () => {
     eq(app.clipsUsing('a.mp3'), 0, 'an empty program holds nothing: ');
   });
+});
+
+/**
+ * The exact bytes of a Buffer, as an ArrayBuffer.
+ *
+ * Not `buf.buffer.slice(0)`: anything under 4 KB from `Buffer.concat` or
+ * `allocUnsafe` comes out of Node's shared pool, so `.buffer` is the whole
+ * arena and the data starts at `byteOffset`, not at 0. `Buffer.alloc` happens
+ * to be unpooled, which is why that shortcut works elsewhere in this file and
+ * silently did not here.
+ */
+function bytesOf(buf) {
+  return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+}
+
+/** One Ogg page with the given segment lacing values. */
+function oggPage(lacing) {
+  const payload = lacing.reduce((n, v) => n + v, 0);
+  const page = Buffer.alloc(27 + lacing.length + payload, 0x41);
+  page.write('OggS', 0);
+  page[26] = lacing.length;
+  for (let i = 0; i < lacing.length; i++) page[27 + i] = lacing[i];
+  return page;
+}
+
+check('oggAudioStart: skips the two headers to where the audio really begins', () => {
+  /* This is what stops a yt-dlp download reading ~40% too high: Ogg Opus keeps
+     its cover art in the OpusTags comment header, and measuring the bitrate
+     from file size without skipping it counts the artwork as audio. */
+  const head = oggPage([19]);                 // OpusHead: 27 + 1 + 19 = 47
+  const tags = oggPage([100]);                // OpusTags: 27 + 1 + 100 = 128
+  const audio = Buffer.alloc(4096, 0x5a);
+  const file = Buffer.concat([head, tags, audio]);
+  eq(app.oggAudioStart(bytesOf(file)), 47 + 128, 'audio starts after both headers: ');
+});
+
+check('oggAudioStart: a comment header big enough for cover art spans segments', () => {
+  // A packet longer than 255 bytes is split into 255-byte segments, and only
+  // the final short one ends it. Artwork makes this the normal case, not an
+  // edge one — 255 + 255 + 100 is a 610-byte tags packet.
+  const head = oggPage([19]);
+  const tags = oggPage([255, 255, 100]);      // 27 + 3 + 610 = 640
+  const file = Buffer.concat([head, tags, Buffer.alloc(2048, 0x5a)]);
+  eq(app.oggAudioStart(bytesOf(file)), 47 + 640,
+    'the multi-segment comment header was not fully skipped: ');
+});
+
+check('oggAudioStart: says nothing rather than guessing on other containers', () => {
+  eq(app.oggAudioStart(bytesOf(Buffer.alloc(4096, 0x41))), 0, 'not an Ogg stream: ');
+  eq(app.oggAudioStart(bytesOf(Buffer.alloc(10))), 0, 'too short to hold a page: ');
+  eq(app.oggAudioStart(bytesOf(oggPage([19]))), 0,
+    'one header alone is not enough to locate the audio: ');
 });
 
 check('levels: ids unique, times sane, every group populated', () => {
@@ -1399,6 +1516,38 @@ check('every help button has a matching topic', () => {
   eq(buttons.filter((b) => !names.has(b)), [], 'buttons with no content: ');
   eq([...names].filter((n) => !buttons.includes(n)), [], 'content with no button: ');
   for (const [, , title] of topics) ok(title.trim(), 'a topic has an empty title');
+});
+
+check('outcomes are announced, and every dialog says it is one', () => {
+  /* All three modals are plain divs over a backdrop rather than <dialog>, so
+     the role, the name and the modality have to be stated by hand — and the
+     toast carries every outcome the app reports, from "Evened out 3 songs" to
+     the whole join result. */
+  const toast = html.match(/<div id="toast"[^>]*>/);
+  ok(toast, 'the toast is missing');
+  ok(/role="status"/.test(toast[0]) && /aria-live=/.test(toast[0]),
+    'toasts carry every outcome message and have to be announced');
+
+  const cards = [...html.matchAll(/<div class="modal-card[^"]*"([^>]*)>/g)].map((m) => m[1]);
+  ok(cards.length >= 3, `expected three dialogs, found ${cards.length}`);
+  for (const attrs of cards) {
+    ok(/role="dialog"/.test(attrs), `a dialog has no role:${attrs}`);
+    ok(/aria-modal="true"/.test(attrs), `a dialog is not marked modal:${attrs}`);
+    const named = attrs.match(/aria-labelledby="([\w-]+)"/);
+    ok(named, `a dialog has no name:${attrs}`);
+    ok(html.includes(`id="${named[1]}"`), `aria-labelledby points at a missing id: ${named[1]}`);
+  }
+});
+
+check('the page and the file picker both cover what the tools produce', () => {
+  ok(/<meta name="color-scheme" content="[^"]*dark[^"]*">/.test(html),
+    'without this, native selects and scrollbars stay light in dark mode');
+  const picker = html.match(/<input id="fileInput"[\s\S]*?>/);
+  ok(picker, 'the file picker is missing');
+  for (const ext of ['.webm', '.opus']) {
+    ok(picker[0].includes(ext),
+      `the picker can filter out ${ext}, which is what music-get.sh downloads`);
+  }
 });
 
 check('no personal information in anything shipped', () => {

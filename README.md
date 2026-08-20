@@ -36,7 +36,10 @@ order, blend, check the length, save the file.
   verdict rather than a bitrate you have to interpret
 - **Save your work** as a small readable file that records the edit, so you can
   come back and adjust it rather than starting over
-- **Export** to MP3 or WAV
+- **Hear a join** before you commit to it — one button plays the few seconds
+  either side of a cut, so you can judge it without hunting for the spot
+- **Export** to MP3 or WAV, with a warning first if the program would come out
+  too loud to store cleanly
 
 Everything runs in the browser tab: decoding, playback, mixing and encoding.
 There is no server and no upload step.
@@ -155,7 +158,7 @@ is only for checking changes.
 
 ```bash
 npm install          # installs eslint, and enables the pre-commit hook
-npm test             # 110 checks: maths, wiring, and asset integrity
+npm test             # 120 checks: maths, wiring, and asset integrity
 npm run lint
 npm run check        # lint + test, what CI runs
 npm run test:net     # also re-verifies the pinned CDN hash
