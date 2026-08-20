@@ -383,7 +383,9 @@ aside, section {
   margin: 6px 2px 14px;
   font-size: 12px;
 }
-.editor-actions { display: flex; gap: 6px; }
+/* Four buttons now, so they take a second line on a narrow window rather than
+   running off the side of the panel. */
+.editor-actions { display: flex; gap: 6px; flex-wrap: wrap; max-width: 100%; }
 .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
 .controls label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
 .controls label b { color: var(--ink); font-family: var(--mono); }

@@ -88,6 +88,37 @@ check('layout: empty programme is zero, not NaN', () => {
   eq(total, 0);
 });
 
+check('reorder: moves on a real pair of positions, and only then', () => {
+  const clips = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+  const ids = (list) => (list ? list.map((c) => c.id).join('') : null);
+  eq(ids(app.reordered(clips, 2, 0)), 'cab', 'last block dragged to the front: ');
+  eq(ids(app.reordered(clips, 0, 2)), 'bca');
+  eq(app.reordered(clips, 1, 1), null, 'a block dropped back on itself: ');
+  eq(ids(clips), 'abc', 'the list handed in is never touched: ');
+
+  /* The drop handler used to read text/plain and hand the result straight over.
+     A dragged text selection parses to NaN, every comparison against NaN is
+     false, and the check only looked at the destination — so it went through,
+     and splice(NaN, 1) coerces to splice(0, 1). Dropping a stray selection on
+     the timeline silently moved the *first* song to wherever it landed. */
+  for (const bad of [NaN, 1.5, -1, 3, 99, '1', null, undefined, Infinity]) {
+    eq(app.reordered(clips, bad, 2), null, `dragged from ${JSON.stringify(bad)}: `);
+    eq(app.reordered(clips, 0, bad), null, `dropped at ${JSON.stringify(bad)}: `);
+  }
+});
+
+check('reorder: a drop counts only when the drag began on a clip block', () => {
+  /* A dropped file or text selection carries text/plain too, and for a file it
+     reads back as the empty string — which Number() turns into 0, a perfectly
+     valid clip index that the guard above cannot catch. So the payload cannot
+     be what identifies the drag; a private type is. */
+  const source = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+  ok(!/getData\(\s*'text\/plain'\s*\)/.test(source),
+    'a drop handler is reading text/plain again, which every drag supplies');
+  ok(/setData\(CLIP_DRAG_TYPE/.test(source) && /getData\(CLIP_DRAG_TYPE/.test(source),
+    'the private drag type has to be both published and required');
+});
+
 check('fades: ramp linearly and reach full level', () => {
   const clip = { srcStart: 0, srcEnd: 60, fadeIn: 1.5, fadeOut: 0 };
   const env = app.fadeEnvelope(clip);
@@ -157,16 +188,35 @@ check('exportFileName: readable, and safe on every filesystem', () => {
 });
 
 check('quality: judged per codec, not on the raw number', () => {
-  const verdict = (bitrate, codec) => {
-    const eff = bitrate * (app.CODEC_EFFICIENCY[codec] || 1);
-    return eff < app.QUALITY.minBitrate ? 'poor'
-      : eff < app.QUALITY.goodBitrate ? 'caution' : 'good';
-  };
+  /* This calls the app's own judgement. It used to reimplement the thresholds
+     here and then assert against its own copy of them, which meant it would
+     have passed whatever `qualityKind` actually did — the thresholds were never
+     under test at all. */
+  const verdict = (bitrate, codec) => app.qualityKind({ bitrate, codec });
   eq(verdict(128, 'opus'), 'good', '128k opus is genuinely fine: ');
   eq(verdict(128, 'mp3'), 'caution', 'the same number in mp3 is not: ');
   eq(verdict(107, 'mp3'), 'poor');
   eq(verdict(205, 'mp3'), 'good');
   eq(verdict(64, 'opus'), 'poor');
+  eq(verdict(128, 'wma'), 'caution', 'a codec not in the table gets no free credit: ');
+});
+
+check('quality: a file we could not measure says so rather than passing', () => {
+  eq(app.qualityKind({ bitrate: null, codec: 'm4a' }), 'unknown');
+  eq(app.qualityKind({ bitrate: null, lossless: true }), 'good',
+    'wav and flac need no bitrate to be trusted: ');
+  eq(app.qualityKind({ bitrate: 64, lossless: true }), 'good',
+    'a lossless file is not judged on a bitrate at all: ');
+});
+
+check('quality: a low sample rate pulls the verdict down on its own', () => {
+  // A 320k rip of a 22 kHz source is a bad file the bitrate alone calls good.
+  eq(app.qualityKind({ bitrate: 320, sampleRate: 22050, codec: 'mp3' }), 'poor');
+  eq(app.qualityKind({ bitrate: 320, sampleRate: 32000, codec: 'mp3' }), 'caution',
+    'below CD rate but not hopeless: ');
+  eq(app.qualityKind({ bitrate: 320, sampleRate: 44100, codec: 'mp3' }), 'good');
+  eq(app.qualityKind({ bitrate: 96, sampleRate: 44100, codec: 'mp3' }), 'poor',
+    'a good sample rate cannot rescue a bad bitrate: ');
 });
 
 check('quality: badges are short words, never bitrates', () => {
@@ -198,6 +248,89 @@ check('id3Size: reads the syncsafe length, tolerates untagged files', () => {
   eq(app.id3Size(tagged.buffer.slice(0)), (2 << 7 | 1) + 10);
   eq(app.id3Size(Buffer.alloc(20).buffer.slice(0)), 0, 'no tag: ');
   eq(app.id3Size(Buffer.alloc(4).buffer.slice(0)), 0, 'too short to have one: ');
+});
+
+/* ------------------------------------------------------------- 1e. undo */
+
+/** Runs `fn` with a throwaway clip list, then puts the real state back. */
+function withClips(clips, fn) {
+  const saved = app.state.clips;
+  app.undoStack.length = 0;
+  app.endUndoRun();
+  app.state.clips = clips;
+  try { fn(); } finally {
+    app.state.clips = saved;
+    app.undoStack.length = 0;
+    app.endUndoRun();
+  }
+}
+
+check('undo: a held key is one gesture, not thirty entries', () => {
+  /* Key repeat fires about thirty times a second, and each repeat used to push
+     its own snapshot. The stack is sixty deep, so two seconds on the arrow key
+     emptied it and took every earlier edit with it. These calls are all inside
+     the coalescing window by virtue of running synchronously, which is exactly
+     the situation a held key produces. */
+  withClips([{ id: 'a', srcStart: 0, srcEnd: 10 }], () => {
+    app.pushUndo();                                     // an ordinary edit
+    for (let i = 0; i < 40; i++) app.pushUndo('nudge-end:a');
+    eq(app.undoStack.length, 2, 'the whole run should be a single entry: ');
+
+    app.pushUndo('nudge-end:b');
+    eq(app.undoStack.length, 3, 'a different clip is a different gesture: ');
+    app.pushUndo('trim-in:b');
+    eq(app.undoStack.length, 4, 'so is a different key: ');
+  });
+});
+
+check('undo: untagged callers never coalesce, and end the run before them', () => {
+  withClips([{ id: 'a', srcStart: 0, srcEnd: 10 }], () => {
+    app.pushUndo();
+    app.pushUndo();
+    eq(app.undoStack.length, 2, 'two ordinary edits are two entries: ');
+    for (let i = 0; i < 5; i++) app.pushUndo('nudge-end:a');
+    eq(app.undoStack.length, 3);
+    app.pushUndo();
+    for (let i = 0; i < 5; i++) app.pushUndo('nudge-end:a');
+    eq(app.undoStack.length, 5, 'the run cannot reach back past an untagged push: ');
+  });
+});
+
+check('undo: an edit made straight after undoing is still undoable', () => {
+  // The run has to end when the snapshot it opened with is popped, or the next
+  // repeat of the same key folds into a gesture that no longer exists.
+  withClips([{ id: 'a', srcStart: 0, srcEnd: 10 }], () => {
+    app.pushUndo('nudge-end:a');
+    eq(app.undoStack.length, 1);
+    app.undoStack.pop();          // what undo() does to the stack
+    app.endUndoRun();             // and what it must do to the run
+    app.pushUndo('nudge-end:a');
+    eq(app.undoStack.length, 1, 'the edit after an undo left nothing to undo: ');
+  });
+});
+
+check('undo: the stack stays bounded however many gestures there are', () => {
+  withClips([{ id: 'a', srcStart: 0, srcEnd: 10 }], () => {
+    for (let i = 0; i < app.UNDO_DEPTH + 25; i++) app.pushUndo();
+    eq(app.undoStack.length, app.UNDO_DEPTH, 'oldest entries drop off the bottom: ');
+  });
+});
+
+/* ---------------------------------------------------------- 1f. library */
+
+check('library: a file is removable only once the program has stopped using it', () => {
+  withClips([
+    { id: '1', file: 'a.mp3' },
+    { id: '2', file: 'b.mp3' },
+    { id: '3', file: 'a.mp3' },
+  ], () => {
+    eq(app.clipsUsing('a.mp3'), 2, 'the same song can be in a program twice: ');
+    eq(app.clipsUsing('b.mp3'), 1);
+    eq(app.clipsUsing('c.mp3'), 0, 'a file nothing is using can go: ');
+  });
+  withClips([], () => {
+    eq(app.clipsUsing('a.mp3'), 0, 'an empty program holds nothing: ');
+  });
 });
 
 check('levels: ids unique, times sane, every group populated', () => {
