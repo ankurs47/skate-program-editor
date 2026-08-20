@@ -318,6 +318,15 @@ function playProgram(fromTime = 0) {
   tickPlayhead();
 }
 
+/**
+ * Play one clip on its own, from a point inside it.
+ *
+ * Its level and its own fades are applied, because hearing what this song will
+ * sound like is the entire point — auditioning at full volume a song you have
+ * just set to 40% tells you nothing, and it used to do exactly that. The blend
+ * is not applied: that belongs to the join rather than to the song, and there
+ * is no previous song here to blend with.
+ */
 function playClipAudition(clip, fromSource) {
   const entry = library.get(clip.file);
   if (!entry || !entry.buffer) { toast('That file is not loaded'); return; }
@@ -325,9 +334,18 @@ function playClipAudition(clip, fromSource) {
   const context = ctx();
   const src = context.createBufferSource();
   src.buffer = entry.buffer;
-  src.connect(context.destination);
+  const level = context.createGain();
+  const fade = context.createGain();
+  level.gain.value = clipGain(clip);
+  src.connect(level).connect(fade).connect(context.destination);
+
   const from = clamp(fromSource, clip.srcStart, clip.srcEnd);
   const when = context.currentTime + 0.05;
+  // Clip time zero sits `skip` seconds before we actually start, so the
+  // envelope is anchored back there and applyEnvelope joins it part-way.
+  const skip = from - clip.srcStart;
+  applyEnvelope(fade.gain, fadeEnvelope(clip), when - skip, skip, context.currentTime);
+
   src.start(when, from, clip.srcEnd - from);
   playing = { nodes: [src], startedAt: when, fromTime: from, mode: 'clip', clip };
   $('btnPlayLabel').textContent = 'Pause';
@@ -524,6 +542,36 @@ function oggAudioStart(bytes) {
 }
 
 /**
+ * The verdict for one source: good, caution, poor, or unknown.
+ *
+ * Separate from `analyseSource`, which needs a decoded buffer and a File to say
+ * anything at all. The judgement itself is the part that is easy to get wrong
+ * and easy to check, so it stands on its own and takes plain numbers — the test
+ * for it used to reimplement these thresholds and assert against its own copy,
+ * which would have passed whatever this actually did.
+ *
+ * `bitrate` is the real figure; the comparison is against its MP3-equivalent,
+ * because 128k Opus and 128k MP3 are not the same thing. A null measurement
+ * means unknown, never zero.
+ */
+function qualityKind({ bitrate = null, sampleRate = null, codec = '', lossless = false }) {
+  // Nothing measurable and not a known lossless format — say so rather than
+  // implying it's fine.
+  let kind = (!lossless && bitrate === null) ? 'unknown' : 'good';
+  if (!lossless && bitrate !== null) {
+    // Judge on the MP3-equivalent figure; display the real one.
+    const effective = bitrate * (CODEC_EFFICIENCY[codec] || 1);
+    if (effective < QUALITY.minBitrate) kind = 'poor';
+    else if (effective < QUALITY.goodBitrate) kind = 'caution';
+  }
+  if (sampleRate !== null && kind !== 'unknown') {
+    if (sampleRate < QUALITY.minSampleRate) kind = 'poor';
+    else if (sampleRate < QUALITY.goodSampleRate && kind === 'good') kind = 'caution';
+  }
+  return kind;
+}
+
+/**
  * Work out what we can about a source file. `head` is a copy of the bytes at
  * the first audio frame, taken before decoding because decodeAudioData detaches
  * the buffer. `tagEnd` is where the ID3v2 tag ended — with embedded artwork
@@ -557,21 +605,7 @@ function analyseSource(head, tagEnd, file, buffer) {
   }
 
   const codec = info ? 'mp3' : codecOf(file.name);
-  const efficiency = CODEC_EFFICIENCY[codec] || 1;
-
-  // Nothing measurable and not a known lossless format — say so rather than
-  // implying it's fine.
-  let kind = (!lossless && bitrate === null) ? 'unknown' : 'good';
-  if (!lossless && bitrate !== null) {
-    // Judge on the MP3-equivalent figure; display the real one.
-    const effective = bitrate * efficiency;
-    if (effective < QUALITY.minBitrate) kind = 'poor';
-    else if (effective < QUALITY.goodBitrate) kind = 'caution';
-  }
-  if (sampleRate !== null && kind !== 'unknown') {
-    if (sampleRate < QUALITY.minSampleRate) kind = 'poor';
-    else if (sampleRate < QUALITY.goodSampleRate && kind === 'good') kind = 'caution';
-  }
+  const kind = qualityKind({ bitrate, sampleRate, codec, lossless });
 
   // Short flags, used where there is room to show them. The badge never uses
   // these — it has to stay narrow enough to sit beside the Add button.
@@ -1899,6 +1933,30 @@ async function addFiles(fileList) {
   updateBudget();
 }
 
+/** How many clips in the program are playing from this file. */
+function clipsUsing(file) {
+  return state.clips.filter((c) => c.file === file).length;
+}
+
+/**
+ * Take a file back out of the list.
+ *
+ * Only when nothing in the program is using it. Removing a file the program
+ * depends on would quietly gut the edit, so the button is shut rather than
+ * guarded by a confirmation — the same choice as the export button, and for the
+ * same reason. Dropping the entry is what actually releases the decoded audio,
+ * which is around 90 MB for every four minutes of stereo, and until now there
+ * was no way to release it at all.
+ */
+function removeFromLibrary(name) {
+  if (clipsUsing(name)) {
+    toast('That song is in your program — take it out of the program first');
+    return;
+  }
+  library.delete(name);
+  renderLibrary();
+}
+
 function renderLibrary() {
   const list = $('libraryList');
   list.innerHTML = '';
@@ -1941,6 +1999,20 @@ function renderLibrary() {
       add.onclick = () => addClip(entry);
       row.appendChild(add);
     }
+
+    const drop = document.createElement('button');
+    drop.className = 'small danger';
+    drop.textContent = 'Remove';
+    const used = clipsUsing(entry.name);
+    drop.disabled = used > 0;
+    drop.title = used
+      ? `This song is in your program ${used === 1 ? 'once' : `${used} times`} — `
+        + 'take it out of the program first'
+      : 'Take this file out of the list and give back the memory it is holding. '
+        + 'Your program is untouched, and nothing is deleted from your computer.';
+    drop.onclick = () => removeFromLibrary(entry.name);
+    row.appendChild(drop);
+
     li.appendChild(row);
     list.appendChild(li);
   }
@@ -1948,14 +2020,43 @@ function renderLibrary() {
 
 /* ----------------------------------------------------------------- clips */
 
-function pushUndo() {
+/* A held key repeats about thirty times a second, and every repeat used to push
+   its own snapshot. The stack is sixty deep, so two seconds on the arrow key
+   emptied it and took every earlier edit down with it — which is the one thing
+   an undo stack exists to prevent.
+
+   A run of repeats of the same key on the same clip is one gesture and gets one
+   snapshot. `tag` is what says two calls belong to that run; untagged callers
+   never coalesce, and end any run in progress. The sliders solve the same
+   problem with an `editing` flag, because a drag has an end event to hang it
+   on and a key repeat does not. */
+const UNDO_DEPTH = 60;
+const UNDO_COALESCE_MS = 700;
+let undoRun = { tag: null, at: 0 };
+
+function pushUndo(tag = null) {
+  const now = Date.now();
+  if (tag !== null && tag === undoRun.tag && now - undoRun.at < UNDO_COALESCE_MS) {
+    undoRun.at = now;      // the gesture continues; its opening snapshot stands
+    return;
+  }
+  undoRun = { tag, at: now };
   undoStack.push(JSON.stringify(state.clips));
-  if (undoStack.length > 60) undoStack.shift();
+  if (undoStack.length > UNDO_DEPTH) undoStack.shift();
+}
+
+/** End any run of coalesced edits, so the next one starts a fresh entry. */
+function endUndoRun() {
+  undoRun = { tag: null, at: 0 };
 }
 
 function undo() {
   const prev = undoStack.pop();
   if (!prev) { toast('Nothing to undo'); return; }
+  // Without this, nudging again straight after an undo would be folded into the
+  // run whose snapshot has just been popped, and that second edit could not be
+  // undone at all.
+  endUndoRun();
   state.clips = JSON.parse(prev);
   if (!state.clips.some((c) => c.id === state.selected)) {
     state.selected = state.clips.length ? state.clips[state.clips.length - 1].id : null;
@@ -1999,16 +2100,38 @@ function removeClip(id) {
   refresh();
 }
 
+/**
+ * The clip list with one clip moved, or null if that is not a real move.
+ *
+ * Both indices are checked, not just the destination. `fromIndex` arrives from
+ * a drag's data transfer, so it is whatever the browser was carrying, and every
+ * comparison against NaN is false — a destination-only check let it straight
+ * through, and `splice(NaN, 1)` coerces to `splice(0, 1)`.
+ *
+ * Pure: the list handed in, and the clips in it, come back untouched.
+ */
+function reordered(clips, fromIndex, toIndex) {
+  const valid = (i) => Number.isInteger(i) && i >= 0 && i < clips.length;
+  if (!valid(fromIndex) || !valid(toIndex) || fromIndex === toIndex) return null;
+  const next = clips.slice();
+  const [clip] = next.splice(fromIndex, 1);
+  next.splice(toIndex, 0, clip);
+  return next;
+}
+
 function moveClip(fromIndex, toIndex) {
-  if (fromIndex === toIndex || toIndex < 0 || toIndex >= state.clips.length) return;
+  const next = reordered(state.clips, fromIndex, toIndex);
+  if (!next) return;
   pushUndo();
-  const [clip] = state.clips.splice(fromIndex, 1);
-  state.clips.splice(toIndex, 0, clip);
-  if (state.clips.length) state.clips[0].crossfade = 0;
+  state.clips = next;
+  if (state.clips.length) state.clips[0].crossfade = 0;   // nothing to blend into
   refresh();
 }
 
 /* -------------------------------------------------------------- timeline */
+
+/* Private to this page, so only a drag that began on a clip block carries it. */
+const CLIP_DRAG_TYPE = 'application/x-skate-clip';
 
 function renderTimeline() {
   const wrap = $('timeline');
@@ -2063,12 +2186,24 @@ function renderTimeline() {
       refresh();
     };
 
-    el.ondragstart = (e) => { el.classList.add('dragging'); e.dataTransfer.setData('text/plain', String(i)); };
+    // The reorder rides on a private type, so a drop counts only when the drag
+    // started on one of these blocks. Reading text/plain instead meant any drag
+    // was treated as a reorder: a text selection parsed to NaN, and a dropped
+    // file gave the empty string, which Number() turns into 0 — a real index.
+    // Either way a stray drop silently moved the first song. text/plain is
+    // still published, because some browsers want it to start a drag at all.
+    el.ondragstart = (e) => {
+      el.classList.add('dragging');
+      e.dataTransfer.setData(CLIP_DRAG_TYPE, String(i));
+      e.dataTransfer.setData('text/plain', String(i));
+    };
     el.ondragend = () => el.classList.remove('dragging');
     el.ondragover = (e) => e.preventDefault();
     el.ondrop = (e) => {
       e.preventDefault();
-      moveClip(Number(e.dataTransfer.getData('text/plain')), i);
+      const from = e.dataTransfer.getData(CLIP_DRAG_TYPE);
+      if (from === '') return;              // not one of our blocks
+      moveClip(Number(from), i);
     };
 
     wrap.appendChild(el);
@@ -2290,6 +2425,37 @@ function drawClipEditor() {
   // the first clip has nothing before it to blend into
   $('crossfadeWrap').classList.toggle('hidden', state.clips.indexOf(clip) === 0);
   updateAlignAvailability();
+  updateOrderAvailability();
+}
+
+/**
+ * The two order buttons, greyed at the ends of the program.
+ *
+ * Dragging a block is the quick way to reorder and stays the headline one, but
+ * it is the *only* way, and HTML drag-and-drop does not fire on a touchscreen
+ * at all — so on the tablet the small-screen advisory says this works on, the
+ * order simply could not be changed. These also give it a keyboard path, which
+ * dragging never had either.
+ */
+function updateOrderAvailability() {
+  const i = state.clips.indexOf(selectedClip());
+  const first = i <= 0;
+  const last = i < 0 || i >= state.clips.length - 1;
+  $('btnMoveLeft').disabled = first;
+  $('btnMoveRight').disabled = last;
+  $('btnMoveLeft').title = first
+    ? 'This song is already first'
+    : 'Play this song one place earlier — the same as dragging its block left';
+  $('btnMoveRight').title = last
+    ? 'This song is already last'
+    : 'Play this song one place later — the same as dragging its block right';
+}
+
+/** Move the selected song one place earlier or later in the program. */
+function moveSelected(by) {
+  const i = state.clips.indexOf(selectedClip());
+  if (i < 0) return;
+  moveClip(i, i + by);
 }
 
 /** How far a join's two cuts may move without eating a clip whole. */
@@ -2909,6 +3075,9 @@ function refresh() {
   updateMissingNotice();
   updateExportAvailability();
   updateEvenOutAvailability();
+  // The library is redrawn too: whether a file can be removed depends on
+  // whether the program is still using it, so it changes as clips come and go.
+  renderLibrary();
   renderTimeline();
   drawScrubber();
   drawClipEditor();
@@ -3017,6 +3186,8 @@ function bind() {
     if (clip) playClipAudition(clip, state.cursor > clip.srcStart ? state.cursor : clip.srcStart);
   };
   $('btnRemoveClip').onclick = () => { if (state.selected) removeClip(state.selected); };
+  $('btnMoveLeft').onclick = () => moveSelected(-1);
+  $('btnMoveRight').onclick = () => moveSelected(1);
   $('btnAlignJoin').onclick = alignSelectedJoin;
   $('btnEvenOut').onclick = evenOutLevels;
 
@@ -3152,11 +3323,15 @@ function onKey(e) {
   if (e.key.toLowerCase() === 'z' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); undo(); return; }
   if (!clip) return;
 
+  // Tagged, so holding one of these down is a single undo step rather than
+  // thirty that bury everything before them.
   if (e.key === 'i' || e.key === 'I') {
-    pushUndo(); clip.srcStart = clamp(state.cursor, 0, clip.srcEnd - 0.1); refresh();
+    pushUndo(`trim-in:${clip.id}`);
+    clip.srcStart = clamp(state.cursor, 0, clip.srcEnd - 0.1);
+    refresh();
   } else if (e.key === 'o' || e.key === 'O') {
     const entry = library.get(clip.file);
-    pushUndo();
+    pushUndo(`trim-out:${clip.id}`);
     clip.srcEnd = clamp(state.cursor, clip.srcStart + 0.1, entry ? entry.duration : clip.srcEnd);
     refresh();
   } else if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -3164,7 +3339,7 @@ function onKey(e) {
   } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
     e.preventDefault();
     const dir = e.key === 'ArrowRight' ? 1 : -1;
-    pushUndo();
+    pushUndo(`nudge-end:${clip.id}`);
     clip.srcEnd = Math.max(clip.srcStart + 0.1, clip.srcEnd + dir * nudge);
     refresh();
   } else if (e.key === '[' || e.key === ']') {
@@ -3307,7 +3482,7 @@ if (typeof document !== 'undefined') {
   module.exports = {
     state, LEVELS, QUALITY, CODEC_EFFICIENCY, CUSTOM_LEVEL,
     allLevels, findLevel,
-    clipDuration, crossfadeOf, layout,
+    clipDuration, crossfadeOf, layout, reordered,
     fadeEnvelope, crossfadeEnvelope, valueAt,
     BEAT, fftInPlace, onsetEnvelope, flattenEnvelope, estimateTempoLag,
     analyseBeats, suggestJoin, monoWindow, beatsAround, suggestJoinForBuffers,
@@ -3317,7 +3492,9 @@ if (typeof document !== 'undefined') {
     LOUDNESS, kWeighting, biquad, loudnessOf, peakOf, measureClip, solveGains,
     clipGain, gainToDb, dbToGain, levelPercent, describeLevels, LEVEL_SLIDER, MAX_GAIN,
     parseClock, exportFileName, fmt, fmtShort, clamp,
-    codecOf, qualityLabel, qualityDetail,
+    undoStack, pushUndo, endUndoRun, UNDO_COALESCE_MS, UNDO_DEPTH,
+    clipsUsing,
+    codecOf, qualityLabel, qualityDetail, qualityKind,
     id3Size, oggAudioStart, readMpegFrame, parseFrameHeader,
     unsupportedReasons, LAME_URL, LAME_SRI,
   };

@@ -15,7 +15,7 @@ plain, and jargon is treated as a bug.
 index.html   structure, help topic content, dialogs
 app.js       everything: decode, waveforms, editing, playback, render, export
 style.css    theming via CSS custom properties, light and dark
-test/run.js  101 checks, no dependencies
+test/run.js  110 checks, no dependencies
 tools/       music-get.sh and .cmd — optional YouTube downloader, not the app
 ```
 
@@ -203,6 +203,33 @@ change *sounds*, but stores and shows the multiplier — `LEVEL_SLIDER` and the
   which is why the tests assert that coverage *separates* the two cases rather
   than that every sparse window is rejected. Until then some free-tempo music
   gets the beat strategy when it should get phrasing.
+- **A drop is not a reorder just because something landed on a clip.** The
+  timeline read `text/plain` off the drag and passed it to `moveClip`, checking
+  only the destination index. A dragged text selection parses to NaN, every
+  comparison against NaN is false, and `splice(NaN, 1)` coerces to
+  `splice(0, 1)` — so a stray drop silently moved the *first* song. Tightening
+  the guard is not enough on its own: a dropped **file** leaves `text/plain`
+  empty, and `Number('')` is 0, a perfectly valid index. The drag is identified
+  by a private type (`CLIP_DRAG_TYPE`) that only these blocks publish, and
+  `reordered()` validates both indices. Keep both halves.
+- **A key repeat is one gesture, not thirty edits.** Held keys fire about thirty
+  `keydown`s a second, and the trim and nudge handlers pushed a snapshot on each
+  one. The stack is sixty deep, so two seconds on the arrow key emptied it and
+  took every earlier edit with it — an undo stack destroying the history it
+  exists to hold. `pushUndo(tag)` coalesces a run of the same tag within
+  `UNDO_COALESCE_MS`; untagged callers never coalesce and end any run. `undo()`
+  must call `endUndoRun()`, or the next repeat folds into the gesture whose
+  snapshot was just popped and becomes unundoable. Sliders solve the same
+  problem with an `editing` flag, because a drag has an end event to hang it on.
+- **The audition is a third playback path, and it drifts.** `AGENTS.md` says
+  preview and export share `scheduleProgram`, and they do — but
+  `playClipAudition()` builds its own graph, and for a long time that graph was
+  `source → destination`, so **Play this song** ignored the clip's level and
+  fades entirely. Setting a song to 40% and then auditioning it at 100% teaches
+  the wrong thing about the edit. It now applies level and `fadeEnvelope`;
+  the blend is deliberately left out, because that belongs to the join and there
+  is no previous song here to blend with. Anything added to a clip that affects
+  how it sounds has to be added in both places.
 - **Grid and flex items need `min-width: 0`.** A long clip name once widened the
   whole column and pushed the buttons off-screen. Relatedly, the timeline sizes
   clips with `flex-grow`, not computed pixels — computing widths from the
