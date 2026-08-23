@@ -402,6 +402,11 @@
 <input id="projectInput" type="file" accept="application/json,.json" hidden>
 <div id="toast" class="toast hidden" role="status" aria-live="polite" aria-atomic="true"></div>
 
+<!-- Order matters: app.js calls into both of these by name, and they share one
+     global scope. No modules and no build step — this is still three files you
+     can open from disk. -->
+<script src="analysis.js"></script>
+<script src="formats.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
