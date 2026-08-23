@@ -33,6 +33,9 @@ module.exports = [
       eqeqeq: ['error', 'smart'],
       'no-var': 'error',
       'prefer-const': 'error',
+      // A ternary written as a statement reads as a value being computed and
+      // then dropped. Both of the ones here were really if/else.
+      'no-unused-expressions': 'error',
     },
   },
   {
