@@ -193,6 +193,56 @@ check('reorder: a drop counts only when the drag began on a clip block', () => {
     'the private drag type has to be both published and required');
 });
 
+check('rampEnvelope: one shape behind both of a clip\'s envelopes', () => {
+  // The fades and the blend were written out separately and drifted apart is
+  // exactly the risk; this is the shared shape they now both come from.
+  const plain = app.rampEnvelope(10, 0, 0);
+  eq(plain, [[0, 1], [10, 1]], 'no rise and no fall is a flat line at full: ');
+
+  const both = app.rampEnvelope(10, 2, 3);
+  eq(both, [[0, 0], [2, 1], [7, 1], [10, 0]], 'up, hold, down: ');
+  eq(app.valueAt(both, 1), 0.5, 'half way up the rise: ');
+  eq(app.valueAt(both, 8.5), 0.5, 'half way down the fall: ');
+});
+
+check('rampEnvelope: a rise and fall that would overlap meet instead of crossing', () => {
+  // Breakpoints out of order would make valueAt read the wrong segment, and a
+  // level above 1 would clip on export.
+  const squeezed = app.rampEnvelope(4, 3, 3);
+  const times = squeezed.map((p) => p[0]);
+  eq(times, times.slice().sort((a, b) => a - b), 'breakpoints stay in order: ');
+  for (const [, v] of squeezed) ok(v >= 0 && v <= 1, `level ${v} is out of range`);
+
+  // Longer than the clip is clamped to the clip, not left to run past its end.
+  const overlong = app.rampEnvelope(5, 99, 99);
+  eq(overlong[overlong.length - 1][0], 5, 'the envelope ends with the clip: ');
+});
+
+check('movingAverage: smooths, and treats the ends as shorter windows', () => {
+  const flat = app.movingAverage(new Float32Array(20).fill(4), 3);
+  for (const v of flat) near(v, 4, 1e-6, 'a constant signal averages to itself: ');
+
+  const spike = new Float32Array(21);
+  spike[10] = 7;
+  const smoothed = app.movingAverage(spike, 2);
+  // A window of 5 spreads the spike over its neighbours and divides by 5.
+  near(smoothed[10], 7 / 5, 1e-6, 'the peak is flattened: ');
+  near(smoothed[8], 7 / 5, 1e-6, 'and reaches exactly as far as the half width: ');
+  eq(smoothed[7], 0, 'but no further: ');
+
+  // At the ends the window is clipped, so the divisor shrinks with it.
+  const edge = app.movingAverage(new Float32Array([6, 0, 0, 0, 0]), 1);
+  near(edge[0], 3, 1e-6, 'the first sample averages over two, not three: ');
+  eq(app.movingAverage(new Float32Array(0), 2).length, 0, 'an empty signal: ');
+});
+
+check('frameCount: counts whole frames only, and never goes negative', () => {
+  eq(app.frameCount(1024, 1024, 512), 1, 'exactly one frame fits: ');
+  eq(app.frameCount(1536, 1024, 512), 2);
+  eq(app.frameCount(1535, 1024, 512), 1, 'a part frame does not count: ');
+  ok(app.frameCount(100, 1024, 512) < 1, 'shorter than one frame yields nothing usable');
+});
+
 check('fades: ramp linearly and reach full level', () => {
   const clip = { srcStart: 0, srcEnd: 60, fadeIn: 1.5, fadeOut: 0 };
   const env = app.fadeEnvelope(clip);
@@ -1898,12 +1948,65 @@ check('the page and the file picker both cover what the tools produce', () => {
   }
 });
 
+/* The words this guards against are a family name and a skater's, and writing
+   them here would publish, in a public repo, exactly what the check exists to
+   keep out of it. So they are stored as salted hashes and the shipped files are
+   tokenised and hashed to match.
+
+   Reading them from git config instead was the other option and is worse: on CI
+   the name is either unset or the runner's, so the check would quietly pass
+   while testing nothing, which is the one failure mode a guard must not have.
+
+   To add a word:
+     node -e 'const c=require("crypto");console.log(c.createHash("sha256")
+       .update("skate-private:"+process.argv[1].toLowerCase())
+       .digest("hex").slice(0,16))' WORD
+*/
+const PRIVATE_WORD_HASHES = new Set([
+  'db52ee1e907cd591',
+  'e87a22bb66604a0a',
+  'ca561af9108202c2',
+]);
+
+function privateWordHash(word) {
+  return crypto.createHash('sha256')
+    .update(`skate-private:${word.toLowerCase()}`)
+    .digest('hex')
+    .slice(0, 16);
+}
+
 check('no personal information in anything shipped', () => {
-  const banned = /abrysha|srivastava(?!,)|category10women/i;
+  /* Whole tokens, so a name is caught however it is punctuated around it. This
+     is narrower than the substring match it replaces — a hash cannot be searched
+     for inside a longer word — so a trailing "s" is stripped as well, which
+     covers the plural and possessive forms that narrowing would otherwise miss.
+     Anything more would mean hashing every substring of every file. */
   for (const file of ['index.html', 'app.js', 'style.css']) {
     const body = fs.readFileSync(path.join(ROOT, file), 'utf8');
-    ok(!banned.test(body), `${file} contains personal information`);
+    for (const token of body.split(/[^A-Za-z0-9]+/)) {
+      if (!token) continue;
+      const forms = [token];
+      if (/s$/i.test(token) && token.length > 1) forms.push(token.slice(0, -1));
+      for (const form of forms) {
+        ok(!PRIVATE_WORD_HASHES.has(privateWordHash(form)),
+          `${file} contains personal information`);
+      }
+    }
   }
+});
+
+check('the personal information guard still catches what it is for', () => {
+  /* A guard that has quietly stopped matching anything is worse than no guard,
+     and nothing else here would notice. Proving it works by hashing one of the
+     real words would put that word back in the file in plain text, which is the
+     whole thing being avoided — so the canary is a neutral word with a known
+     hash. If the hashing ever changes, this fails and the stored hashes are
+     known to have stopped corresponding to the words they were made from. */
+  eq(privateWordHash('sentinel'), '392571f57b389320',
+    'the hashing changed, so the stored hashes no longer mean anything: ');
+  eq(PRIVATE_WORD_HASHES.size, 3, 'the guard list was emptied: ');
+  ok(!PRIVATE_WORD_HASHES.has(privateWordHash('crossfade')),
+    'an ordinary word in the codebase must not be flagged');
 });
 
 check('no absolute local paths leaked into the app', () => {

@@ -13,6 +13,7 @@
 const SR = 44100;
 const MIN_CROSSFADE = 0.01;
 const MIN_CLIP = 0.1;            // the shortest a clip may be trimmed to, in seconds
+const AUDIO_EXTENSIONS = /\.(mp3|wav|flac|m4a|ogg|opus|aac|webm|aiff?)$/i;
 const MAX_GAIN = 16;             // a shade over the +24 dB the level slider reaches
 const STORE_KEY = 'skate.program.v1';
 
@@ -199,36 +200,41 @@ function layout(clips) {
 
 /* ------------------------------------------------------------- envelopes */
 
-/** Piecewise-linear breakpoints for a clip's intrinsic fades. */
-function fadeEnvelope(clip) {
-  const dur = clipDuration(clip);
-  const fi = clamp(clip.fadeIn || 0, 0, dur);
-  const fo = clamp(clip.fadeOut || 0, 0, dur);
-  const points = [[0, fi > 0 ? 0 : 1]];
-  if (fi > 0) points.push([fi, 1]);
-  if (fo > 0) {
-    const outStart = Math.max(fi, dur - fo);
-    points.push([outStart, 1], [dur, 0]);
+/**
+ * Piecewise-linear breakpoints for something that rises, holds, and falls.
+ *
+ * Both envelopes a clip has are this shape, and they were written out twice.
+ * Keeping one copy is what makes the property the whole crossfade rests on —
+ * that the two sides sum to 1 through the overlap — a single thing to reason
+ * about rather than two that have to be kept in step.
+ *
+ * A rise and a fall that would overlap meet in the middle instead, so the
+ * breakpoints stay in order and the level never exceeds 1.
+ */
+function rampEnvelope(dur, rise, fall) {
+  const up = clamp(rise, 0, dur);
+  const down = clamp(fall, 0, dur);
+  const points = [[0, up > 0 ? 0 : 1]];
+  if (up > 0) points.push([up, 1]);
+  if (down > 0) {
+    points.push([Math.max(up, dur - down), 1], [dur, 0]);
   } else {
     points.push([dur, 1]);
   }
   return points;
 }
 
+/** Breakpoints for a clip's intrinsic fades. */
+function fadeEnvelope(clip) {
+  return rampEnvelope(clipDuration(clip), clip.fadeIn || 0, clip.fadeOut || 0);
+}
+
 /** Breakpoints for the crossfade with the previous and next clips. */
 function crossfadeEnvelope(clips, i) {
-  const dur = clipDuration(clips[i]);
-  const inX = crossfadeOf(clips, i);
-  const outX = i + 1 < clips.length ? crossfadeOf(clips, i + 1) : 0;
-  const points = [[0, inX > 0 ? 0 : 1]];
-  if (inX > 0) points.push([inX, 1]);
-  if (outX > 0) {
-    const outStart = Math.max(inX, dur - outX);
-    points.push([outStart, 1], [dur, 0]);
-  } else {
-    points.push([dur, 1]);
-  }
-  return points;
+  return rampEnvelope(
+    clipDuration(clips[i]),
+    crossfadeOf(clips, i),
+    i + 1 < clips.length ? crossfadeOf(clips, i + 1) : 0);
 }
 
 function valueAt(points, t) {
@@ -262,7 +268,7 @@ function applyEnvelope(param, points, clipT0, skip, now) {
 /**
  * Schedule the whole program into `context`, starting playback of the timeline
  * at `fromTime` seconds. Used for both live preview and the offline render, so
- * what she hears is what gets exported.
+ * what you hear is what gets exported.
  */
 function scheduleProgram(context, destination, when, fromTime) {
   const clips = state.clips;
@@ -777,6 +783,33 @@ const BEAT = {
   maxDrift: 0.125,      // acceptable beat slip through a blend, in beats
 };
 
+/* Running means over a signal turn up three times in the analysis below — the
+   local level the onset envelope is measured against, the two widths a lull is
+   judged at, and the smoothing before phrase peaks are picked. All three are
+   the same prefix-sum trick, so it lives here once. */
+
+/** Prefix sums, so any window's total is one subtraction. */
+function prefixSums(values) {
+  const sums = new Float64Array(values.length + 1);
+  for (let i = 0; i < values.length; i++) sums[i + 1] = sums[i] + values[i];
+  return sums;
+}
+
+/** Mean of `values[i-half .. i+half]`, clipped to the ends of the signal. */
+function windowMean(sums, length, i, half) {
+  const a = Math.max(0, i - half);
+  const b = Math.min(length, i + half + 1);
+  return b > a ? (sums[b] - sums[a]) / (b - a) : 0;
+}
+
+/** Every `windowMean` at once. */
+function movingAverage(values, half) {
+  const sums = prefixSums(values);
+  const out = new Float32Array(values.length);
+  for (let i = 0; i < values.length; i++) out[i] = windowMean(sums, values.length, i, half);
+  return out;
+}
+
 /** In-place radix-2 FFT. `re` and `im` must be the same power-of-two length. */
 function fftInPlace(re, im) {
   const n = re.length;
@@ -824,28 +857,54 @@ function fftInPlace(re, im) {
  * much of what is playing is *starting* rather than continuing, which is how a
  * held chord — where nothing ever starts — is told apart from music.
  */
-function onsetEnvelope(samples, sampleRate) {
-  const n = BEAT.frame;
-  const hop = BEAT.hop;
-  const rate = sampleRate / hop;
-  const frames = Math.floor((samples.length - n) / hop) + 1;
-  if (frames < 2) return { env: new Float32Array(0), rate, offset: 0, level: 0 };
+/* Both analyses below walk the same overlapping windowed frames and differ only
+   in what they do with each spectrum — one measures energy arriving, the other
+   names the notes. The walk itself is written once. */
+
+/** How many whole frames of `n` samples, `hop` apart, fit in `length`. */
+function frameCount(length, n, hop) {
+  return Math.floor((length - n) / hop) + 1;
+}
+
+/**
+ * Hand each windowed frame's spectrum to `onFrame(re, im, index)`.
+ *
+ * `re` and `im` are reused between frames, so a caller that wants to keep
+ * anything has to copy it out — every caller here reduces to a handful of
+ * numbers instead.
+ */
+function eachSpectrum(samples, n, hop, onFrame) {
+  const frames = frameCount(samples.length, n, hop);
+  if (frames < 1) return 0;
 
   const shape = new Float32Array(n);
   for (let i = 0; i < n; i++) shape[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / n);
 
   const re = new Float32Array(n);
   const im = new Float32Array(n);
-  const bins = n >> 1;
-  const prev = new Float32Array(bins);
-  const env = new Float32Array(frames - 1);
-  let level = 0;
-
   for (let f = 0; f < frames; f++) {
     const base = f * hop;
     for (let i = 0; i < n; i++) re[i] = samples[base + i] * shape[i];
     im.fill(0);
     fftInPlace(re, im);
+    onFrame(re, im, f);
+  }
+  return frames;
+}
+
+function onsetEnvelope(samples, sampleRate) {
+  const n = BEAT.frame;
+  const hop = BEAT.hop;
+  const rate = sampleRate / hop;
+  const frames = frameCount(samples.length, n, hop);
+  if (frames < 2) return { env: new Float32Array(0), rate, offset: 0, level: 0 };
+
+  const bins = n >> 1;
+  const prev = new Float32Array(bins);
+  const env = new Float32Array(frames - 1);
+  let level = 0;
+
+  eachSpectrum(samples, n, hop, (re, im, f) => {
     let flux = 0;
     let magnitude = 0;
     for (let k = 0; k < bins; k++) {
@@ -856,7 +915,7 @@ function onsetEnvelope(samples, sampleRate) {
     }
     level += magnitude;
     if (f > 0) env[f - 1] = flux;
-  }
+  });
 
   // env[i] compares frame i+1 against frame i, so it belongs at that frame's centre
   return { env, rate, offset: (hop + n / 2) / sampleRate, level: level / frames };
@@ -884,15 +943,9 @@ function flattenEnvelope(env, rate) {
       + 0.25 * (i + 1 < env.length ? env[i + 1] : 0);
   }
 
-  const half = Math.max(1, Math.round((rate * BEAT.smoothing) / 2));
-  const sums = new Float64Array(blurred.length + 1);
-  for (let i = 0; i < blurred.length; i++) sums[i + 1] = sums[i] + blurred[i];
+  const local = movingAverage(blurred, Math.max(1, Math.round((rate * BEAT.smoothing) / 2)));
   const out = new Float32Array(blurred.length);
-  for (let i = 0; i < blurred.length; i++) {
-    const a = Math.max(0, i - half);
-    const b = Math.min(blurred.length, i + half + 1);
-    out[i] = Math.max(0, blurred[i] - (sums[b] - sums[a]) / (b - a));
-  }
+  for (let i = 0; i < blurred.length; i++) out[i] = Math.max(0, blurred[i] - local[i]);
   return out;
 }
 
@@ -1110,19 +1163,54 @@ function analyseBeats(samples, sampleRate) {
  * longer or shorter the programme becomes as a result. `ok: false` means the
  * join should be left exactly as it is.
  */
-function suggestJoin(out, cutOut, inc, cutIn, opts = {}) {
+/* The two strategies answer the same question in different currencies, so the
+   parts that are about the *question* rather than the answer — how far a cut may
+   travel, what "declined" looks like, which candidates are in reach — are shared
+   between them. Callers cannot tell which ran except by `reason`, and that only
+   holds if the shape is built in one place. */
+
+/** The options both join strategies take, with their defaults filled in. */
+function joinOptions(opts) {
   const maxShift = opts.maxShift ?? 2.5;
-  const crossfade = Math.max(0, opts.crossfade || 0);
-  const maxCrossfade = opts.maxCrossfade ?? Infinity;
-  const outRoom = opts.outRoom || { min: -maxShift, max: maxShift };
-  const incRoom = opts.incRoom || { min: -maxShift, max: maxShift };
+  return {
+    maxShift,
+    crossfade: Math.max(0, opts.crossfade || 0),
+    maxCrossfade: opts.maxCrossfade ?? Infinity,
+    outRoom: opts.outRoom || { min: -maxShift, max: maxShift },
+    incRoom: opts.incRoom || { min: -maxShift, max: maxShift },
+  };
+}
+
+/** Candidates whose `key` time is within reach of the cut and the clip's room. */
+function reachablePoints(points, cut, room, maxShift, key) {
+  return points.filter((p) => {
+    const shift = p[key] - cut;
+    return shift >= Math.max(-maxShift, room.min) && shift <= Math.min(maxShift, room.max);
+  });
+}
+
+/**
+ * The answer both strategies give when they decline.
+ *
+ * Every number is zero and the blend comes back exactly as it was: a declined
+ * join must leave the edit untouched, which callers check by acting on these
+ * fields rather than on `ok` alone.
+ */
+function declineJoin(reason, crossfade, extra = {}) {
+  return {
+    ok: false, reason, endShift: 0, startShift: 0, crossfade,
+    lengthDelta: 0, drift: 0, tempoMismatch: 0, confidence: 0, bpm: [0, 0],
+    ...extra,
+  };
+}
+
+function suggestJoin(out, cutOut, inc, cutIn, opts = {}) {
+  const { maxShift, crossfade, maxCrossfade, outRoom, incRoom } = joinOptions(opts);
   const minConfidence = opts.minConfidence ?? BEAT.minConfidence;
   const confidence = Math.min(out.confidence || 0, inc.confidence || 0);
 
-  const decline = (reason) => ({
-    ok: false, reason, endShift: 0, startShift: 0, crossfade,
-    lengthDelta: 0, drift: 0, tempoMismatch: 0, confidence,
-    bpm: [out.bpm || 0, inc.bpm || 0],
+  const decline = (reason) => declineJoin(reason, crossfade, {
+    confidence, bpm: [out.bpm || 0, inc.bpm || 0],
   });
 
   if (!out.beats || !inc.beats || out.beats.length < 2 || inc.beats.length < 2) {
@@ -1146,12 +1234,8 @@ function suggestJoin(out, cutOut, inc, cutIn, opts = {}) {
   const incPeriod = inc.period * ratio;
   const driftPerSecond = Math.abs(out.period - incPeriod) / (2 * out.period * out.period);
 
-  const reachable = (beats, cut, room) => beats.filter((beat) => {
-    const shift = beat.t - cut;
-    return shift >= Math.max(-maxShift, room.min) && shift <= Math.min(maxShift, room.max);
-  });
-  const outs = reachable(out.beats, cutOut, outRoom);
-  const incs = reachable(inc.beats, cutIn, incRoom);
+  const outs = reachablePoints(out.beats, cutOut, outRoom, maxShift, 't');
+  const incs = reachablePoints(inc.beats, cutIn, incRoom, maxShift, 't');
   if (!outs.length || !incs.length) return decline('no-room');
 
   // The blend has to be a whole number of the outgoing song's beats, otherwise
@@ -1275,21 +1359,16 @@ const PHRASE = {
  */
 function gapScores(env, rate) {
   const n = env.length;
-  const sums = new Float64Array(n + 1);
-  for (let i = 0; i < n; i++) sums[i + 1] = sums[i] + env[i];
-
+  // One pass of prefix sums serves both widths, which is why this reaches for
+  // windowMean rather than movingAverage.
+  const sums = prefixSums(env);
   const near = Math.max(1, Math.round((rate * PHRASE.quiet) / 2));
   const far = Math.max(near + 1, Math.round((rate * PHRASE.context) / 2));
-  const mean = (i, half) => {
-    const a = Math.max(0, i - half);
-    const b = Math.min(n, i + half + 1);
-    return b > a ? (sums[b] - sums[a]) / (b - a) : 0;
-  };
 
   const out = new Float32Array(n);
   for (let i = 0; i < n; i++) {
-    const context = mean(i, far);
-    out[i] = context > 0 ? clamp(1 - mean(i, near) / context, 0, 1) : 0;
+    const context = windowMean(sums, n, i, far);
+    out[i] = context > 0 ? clamp(1 - windowMean(sums, n, i, near) / context, 0, 1) : 0;
   }
   return out;
 }
@@ -1321,11 +1400,7 @@ function chromaFrames(samples, sampleRate) {
   const n = PHRASE.frame;
   const hop = PHRASE.hop;
   const rate = sampleRate / hop;
-  const frames = Math.floor((samples.length - n) / hop) + 1;
-  if (frames < 1) return { chroma: [], rate, offset: 0 };
-
-  const shape = new Float32Array(n);
-  for (let i = 0; i < n; i++) shape[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / n);
+  if (frameCount(samples.length, n, hop) < 1) return { chroma: [], rate, offset: 0 };
 
   const low = Math.max(1, Math.ceil((PHRASE.chromaLow * n) / sampleRate));
   const high = Math.min(n >> 1, Math.floor((PHRASE.chromaHigh * n) / sampleRate));
@@ -1336,15 +1411,8 @@ function chromaFrames(samples, sampleRate) {
     pitchClass[k] = ((midi % 12) + 12) % 12;
   }
 
-  const re = new Float32Array(n);
-  const im = new Float32Array(n);
   const chroma = [];
-  for (let f = 0; f < frames; f++) {
-    const base = f * hop;
-    for (let i = 0; i < n; i++) re[i] = samples[base + i] * shape[i];
-    im.fill(0);
-    fftInPlace(re, im);
-
+  eachSpectrum(samples, n, hop, (re, im) => {
     const bins = new Float32Array(12);
     for (let k = low; k <= high; k++) {
       bins[pitchClass[k]] += Math.sqrt(re[k] * re[k] + im[k] * im[k]);
@@ -1354,7 +1422,7 @@ function chromaFrames(samples, sampleRate) {
     energy = Math.sqrt(energy);
     if (energy > 0) for (let p = 0; p < 12; p++) bins[p] /= energy;
     chroma.push(bins);
-  }
+  });
   return { chroma, rate, offset: n / 2 / sampleRate };
 }
 
@@ -1469,15 +1537,7 @@ function phrasePoints(samples, sampleRate) {
   // Peak-pick on a smoothed curve. Frame-to-frame wobble in the envelope
   // otherwise yields hundreds of "boundaries" a few milliseconds apart, which
   // is the same as having none.
-  const half = Math.max(1, Math.round((raw.rate * PHRASE.smooth) / 2));
-  const running = new Float64Array(score.length + 1);
-  for (let i = 0; i < score.length; i++) running[i + 1] = running[i] + score[i];
-  const smooth = new Float32Array(score.length);
-  for (let i = 0; i < score.length; i++) {
-    const a = Math.max(0, i - half);
-    const b = Math.min(score.length, i + half + 1);
-    smooth[i] = (running[b] - running[a]) / (b - a);
-  }
+  const smooth = movingAverage(score, Math.max(1, Math.round((raw.rate * PHRASE.smooth) / 2)));
 
   const points = [];
   for (let i = 1; i < smooth.length - 1; i++) {
@@ -1527,24 +1587,14 @@ function phrasePoints(samples, sampleRate) {
  * the incoming one starts where its next phrase picks up.
  */
 function suggestPhraseJoin(out, cutOut, inc, cutIn, opts = {}) {
-  const maxShift = opts.maxShift ?? 2.5;
-  const crossfade = Math.max(0, opts.crossfade || 0);
-  const maxCrossfade = opts.maxCrossfade ?? Infinity;
-  const outRoom = opts.outRoom || { min: -maxShift, max: maxShift };
-  const incRoom = opts.incRoom || { min: -maxShift, max: maxShift };
-
-  const decline = (reason) => ({
-    ok: false, reason, endShift: 0, startShift: 0, crossfade,
-    lengthDelta: 0, drift: 0, tempoMismatch: 0, confidence: 0, bpm: [0, 0],
-  });
+  const { maxShift, crossfade, maxCrossfade, outRoom, incRoom } = joinOptions(opts);
+  const decline = (reason) => declineJoin(reason, crossfade);
   if (!out.length || !inc.length) return decline('no-phrase');
 
-  const reachable = (points, cut, room, key) => points.filter((p) => {
-    const shift = p[key] - cut;
-    return shift >= Math.max(-maxShift, room.min) && shift <= Math.min(maxShift, room.max);
-  });
-  const outs = reachable(out, cutOut, outRoom, 't');
-  const incs = reachable(inc, cutIn, incRoom, 'resumes');
+  // The outgoing clip stops where its phrase died away; the incoming one starts
+  // where the next picks up, which is a different instant in the same lull.
+  const outs = reachablePoints(out, cutOut, outRoom, maxShift, 't');
+  const incs = reachablePoints(inc, cutIn, incRoom, maxShift, 'resumes');
   if (!outs.length || !incs.length) return decline('no-room');
 
   // With no beat, a blend has nothing to drift out of — and a short one over
@@ -1610,11 +1660,11 @@ function suggestJoinForBuffers(outBuffer, cutOut, incBuffer, cutIn, opts = {}) {
 }
 
 /**
- * What to tell her afterwards, in one sentence.
+ * What to say afterwards, in one sentence.
  *
  * The change itself is visible — the waveform, the blocks and the timer all
  * move — so this says the part that isn't: whether it worked, and what it cost
- * in programme length, because that is the number she is working to.
+ * in programme length, because that is the number being worked to.
  */
 function describeJoin(result, wasCrossfade) {
   if (!result.ok) {
@@ -1639,7 +1689,7 @@ function describeJoin(result, wasCrossfade) {
     : `Program is ${Math.abs(delta).toFixed(1)}s ${delta > 0 ? 'longer' : 'shorter'}`;
   const lead = {
     'tempo-mismatch': 'Lined up as closely as these two speeds allow',
-    // Saying which of the two things happened matters: it tells her the music
+    // Saying which of the two things happened matters: it says the music
     // has no steady beat, which is why the advice for it is different.
     phrase: 'No steady beat here, so the cut moved to where the phrase ends',
   }[result.reason] || 'Lined up with the beat';
@@ -1931,8 +1981,13 @@ function clampClipsToFile(clips, entry) {
 }
 
 async function addFiles(fileList) {
+  // The type and the name are asked separately. Testing a regex against the
+  // two concatenated let "audio" match anywhere in either, so a file called
+  // audiobook.txt was accepted and then failed to decode. Browsers also report
+  // no type at all for .opus and .webm, which is why the extension is a second
+  // chance rather than a formality.
   const files = Array.from(fileList).filter(
-    (f) => /audio|\.(mp3|wav|flac|m4a|ogg|opus|aac|webm|aiff?)$/i.test(f.type + f.name));
+    (f) => /^audio\//i.test(f.type) || AUDIO_EXTENSIONS.test(f.name));
   if (!files.length) { toast('No audio files in that drop'); return; }
   let shortened = 0;
 
@@ -2440,7 +2495,7 @@ function drawClipEditor() {
     const t = (clipDuration(clip) * i) / steps;
     const px = x(clip.srcStart + t);
     const py = h - valueAt(points, t) * h * 0.5 - h * 0.02;
-    i === 0 ? g.moveTo(px, py) : g.lineTo(px, py);
+    if (i === 0) g.moveTo(px, py); else g.lineTo(px, py);
   }
   g.stroke();
 
@@ -2470,7 +2525,7 @@ function drawClipEditor() {
     ['fadeOut', $('fadeOut'), $('valFadeOut')],
     ['crossfade', $('crossfade'), $('valCrossfade')],
   ]) {
-    slider.max = String(Math.min(10, maxFade).toFixed(1));
+    slider.max = Math.min(10, maxFade).toFixed(1);
     slider.value = String(clip[key] || 0);
     label.textContent = `${(clip[key] || 0).toFixed(1)}s`;
   }
@@ -3505,7 +3560,7 @@ function bind() {
     const tooLong = showLengthWarning(total);
 
     // Exporting at 320k cannot recover detail a bad source never had, so say so
-    // here rather than after she has taken the file to the rink.
+    // here rather than after the file has been taken to the rink.
     const weak = weakSources();
     const box = $('exportWarnings');
     box.classList.toggle('hidden', weak.length === 0);
@@ -3587,7 +3642,11 @@ function onKey(e) {
   const clip = selectedClip();
   const nudge = e.shiftKey ? 1 : 0.1;
 
-  if (e.code === 'Space') { e.preventDefault(); playing ? stopPlayback() : playFromPlayhead(); return; }
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (playing) stopPlayback(); else playFromPlayhead();
+    return;
+  }
   if (e.key === 'Home') { e.preventDefault(); stopPlayback(); seekTo(0); return; }
   if (e.key.toLowerCase() === 'z' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); undo(); return; }
   if (!clip) return;
@@ -3752,6 +3811,7 @@ if (typeof document !== 'undefined') {
     state, LEVELS, QUALITY, CODEC_EFFICIENCY, CUSTOM_LEVEL,
     allLevels, findLevel,
     clipDuration, crossfadeOf, layout, reordered, clampClipsToFile, MIN_CLIP,
+    rampEnvelope, movingAverage, frameCount,
     joinPreviewRange, JOIN_PREVIEW, clipsOnExport,
     fadeEnvelope, crossfadeEnvelope, valueAt,
     BEAT, fftInPlace, onsetEnvelope, flattenEnvelope, estimateTempoLag,
