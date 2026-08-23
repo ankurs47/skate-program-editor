@@ -1,0 +1,258 @@
+/**
+ * Wiring and assets — the files themselves rather than the logic in them.
+ *
+ * Every id the scripts reach for exists in the HTML, every help button has
+ * content, the files parse, the themes agree, and nothing personal or
+ * machine-specific ever ships.
+ */
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+const { execFileSync } = require('child_process');
+const { app, check, eq, ok, html, css, ROOT, SCRIPTS, SHIPPED } = require('./harness.js');
+
+/* --------------------------------------------------------------- 2. wiring */
+
+check('every element the code reaches for exists in the HTML', () => {
+  // All three files, not just app.js: the day one of the others grows a $()
+  // is the day this should start covering it — and the day the check above
+  // about them staying free of the browser should fail.
+  const source = SCRIPTS.map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('\n');
+  const wanted = new Set([...source.matchAll(/\$\('([A-Za-z0-9_-]+)'\)/g)].map((m) => m[1]));
+  const present = new Set([...html.matchAll(/id="([A-Za-z0-9_-]+)"/g)].map((m) => m[1]));
+  const missing = [...wanted].filter((id) => !present.has(id));
+  eq(missing, [], 'ids used in the scripts but absent from index.html: ');
+});
+
+check('every help button has a matching topic', () => {
+  const buttons = [...html.matchAll(/class="help-btn" data-help="(\w+)"/g)].map((m) => m[1]);
+  const topics = [...html.matchAll(/data-help="(\w+)" data-title="([^"]+)"/g)];
+  const names = new Set(topics.map((m) => m[1]));
+  ok(buttons.length > 0, 'no help buttons found');
+  eq(buttons.filter((b) => !names.has(b)), [], 'buttons with no content: ');
+  eq([...names].filter((n) => !buttons.includes(n)), [], 'content with no button: ');
+  for (const [, , title] of topics) ok(title.trim(), 'a topic has an empty title');
+});
+
+check('outcomes are announced, and every dialog says it is one', () => {
+  /* All three modals are plain divs over a backdrop rather than <dialog>, so
+     the role, the name and the modality have to be stated by hand — and the
+     toast carries every outcome the app reports, from "Evened out 3 songs" to
+     the whole join result. */
+  const toast = html.match(/<div id="toast"[^>]*>/);
+  ok(toast, 'the toast is missing');
+  ok(/role="status"/.test(toast[0]) && /aria-live=/.test(toast[0]),
+    'toasts carry every outcome message and have to be announced');
+
+  const cards = [...html.matchAll(/<div class="modal-card[^"]*"([^>]*)>/g)].map((m) => m[1]);
+  ok(cards.length >= 3, `expected three dialogs, found ${cards.length}`);
+  for (const attrs of cards) {
+    ok(/role="dialog"/.test(attrs), `a dialog has no role:${attrs}`);
+    ok(/aria-modal="true"/.test(attrs), `a dialog is not marked modal:${attrs}`);
+    const named = attrs.match(/aria-labelledby="([\w-]+)"/);
+    ok(named, `a dialog has no name:${attrs}`);
+    ok(html.includes(`id="${named[1]}"`), `aria-labelledby points at a missing id: ${named[1]}`);
+  }
+});
+
+check('the page and the file picker both cover what the tools produce', () => {
+  ok(/<meta name="color-scheme" content="[^"]*dark[^"]*">/.test(html),
+    'without this, native selects and scrollbars stay light in dark mode');
+  const picker = html.match(/<input id="fileInput"[\s\S]*?>/);
+  ok(picker, 'the file picker is missing');
+  for (const ext of ['.webm', '.opus']) {
+    ok(picker[0].includes(ext),
+      `the picker can filter out ${ext}, which is what music-get.sh downloads`);
+  }
+});
+
+/* The words this guards against are a family name and a skater's, and writing
+   them here would publish, in a public repo, exactly what the check exists to
+   keep out of it. So they are stored as salted hashes and the shipped files are
+   tokenised and hashed to match.
+
+   Reading them from git config instead was the other option and is worse: on CI
+   the name is either unset or the runner's, so the check would quietly pass
+   while testing nothing, which is the one failure mode a guard must not have.
+
+   To add a word:
+     node -e 'const c=require("crypto");console.log(c.createHash("sha256")
+       .update("skate-private:"+process.argv[1].toLowerCase())
+       .digest("hex").slice(0,16))' WORD
+*/
+const PRIVATE_WORD_HASHES = new Set([
+  'db52ee1e907cd591',
+  'e87a22bb66604a0a',
+  'ca561af9108202c2',
+]);
+
+function privateWordHash(word) {
+  return crypto.createHash('sha256')
+    .update(`skate-private:${word.toLowerCase()}`)
+    .digest('hex')
+    .slice(0, 16);
+}
+
+check('no personal information in anything shipped', () => {
+  /* Whole tokens, so a name is caught however it is punctuated around it. This
+     is narrower than the substring match it replaces — a hash cannot be searched
+     for inside a longer word — so a trailing "s" is stripped as well, which
+     covers the plural and possessive forms that narrowing would otherwise miss.
+     Anything more would mean hashing every substring of every file. */
+  for (const file of SHIPPED) {
+    const body = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    for (const token of body.split(/[^A-Za-z0-9]+/)) {
+      if (!token) continue;
+      const forms = [token];
+      if (/s$/i.test(token) && token.length > 1) forms.push(token.slice(0, -1));
+      for (const form of forms) {
+        ok(!PRIVATE_WORD_HASHES.has(privateWordHash(form)),
+          `${file} contains personal information`);
+      }
+    }
+  }
+});
+
+check('the personal information guard still catches what it is for', () => {
+  /* A guard that has quietly stopped matching anything is worse than no guard,
+     and nothing else here would notice. Proving it works by hashing one of the
+     real words would put that word back in the file in plain text, which is the
+     whole thing being avoided — so the canary is a neutral word with a known
+     hash. If the hashing ever changes, this fails and the stored hashes are
+     known to have stopped corresponding to the words they were made from. */
+  eq(privateWordHash('sentinel'), '392571f57b389320',
+    'the hashing changed, so the stored hashes no longer mean anything: ');
+  eq(PRIVATE_WORD_HASHES.size, 3, 'the guard list was emptied: ');
+  ok(!PRIVATE_WORD_HASHES.has(privateWordHash('crossfade')),
+    'an ordinary word in the codebase must not be flagged');
+});
+
+check('no absolute local paths leaked into the app', () => {
+  for (const file of SHIPPED) {
+    const body = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    ok(!/\/home\/|file:\/\/\//.test(body), `${file} references a local path`);
+  }
+});
+
+/* --------------------------------------------------------------- 3. assets */
+
+check('every script file parses', () => {
+  for (const file of SCRIPTS) {
+    execFileSync(process.execPath, ['--check', path.join(ROOT, file)]);
+  }
+});
+
+check('the analysis and format files stay free of the browser', () => {
+  /* The split is only worth anything while it holds. These two are the parts
+     that can be tested without a DOM, and one `document.` or one reach into
+     `state` would quietly take that away — the drift would not break anything
+     until someone tried to test the thing that had drifted. */
+  for (const file of ['analysis.js', 'formats.js']) {
+    const body = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    const code = body.split('\n')
+      .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
+      .join('\n');
+    for (const [what, pattern] of [
+      ['the DOM', /\bdocument\./],
+      ['the window', /\bwindow\./],
+      ['program state', /\bstate\.(clips|selected|name|level|target)/],
+      ['the music library', /\blibrary\.(get|set|has|delete)\b/],
+      ['an element lookup', /\$\('/],
+    ]) {
+      ok(!pattern.test(code), `${file} reaches for ${what}, which it must not`);
+    }
+  }
+});
+
+check('the page loads the scripts, in an order that works', () => {
+  // app.js calls into both by name at load time, so they have to come first.
+  const order = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map((m) => m[1]);
+  eq(order, SCRIPTS, 'the page must load exactly these, in this order: ');
+});
+
+check('HTML tags are balanced', () => {
+  const voids = new Set(['br', 'img', 'input', 'meta', 'link', 'hr', 'source', 'track']);
+  const stack = [];
+  for (const m of html.matchAll(/<(\/?)([a-zA-Z0-9]+)([^>]*?)(\/?)>/g)) {
+    const [, closing, tag, , selfClose] = m;
+    const name = tag.toLowerCase();
+    if (voids.has(name) || selfClose || name === '!doctype') continue;
+    if (closing) {
+      ok(stack.length, `stray </${name}>`);
+      const open = stack.pop();
+      eq(open, name, `</${name}> closes <${open}>: `);
+    } else {
+      stack.push(name);
+    }
+  }
+  eq(stack, [], 'unclosed tags: ');
+});
+
+check('CSS braces balance', () => {
+  const opens = (css.match(/{/g) || []).length;
+  const closes = (css.match(/}/g) || []).length;
+  eq(opens, closes, 'unbalanced braces: ');
+});
+
+check('every CSS custom property used is defined', () => {
+  const defined = new Set([...css.matchAll(/^\s*(--[\w-]+):/gm)].map((m) => m[1]));
+  const used = new Set([...css.matchAll(/var\((--[\w-]+)/g)].map((m) => m[1]));
+  eq([...used].filter((v) => !defined.has(v)), [], 'used but never defined: ');
+});
+
+check('both colour themes define the same variables', () => {
+  const dark = css.slice(css.indexOf('prefers-color-scheme: dark'));
+  const light = css.slice(0, css.indexOf('prefers-color-scheme: dark'));
+  const names = (block) => new Set([...block.matchAll(/^\s*(--[\w-]+):/gm)].map((m) => m[1]));
+  const l = names(light);
+  const d = names(dark);
+  const onlyDark = [...d].filter((v) => !l.has(v));
+  eq(onlyDark, [], 'defined only in dark mode: ');
+});
+
+/* The two music-get wrappers are the same tool written twice, once for a shell
+   and once for cmd. Nothing forces them to agree, and a fix applied to one and
+   forgotten on the other is the obvious way for that to rot, so the flags that
+   define the behaviour are asserted in both. */
+check('the music-get wrappers agree on what they do', () => {
+  const sh = fs.readFileSync(path.join(ROOT, 'tools/music-get.sh'), 'utf8');
+  const cmd = fs.readFileSync(path.join(ROOT, 'tools/music-get.cmd'), 'utf8');
+  const flags = [
+    '--format bestaudio',   // the native stream, never re-encoded
+    '--no-overwrites',
+    '--no-playlist',
+    '--yes-playlist',
+    '--playlist-items 1',   // one song means one song, even off a stray feed
+    '--print-to-file',      // how "did anything actually arrive" is answered
+  ];
+  for (const flag of flags) {
+    ok(sh.includes(flag), `music-get.sh no longer passes ${flag}`);
+    ok(cmd.includes(flag), `music-get.cmd no longer passes ${flag}`);
+  }
+  // Comments only, stripped out: both scripts say the word ffmpeg while
+  // explaining that they don't need it, which is the opposite of the problem.
+  const code = (sh + cmd)
+    .split('\n')
+    .filter((line) => !/^\s*(#|rem\b)/i.test(line))
+    .join('\n');
+  ok(!/--extract-audio|--audio-format|\bffmpeg\b/i.test(code),
+    'a wrapper converts the audio; it is meant to take the stream as it is');
+  ok(!/\/home\/|file:\/\/\//.test(code), 'a wrapper references a local path');
+  if (process.platform !== 'win32') {
+    ok(fs.statSync(path.join(ROOT, 'tools/music-get.sh')).mode & 0o111,
+      'music-get.sh is not executable');
+  }
+});
+
+if (process.argv.includes('--net')) {
+  check('the pinned MP3 encoder hash still matches the CDN', () => {
+    const body = execFileSync('curl', ['-sSL', '--max-time', '30', app.LAME_URL],
+      { maxBuffer: 1 << 24 });
+    const got = `sha384-${crypto.createHash('sha384').update(body).digest('base64')}`;
+    eq(got, app.LAME_SRI,
+      'the CDN now serves different bytes; update LAME_SRI after checking why: ');
+  });
+}
+

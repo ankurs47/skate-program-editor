@@ -13,9 +13,11 @@ plain, and jargon is treated as a bug.
 
 ```
 index.html   structure, help topic content, dialogs
-app.js       everything: decode, waveforms, editing, playback, render, export
+analysis.js  beat detection, phrase detection, loudness — samples in, numbers out
+formats.js   ID3/MPEG/Ogg parsing and the Good/Fair/Low verdict
+app.js       state, decode, waveforms, editing, playback, render, export, wiring
 style.css    theming via CSS custom properties, light and dark
-test/run.js  140 checks, no dependencies
+test/        147 checks, no dependencies — one file per script file
 tools/       music-get.sh and .cmd — optional YouTube downloader, not the app
 ```
 
@@ -75,9 +77,31 @@ you hear is what you get. Do not add an export-only path.
 drag to reorder, widths only roughly proportional. The scrubber below it is real
 programme time, where overlapping blocks are blends. Seeking uses the scrubber.
 
-**Testability.** `app.js` calls `init()` under a browser and exports its pure
-functions under Node. Keep new pure logic out of DOM handlers so it stays
-testable, and add it to the export list at the bottom.
+**Three files, one global scope.** `index.html` loads `analysis.js`, then
+`formats.js`, then `app.js`, and they share one scope — so app.js calls into the
+other two by name with nothing wired up. There is still no build step and no
+module system. Order matters, and a test asserts it.
+
+The line between them is the browser: `analysis.js` and `formats.js` take
+samples, bytes and buffers and return numbers and descriptions, and never touch
+the DOM or program state. A test asserts *that* too, because the split is only
+worth anything while it holds, and drift would not break anything until someone
+tried to test the thing that had drifted. Anything needing `$()`, `state` or
+`library` belongs in app.js.
+
+**Testability.** Each file calls `init()` under a browser or exports its pure
+functions under Node. Node gives each file its own module scope rather than the
+shared one, so app.js's export block also puts the other two on `global` — that
+bridge is the only thing the split costs. Keep new pure logic out of DOM
+handlers, and add it to the export list at the bottom of whichever file it is
+in. `eslint.config.js` derives the list of cross-file names from those export
+blocks, so an export you forget shows up as `no-undef` in app.js.
+
+The tests mirror that split — `test/analysis.test.js`, `test/formats.test.js`,
+`test/app.test.js`, plus `test/assets.test.js` for the files themselves.
+`test/harness.js` holds `check`/`eq`/`near`/`ok`; `test/run.js` only loads the
+four and reports. A new test goes in the file matching the code it covers.
+Requiring `app.js` still gets everything, because it re-exports the other two.
 
 **Beat detection answers with a confidence, and callers must honour it.**
 `analyseBeats()` finds a tempo and a beat grid in a window of samples;
