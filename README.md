@@ -107,7 +107,8 @@ own disk.
 
 Clone the repo and open `index.html`. That's the whole build process.
 
-To host it, copy `index.html`, `app.js` and `style.css` anywhere that serves
+To host it, copy `index.html`, `analysis.js`, `formats.js`, `app.js` and
+`style.css` anywhere that serves
 static files. Because users' music never reaches the host, there is no storage,
 no per-user cost, and no third-party audio on your infrastructure.
 
@@ -158,7 +159,7 @@ is only for checking changes.
 
 ```bash
 npm install          # installs eslint, and enables the pre-commit hook
-npm test             # 140 checks: maths, wiring, and asset integrity
+npm test             # 147 checks: maths, wiring, and asset integrity
 npm run lint
 npm run check        # lint + test, what CI runs
 npm run test:net     # also re-verifies the pinned CDN hash
