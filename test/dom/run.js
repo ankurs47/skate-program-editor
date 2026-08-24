@@ -21,6 +21,8 @@ const fs = require('fs');
 const path = require('path');
 const { open } = require('./browser.js');
 const { SETUP } = require('./fixtures.js');
+// The one list of script files, so this cannot drift from what the page loads.
+const { SCRIPTS } = require('../harness.js');
 
 let passed = 0;
 const failures = [];
@@ -76,7 +78,7 @@ async function main() {
             .map(n => typeof window[n] === 'function' || typeof eval(n) === 'function'),
         };
       `);
-      eq(state.scripts, ['analysis.js', 'formats.js', 'app.js'], 'load order: ');
+      eq(state.scripts, SCRIPTS, 'load order: ');
       eq(state.crossFile, [true, true, true, true], 'every cross-file name resolves: ');
       eq(session.page.consoleErrors(), [], 'the page logged errors on startup: ');
     });

@@ -14,7 +14,7 @@ const js = require('@eslint/js');
    export under Node is exactly what app.js may refer to. Anything app.js uses
    that they do not export is still a genuine no-undef error. */
 const shared = Object.fromEntries(
-  [...Object.keys(require('./analysis.js')), ...Object.keys(require('./formats.js'))]
+  [...Object.keys(require('./src/analysis.js')), ...Object.keys(require('./src/formats.js'))]
     .map((name) => [name, 'readonly']));
 
 const browser = {
@@ -51,12 +51,12 @@ module.exports = [
   {
     // These two define the shared names, so they must not also be told the
     // names exist — that would be a redeclaration.
-    files: ['analysis.js', 'formats.js'],
+    files: ['src/analysis.js', 'src/formats.js'],
     languageOptions: { ecmaVersion: 2022, sourceType: 'script', globals: browser },
     rules,
   },
   {
-    files: ['app.js'],
+    files: ['src/app.js'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'script',

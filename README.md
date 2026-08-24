@@ -107,8 +107,7 @@ own disk.
 
 Clone the repo and open `index.html`. That's the whole build process.
 
-To host it, copy `index.html`, `analysis.js`, `formats.js`, `app.js` and
-`style.css` anywhere that serves
+To host it, copy `index.html` and the `src/` folder anywhere that serves
 static files. Because users' music never reaches the host, there is no storage,
 no per-user cost, and no third-party audio on your infrastructure.
 
@@ -165,10 +164,10 @@ music again** — one click for the whole program, instead of finding each song
 by hand. The audio still never leaves your computer; the browser is only handing
 back a file you already chose, and it asks your permission before it does.
 
-Firefox and Safari have no such thing, and neither does opening `index.html`
-straight off disk, so there it works exactly as it always did: **Add files**, and
-the cuts come back. If a remembered song has been moved, renamed or deleted, it
-says so and points you at **Add files** rather than failing quietly.
+Firefox and Safari have no such thing, so there it works exactly as it always
+did: **Add files**, and the cuts come back. If a remembered song has been moved,
+renamed or deleted, it says so and points you at **Add files** rather than
+failing quietly.
 
 ## Limits
 

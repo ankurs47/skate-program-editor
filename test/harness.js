@@ -13,15 +13,16 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 
-/* The three script files, in the order index.html loads them. app.js requires
-   the other two under Node and re-exports them, so requiring it alone still
-   gets everything — which is why each test file can ask for just `app`. */
-const SCRIPTS = ['analysis.js', 'formats.js', 'app.js'];
-const SHIPPED = ['index.html', 'style.css', ...SCRIPTS];
+/* The three script files, in the order index.html loads them — as the page
+   spells them, since that is what the wiring checks compare against. app.js
+   requires the other two under Node and re-exports them, so requiring it alone
+   still gets everything, which is why each test file asks for just `app`. */
+const SCRIPTS = ['src/analysis.js', 'src/formats.js', 'src/app.js'];
+const SHIPPED = ['index.html', 'src/style.css', ...SCRIPTS];
 
-const app = require(path.join(ROOT, 'app.js'));
+const app = require(path.join(ROOT, 'src/app.js'));
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-const css = fs.readFileSync(path.join(ROOT, 'style.css'), 'utf8');
+const css = fs.readFileSync(path.join(ROOT, 'src/style.css'), 'utf8');
 
 let passed = 0;
 const failures = [];
