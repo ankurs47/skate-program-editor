@@ -13,7 +13,13 @@
 const SR = 44100;
 const MIN_CROSSFADE = 0.01;
 const MIN_CLIP = 0.1;            // the shortest a clip may be trimmed to, in seconds
-const AUDIO_EXTENSIONS = /\.(mp3|wav|flac|m4a|ogg|opus|aac|webm|aiff?)$/i;
+/* One list, two shapes: the file picker wants extensions with dots, and the
+   drop handler wants something to test a name against. */
+const AUDIO_EXTENSION_LIST = [
+  '.mp3', '.wav', '.flac', '.m4a', '.ogg', '.opus', '.aac', '.webm', '.aif', '.aiff',
+];
+const AUDIO_EXTENSIONS =
+  new RegExp(`(${AUDIO_EXTENSION_LIST.map((e) => `\\${e}`).join('|')})$`, 'i');
 const MAX_GAIN = 16;             // a shade over the +24 dB the level slider reaches
 const STORE_KEY = 'skate.program.v1';
 
@@ -101,6 +107,10 @@ const state = {
   selected: null,     // clip id
   cursor: 0,          // source-time position inside the selected clip's file
   playPosition: 0,    // program-time position of the playhead, kept across stops
+  // name -> {bytes, seconds, fingerprint} from the project file, so a song that
+  // arrives can be checked against the one the edit was built from. Empty for a
+  // programme built in this sitting, where the question does not arise.
+  expectedFiles: new Map(),
 };
 
 const library = new Map();   // file name -> {name, buffer, peaks, duration, state}
@@ -550,6 +560,7 @@ async function addFiles(fileList) {
     (f) => /^audio\//i.test(f.type) || AUDIO_EXTENSIONS.test(f.name));
   if (!files.length) { toast('No audio files in that drop'); return; }
   let shortened = 0;
+  const wrongFile = [];
 
   for (const file of files) {
     if (library.has(file.name)) continue;
@@ -575,7 +586,11 @@ async function addFiles(fileList) {
       entry.duration = buffer.duration;
       entry.peaks = computePeaks(buffer);
       entry.quality = analyseSource(head, tagEnd, file, buffer);
+      entry.bytes = file.size;
+      entry.fingerprint = fingerprint(head);
       entry.state = 'ready';
+      const complaint = describeWrongFile(state.expectedFiles.get(file.name), entry);
+      if (complaint) wrongFile.push(complaint);
       // Now that there is a real duration, the trims can finally be checked
       // against it. Silently playing silence off the end is the alternative.
       shortened += clampClipsToFile(state.clips, entry);
@@ -591,6 +606,13 @@ async function addFiles(fileList) {
     drawClipEditor();
   }
   updateBudget();
+  /* Said before anything about trimming: if the wrong song has been handed
+     over, every other number on screen is about the wrong song too. */
+  if (wrongFile.length) {
+    toast(wrongFile.length === 1 ? wrongFile[0]
+      : `${wrongFile.length} songs are not the ones this program was built from — `
+        + 'check them before you use it', 7000);
+  }
   if (shortened) {
     save();
     toast(shortened === 1
@@ -1571,6 +1593,22 @@ function updateBudget() {
 
 /* ------------------------------------------------------------ persistence */
 
+/** One record per song the programme uses, for the project file. */
+function usedFiles() {
+  const names = [...new Set(state.clips.map((c) => c.file))];
+  return names.map((name) => {
+    const entry = library.get(name);
+    const known = entry && entry.fingerprint ? entry : state.expectedFiles.get(name);
+    return {
+      name,
+      bytes: known && known.bytes ? known.bytes : null,
+      seconds: known && known.duration ? Number(known.duration.toFixed(2))
+        : (known && known.seconds) || null,
+      fingerprint: (known && known.fingerprint) || null,
+    };
+  }).filter((f) => f.fingerprint);   // nothing useful to say about the rest
+}
+
 function project() {
   const level = findLevel(state.level);
   return {
@@ -1581,6 +1619,12 @@ function project() {
     levelLabel: level ? level.label : 'Custom',
     targetSeconds: state.targetSeconds,
     toleranceSeconds: state.toleranceSeconds,
+    /* What each song was, so opening this later can tell whether it has been
+       handed the right one. Not where it was: a browser will not say where a
+       file lives, and a handle to one cannot be written to a file. Kept beside
+       the clips rather than on them, since several clips often cut up a single
+       song and the answer is about the song. */
+    files: usedFiles(),
     clips: state.clips.map((c) => ({
       file: c.file,
       title: c.title,
@@ -1628,6 +1672,9 @@ function readProject(data) {
     targetSeconds,
     toleranceSeconds: data.toleranceSeconds || 10,
     retargeted,
+    // Absent in projects written before this existed, which is fine: without a
+    // record of what the songs were, nothing is claimed about them.
+    files: Array.isArray(data.files) ? data.files.filter((f) => f && f.name) : [],
     clips: (data.clips || []).map((c) => ({
       id: uid(),
       file: c.file,
@@ -1651,6 +1698,7 @@ function loadProject(data) {
   state.targetSeconds = read.targetSeconds;
   state.toleranceSeconds = read.toleranceSeconds;
   state.clips = read.clips;
+  state.expectedFiles = new Map(read.files.map((f) => [f.name, f]));
   state.selected = state.clips.length ? state.clips[0].id : null;
   if (read.retargeted) {
     toast(`This program targets ${fmtShort(state.targetSeconds)}, `
@@ -1774,6 +1822,263 @@ function channelsOf(buffer) {
   const channels = [];
   for (let c = 0; c < buffer.numberOfChannels; c++) channels.push(buffer.getChannelData(c));
   return channels;
+}
+
+/* ------------------------------------------------------ remembering files */
+
+/* A project holds the edit, not the music, so opening one has always meant
+ * finding the song files again by hand. That is the biggest piece of friction
+ * in the whole thing, and it exists because a browser cannot normally hold on
+ * to a file after the tab closes.
+ *
+ * Where the File System Access API is available it can: the picker hands back a
+ * handle rather than only bytes, the handle survives in IndexedDB, and asking
+ * for it again is one click instead of one per song. The audio still never
+ * leaves the machine — a handle is a reference to a file on disk, and reading
+ * it needs the same permission it always did.
+ *
+ * It is an extra, not a foundation. Firefox and Safari have no picker, and the
+ * API needs a secure context so it is absent when index.html is opened straight
+ * off disk — which the ground rules say has to keep working. Everything below
+ * is written so that when `canRememberFiles()` is false the app behaves exactly
+ * as it did before: the hidden <input> does the picking, and the notice above
+ * the timeline asks for the files by hand.
+ */
+
+const HANDLE_DB = 'skate.handles.v1';
+const HANDLE_STORE = 'handles';
+
+/** Names we hold a handle for, so the interface can ask without going async. */
+const rememberedNames = new Set();
+
+/** Can this browser give a file back after the tab has been closed? */
+function canRememberFiles() {
+  return typeof window.showOpenFilePicker === 'function'
+    && typeof indexedDB !== 'undefined'
+    && window.isSecureContext === true;
+}
+
+function openHandleDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(HANDLE_DB, 1);
+    request.onupgradeneeded = () => request.result.createObjectStore(HANDLE_STORE);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/** Run one transaction and wait for it to land. Resolves null on any trouble. */
+async function withHandles(mode, work) {
+  if (!canRememberFiles()) return null;
+  try {
+    const db = await openHandleDb();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(HANDLE_STORE, mode);
+      let value;
+      Promise.resolve(work(tx.objectStore(HANDLE_STORE), (v) => { value = v; }))
+        .catch(reject);
+      tx.oncomplete = () => { db.close(); resolve(value); };
+      tx.onerror = () => { db.close(); reject(tx.error); };
+    });
+  } catch (_) {
+    // Private browsing, a blocked upgrade, storage turned off — none of it is
+    // worth an error in front of anyone. The app simply does not remember.
+    return null;
+  }
+}
+
+function rememberHandle(name, handle) {
+  rememberedNames.add(name);
+  return withHandles('readwrite', (store) => { store.put(handle, name); });
+}
+
+function forgetHandle(name) {
+  rememberedNames.delete(name);
+  return withHandles('readwrite', (store) => { store.delete(name); });
+}
+
+/** Every remembered handle, as name → handle. */
+function storedHandles() {
+  return withHandles('readonly', (store, keep) => {
+    const request = store.getAll();
+    const names = store.getAllKeys();
+    request.onsuccess = () => {
+      names.onsuccess = () => {
+        const map = new Map();
+        names.result.forEach((name, i) => map.set(name, request.result[i]));
+        keep(map);
+      };
+    };
+  });
+}
+
+/** Load the names we know about, so the missing-file notice can offer them. */
+async function loadRememberedNames() {
+  const handles = await storedHandles();
+  if (!handles) return;
+  for (const name of handles.keys()) rememberedNames.add(name);
+  updateMissingNotice();
+}
+
+/** The picker's filter, built from the same list the drop handler tests against. */
+function audioPickerTypes() {
+  return [{ description: 'Music', accept: { 'audio/*': [...AUDIO_EXTENSION_LIST] } }];
+}
+
+/**
+ * Ask for music files, remembering them where the browser allows it.
+ *
+ * Falls back to the hidden `<input type=file>`, which is what this always was
+ * and what Firefox and Safari still get.
+ */
+async function pickFiles() {
+  if (!canRememberFiles()) { $('fileInput').click(); return; }
+  let handles;
+  try {
+    handles = await window.showOpenFilePicker({ multiple: true, types: audioPickerTypes() });
+  } catch (_) {
+    return;              // the picker was closed; not an error
+  }
+  const files = [];
+  for (const handle of handles) {
+    try {
+      files.push(await handle.getFile());
+      await rememberHandle(handle.name, handle);
+    } catch (_) { /* one unreadable file should not lose the rest */ }
+  }
+  if (files.length) await addFiles(files);
+}
+
+/**
+ * Handles for files that were dropped, where the browser offers them.
+ *
+ * Dropping is the other way music arrives, and it would be odd for it to be the
+ * forgetful one. The files themselves are read as before either way.
+ */
+async function rememberDropped(transfer) {
+  if (!canRememberFiles() || !transfer.items) return;
+  const items = [...transfer.items].filter((item) => item.kind === 'file');
+  for (const item of items) {
+    if (typeof item.getAsFileSystemHandle !== 'function') return;
+    try {
+      const handle = await item.getAsFileSystemHandle();
+      if (handle && handle.kind === 'file') await rememberHandle(handle.name, handle);
+    } catch (_) { /* nothing to remember */ }
+  }
+}
+
+/**
+ * Is this the song the project was built from? One sentence if not, else null.
+ *
+ * Matching is by file name because that is all a browser gives us, and two
+ * different songs can easily share one — "track01.mp3" from two albums, or a
+ * re-download at a different quality. Rebuilding a programme around the wrong
+ * one silently is the failure worth catching: the trims would still apply, the
+ * timer would still read correctly, and it would all be wrong.
+ *
+ * Pure, and forgiving: a project written before this existed records nothing to
+ * compare against, and says nothing rather than crying wolf.
+ */
+function describeWrongFile(expected, entry) {
+  if (!expected || !expected.fingerprint || !entry.fingerprint) return null;
+  if (expected.fingerprint === entry.fingerprint) return null;
+
+  const was = Number(expected.seconds);
+  const now = entry.duration;
+  const length = isFinite(was) && was > 0 && Math.abs(was - now) > 1
+    ? ` — this one is ${fmtShort(now)}, the program was built from ${fmtShort(was)}`
+    : '';
+  return `“${entry.name}” is not the song this program was built from${length}`;
+}
+
+/** Files in the program that are not loaded, by name. */
+function missingFiles() {
+  return [...new Set(
+    state.clips.filter((c) => !library.get(c.file)?.buffer).map((c) => c.file))];
+}
+
+/** Missing files we could offer to fetch back without asking for a picker. */
+function reconnectableFiles() {
+  return canRememberFiles() ? missingFiles().filter((name) => rememberedNames.has(name)) : [];
+}
+
+/**
+ * Fetch the missing music back from the handles we kept.
+ *
+ * Has to be called from a click: asking for permission again needs a gesture,
+ * which is the whole reason this is a button rather than something that happens
+ * quietly on load. One prompt covers every file, so it is one click rather than
+ * one per song, which is the point of the exercise.
+ */
+async function reconnectMissing() {
+  const wanted = reconnectableFiles();
+  if (!wanted.length) { $('fileInput').click(); return; }
+
+  const handles = await storedHandles();
+  if (!handles) { $('fileInput').click(); return; }
+
+  const files = [];
+  const gone = [];
+  const refused = [];
+  for (const name of wanted) {
+    const handle = handles.get(name);
+    if (!handle) continue;
+    try {
+      let allowed = await handle.queryPermission({ mode: 'read' });
+      if (allowed !== 'granted') allowed = await handle.requestPermission({ mode: 'read' });
+      if (allowed !== 'granted') { refused.push(name); continue; }
+      files.push(await handle.getFile());
+    } catch (_) {
+      // Moved, renamed or deleted since. Forget it rather than offering it again.
+      gone.push(name);
+    }
+  }
+  // Only what is really unreachable is forgotten. A refusal is a decision that
+  // can be taken differently in a moment, and offering it again is the point.
+  for (const name of gone) await forgetHandle(name);
+
+  if (files.length) {
+    await addFiles(files);
+    if (gone.length || refused.length) toast(describeReconnect({ files, gone, refused }), 7000);
+    return;
+  }
+  toast(describeReconnect({ files, gone, refused }), 7000);
+  updateMissingNotice();
+}
+
+/**
+ * What happened when the music was asked for again, in one sentence.
+ *
+ * Each outcome needs a different next step, and "could not open the files" tells
+ * nobody which one they are in: a file that has been moved needs finding, a
+ * refused prompt needs saying yes to, and a file that is simply elsewhere needs
+ * Add files. Pure, so the wording is under test.
+ */
+function describeReconnect({ files, gone, refused }) {
+  const names = (list) => list.map((n) => `“${n}”`).join(', ');
+  if (!files.length && gone.length && !refused.length) {
+    return gone.length === 1
+      ? `${names(gone)} is not where it was — it may have been moved, renamed or deleted. `
+        + 'Use Add files to find it'
+      : `${gone.length} songs are not where they were — they may have been moved, `
+        + 'renamed or deleted. Use Add files to find them';
+  }
+  if (!files.length && refused.length && !gone.length) {
+    return 'Permission to read the music was not given, so nothing was opened. '
+      + 'Try again and choose Allow, or use Add files';
+  }
+  if (!files.length) {
+    return 'Could not open the music again — use Add files to find it';
+  }
+  const opened = files.length === 1 ? 'Opened one song' : `Opened ${files.length} songs`;
+  if (gone.length && refused.length) {
+    return `${opened}. ${gone.length} could not be found and ${refused.length} were not allowed`;
+  }
+  if (gone.length) {
+    return `${opened}, but ${names(gone)} could not be found — use Add files for `
+      + (gone.length === 1 ? 'it' : 'those');
+  }
+  return `${opened}, but permission was not given for ${refused.length} of them`;
 }
 
 /* ---------------------------------------------------------------- export */
@@ -2121,11 +2426,23 @@ function updateExportAvailability() {
  * until the files are actually there.
  */
 function updateMissingNotice() {
-  const missing = [...new Set(
-    state.clips.filter((c) => !library.get(c.file)?.buffer).map((c) => c.file))];
+  const missing = missingFiles();
   $('missingNotice').classList.toggle('hidden', missing.length === 0);
   if (missing.length) {
     $('missingList').textContent = missing.join(' · ');
+  }
+
+  /* Where the browser can hand a file back, offer that instead of a picker:
+     one click for the whole programme rather than finding each song again.
+     Everywhere else this button never appears and the notice reads as it
+     always did. */
+  const back = reconnectableFiles();
+  $('btnReconnect').classList.toggle('hidden', back.length === 0);
+  if (back.length) {
+    $('btnReconnect').textContent = back.length === missing.length
+      ? 'Open the music again'
+      : `Open ${back.length} of them again`;
+    $('btnReconnect').title = `Uses the files you opened before: ${back.join(', ')}`;
   }
 }
 
@@ -2258,9 +2575,12 @@ function bindFileDrops() {
     show(false);
     if (!draggingFiles(e)) return;      // a clip being reordered; not our business
 
-    // Read the target now: the await below outlives the event.
+    // Read these now: the awaits below outlive the event, and dataTransfer is
+    // emptied once the handler returns.
     const ontoTimeline = Boolean(e.target.closest && e.target.closest('#timelineWrap'));
-    const added = await addFiles(e.dataTransfer.files);
+    const dropped = e.dataTransfer.files;
+    await rememberDropped(e.dataTransfer);
+    const added = await addFiles(dropped);
     if (ontoTimeline) for (const entry of added) addClip(entry);
   });
 }
@@ -2277,8 +2597,9 @@ function bind() {
     save();
   };
 
-  $('btnAddFiles').onclick = () => $('fileInput').click();
-  $('btnAddMissing').onclick = () => $('fileInput').click();
+  $('btnAddFiles').onclick = pickFiles;
+  $('btnAddMissing').onclick = pickFiles;
+  $('btnReconnect').onclick = reconnectMissing;
 
   $('btnNew').onclick = () => openStartDialog(true);
   $('fileInput').onchange = (e) => { addFiles(e.target.files); e.target.value = ''; };
@@ -2594,6 +2915,10 @@ function init() {
   } catch (_) { /* start empty */ }
 
   refresh();
+  // Which files we could offer to reopen is a question for storage, so the
+  // notice above the timeline is updated again once the answer arrives. It is
+  // never waited on: the editor has to start whether or not it comes back.
+  loadRememberedNames();
   // Only interrupt when there is no work to come back to.
   if (!saved || !(saved.clips || []).length) openStartDialog(false);
 }
@@ -2628,7 +2953,8 @@ if (typeof document !== 'undefined') {
     project, readProject,
     undoStack, redoStack, pushUndo, endUndoRun, UNDO_COALESCE_MS, UNDO_DEPTH,
     undoSnapshot, takeUndo, takeRedo,
-    clipsUsing,
+    clipsUsing, missingFiles, describeWrongFile, describeReconnect, usedFiles,
+    AUDIO_EXTENSION_LIST, AUDIO_EXTENSIONS, audioPickerTypes,
     unsupportedReasons, LAME_URL, LAME_SRI,
   };
 }

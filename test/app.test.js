@@ -365,11 +365,100 @@ check('project file: the document holds exactly the fields it is documented to',
   }, () => {
     const doc = app.project();
     eq(Object.keys(doc).sort(),
-      ['clips', 'level', 'levelLabel', 'name', 'targetSeconds', 'toleranceSeconds']);
+      ['clips', 'files', 'level', 'levelLabel', 'name', 'targetSeconds', 'toleranceSeconds']);
     eq(Object.keys(doc.clips[0]).sort(),
       ['crossfade', 'fadeIn', 'fadeOut', 'file', 'gain', 'srcEnd', 'srcStart', 'title']);
     eq(doc.levelLabel, 'Juvenile', 'the label is denormalised so an old file still reads: ');
   });
+});
+
+check('project file: records what each song was, since it cannot record where', () => {
+  /* A browser will not tell a page where a file lives, and a handle to one
+     cannot be written into a file — so a project cannot save a location. What
+     it can save is what the audio was, which is what makes "this is a different
+     song with the same name" answerable. */
+  const read = app.readProject({
+    clips: [{ file: 'one.mp3', srcStart: 0, srcEnd: 30 }],
+    files: [{ name: 'one.mp3', bytes: 4096, seconds: 212.5, fingerprint: 'abc123' }],
+  });
+  eq(read.files.length, 1);
+  eq(read.files[0].fingerprint, 'abc123');
+  eq(read.files[0].seconds, 212.5);
+
+  // Older projects have no such section, and must not be treated as claiming
+  // anything about the songs.
+  eq(app.readProject({ clips: [] }).files, [], 'a project written before this: ');
+  eq(app.readProject({ clips: [], files: 'nonsense' }).files, [], 'a damaged one: ');
+  eq(app.readProject({ clips: [], files: [{ bytes: 1 }] }).files, [],
+    'an entry with no name identifies nothing: ');
+});
+
+check('project file: a song that is not the one it was built from is called out', () => {
+  const expected = { name: 'song.mp3', bytes: 5000, seconds: 200, fingerprint: 'aaa' };
+
+  eq(app.describeWrongFile(expected, { name: 'song.mp3', fingerprint: 'aaa', duration: 200 }), null,
+    'the same file must pass without comment: ');
+
+  const swapped = app.describeWrongFile(expected,
+    { name: 'song.mp3', fingerprint: 'bbb', duration: 95 });
+  ok(swapped && swapped.includes('song.mp3'), `"${swapped}" should name the file`);
+  ok(swapped.includes('1:35') && swapped.includes('3:20'),
+    `"${swapped}" should contrast the two lengths, so the mistake is obvious`);
+
+  // A different file of the same length is still the wrong file.
+  const sameLength = app.describeWrongFile(expected,
+    { name: 'song.mp3', fingerprint: 'bbb', duration: 200 });
+  ok(sameLength && !sameLength.includes('3:20'),
+    'with nothing to contrast, do not pad the sentence with numbers');
+
+  // Nothing recorded, nothing claimed.
+  eq(app.describeWrongFile(null, { name: 'x', fingerprint: 'a', duration: 1 }), null);
+  eq(app.describeWrongFile({ name: 'x' }, { name: 'x', fingerprint: 'a', duration: 1 }), null,
+    'a project with no fingerprint recorded cannot judge: ');
+  eq(app.describeWrongFile(expected, { name: 'song.mp3', duration: 200 }), null,
+    'and nor can one where the file could not be fingerprinted: ');
+});
+
+check('reconnect: each way of failing says what to do about it', () => {
+  /* "Could not open the files" tells nobody which situation they are in, and
+     the three need different next steps. */
+  const gone = app.describeReconnect({ files: [], gone: ['a.mp3'], refused: [] });
+  ok(/moved, renamed or deleted/.test(gone), `"${gone}" should say what may have happened`);
+  ok(/Add files/.test(gone), `"${gone}" should say what to do instead`);
+  ok(gone.includes('a.mp3'), 'and name the file');
+
+  const many = app.describeReconnect({ files: [], gone: ['a.mp3', 'b.mp3'], refused: [] });
+  ok(/2 songs/.test(many), `"${many}" should count them rather than listing forever`);
+
+  const refused = app.describeReconnect({ files: [], gone: [], refused: ['a.mp3'] });
+  ok(/[Pp]ermission/.test(refused) && /Allow/.test(refused),
+    `"${refused}" should point at the prompt that was declined`);
+  ok(!/moved|deleted/.test(refused), 'a refusal is not a missing file');
+
+  const partly = app.describeReconnect({ files: [{}, {}], gone: ['c.mp3'], refused: [] });
+  ok(/Opened 2 songs/.test(partly), `"${partly}" should report what did work`);
+  ok(partly.includes('c.mp3'), 'and name what did not');
+
+  const both = app.describeReconnect({ files: [{}], gone: ['a'], refused: ['b'] });
+  ok(/Opened one song/.test(both) && /could not be found/.test(both) && /not allowed/.test(both),
+    `"${both}" should cover all three outcomes`);
+});
+
+check('reconnect: the messages stay in plain language', () => {
+  const banned = /handle|IndexedDB|permission state|API|filesystem|serial/i;
+  const cases = [
+    { files: [], gone: ['a.mp3'], refused: [] },
+    { files: [], gone: [], refused: ['a.mp3'] },
+    { files: [], gone: [], refused: [] },
+    { files: [{}], gone: ['a.mp3'], refused: [] },
+    { files: [{}], gone: [], refused: ['a.mp3'] },
+    { files: [{}], gone: ['a'], refused: ['b'] },
+  ];
+  for (const outcome of cases) {
+    const message = app.describeReconnect(outcome);
+    ok(!banned.test(message), `"${message}" uses a word from the machine room`);
+    ok(message.length < 160, `"${message}" is too long for a toast`);
+  }
 });
 
 check('project file: a level whose length has changed reopens as custom', () => {

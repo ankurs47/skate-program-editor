@@ -178,6 +178,27 @@ free. The slider works in decibels, because that is what tracks how loud a
 change *sounds*, but stores and shows the multiplier — `LEVEL_SLIDER` and the
 `min`/`max` on the HTML input have to agree, and a test says so.
 
+**A project cannot record where a file is, only what it was.** A browser will
+not tell a page where a file lives — `File` has a name and nothing else — and a
+`FileSystemFileHandle` is structured-cloneable but not JSON, so neither a path
+nor a handle can go in the project file. What goes in instead is the `files`
+section: a size, a length, and a `fingerprint()` of the bytes at the audio start,
+which is enough to say "this is a different song with the same name". That
+matters because the failure is silent: the trims still apply and the timer still
+reads correctly around the wrong music. Fingerprints are taken from the audio
+start, not the head of the file, so retagging does not make a file a stranger,
+and FNV-1a rather than a digest because `crypto.subtle` needs a secure context
+and this has to work over `file://`.
+
+**Remembering files is an extra and must stay one.** `canRememberFiles()` gates
+everything to browsers with the File System Access API in a secure context —
+Chrome and Edge over http(s), and nowhere at all when `index.html` is opened
+from disk, which the ground rules say has to keep working. When it is false the
+hidden `<input>` does the picking and the notice asks for the files by hand,
+exactly as before. There is a browser check that deletes `showOpenFilePicker`
+and asserts the fallbacks still fire; do not let anything above become
+load-bearing.
+
 ## Traps
 
 - **A single MPEG sync word means nothing.** Compressed audio is full of `0xFF`

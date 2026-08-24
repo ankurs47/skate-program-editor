@@ -63,6 +63,60 @@
     "expect": "low sample rate pulls the verdict down"
   },
   {
+    "name": "a swapped song is accepted without comment",
+    "guards": "a different song with the same name is not built into the programme",
+    "file": "app.js",
+    "suite": "unit",
+    "find": "  if (expected.fingerprint === entry.fingerprint) return null;",
+    "replace": "  if (true) return null;",
+    "expect": "not the one it was built from"
+  },
+  {
+    "name": "the project stops recording what its songs were",
+    "guards": "a project can tell whether it has the right music",
+    "file": "app.js",
+    "suite": "unit",
+    "find": "    files: Array.isArray(data.files) ? data.files.filter((f) => f && f.name) : [],",
+    "replace": "    files: [],",
+    "expect": "records what each song was"
+  },
+  {
+    "name": "every reconnect failure gives the same message",
+    "guards": "each way of failing says what to do about it",
+    "file": "app.js",
+    "suite": "unit",
+    "find": "  if (!files.length && refused.length && !gone.length) {",
+    "replace": "  if (false) {",
+    "expect": "each way of failing"
+  },
+  {
+    "name": "the fingerprint ignores the order of the bytes",
+    "guards": "two files with the same bytes rearranged are not the same file",
+    "file": "formats.js",
+    "suite": "unit",
+    "find": "    hash = Math.imul(hash, 0x01000193) >>> 0;",
+    "replace": "    hash = hash >>> 0;",
+    "expect": "order matters"
+  },
+  {
+    "name": "remembering files stops being optional",
+    "guards": "browsers without the API keep working exactly as before",
+    "file": "app.js",
+    "suite": "dom",
+    "find": "  return typeof window.showOpenFilePicker === 'function'\n    && typeof indexedDB !== 'undefined'\n    && window.isSecureContext === true;",
+    "replace": "  return true;",
+    "expect": "falls back to the file picker"
+  },
+  {
+    "name": "the reconnect button is offered for files nothing remembers",
+    "guards": "only songs that can actually come back are offered",
+    "file": "app.js",
+    "suite": "dom",
+    "find": "  return canRememberFiles() ? missingFiles().filter((name) => rememberedNames.has(name)) : [];",
+    "replace": "  return canRememberFiles() ? missingFiles() : [];",
+    "expect": "offered back instead of a picker"
+  },
+  {
     "name": "the colour cache is bypassed",
     "guards": "drawing does not force a style resolve every frame",
     "file": "app.js",

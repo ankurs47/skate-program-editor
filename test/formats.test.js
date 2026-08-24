@@ -115,6 +115,29 @@ check('parseFrameHeader: refuses the reserved and impossible encodings', () => {
     'a header cut short by the end of the window: ');
 });
 
+check('fingerprint: the same audio matches, different audio does not', () => {
+  const bytes = (values) => new Uint8Array(values).buffer;
+  const a = bytes([1, 2, 3, 4, 5, 6, 7, 8]);
+  const b = bytes([1, 2, 3, 4, 5, 6, 7, 8]);
+  const c = bytes([1, 2, 3, 4, 5, 6, 7, 9]);
+
+  eq(app.fingerprint(a), app.fingerprint(b), 'identical bytes must agree: ');
+  ok(app.fingerprint(a) !== app.fingerprint(c), 'one byte apart must not');
+  ok(app.fingerprint(bytes([])) !== app.fingerprint(a), 'and nor must nothing at all');
+
+  // It ends up in a project file, so it has to be short and plainly text.
+  const printed = app.fingerprint(a);
+  ok(/^[0-9a-z]+$/.test(printed), `"${printed}" should be plain and short`);
+  ok(printed.length <= 8, `"${printed}" is longer than a file record wants`);
+});
+
+check('fingerprint: order matters, so a reshuffle is not the same song', () => {
+  // A sum or an xor would call these equal, which would defeat the point.
+  const bytes = (values) => new Uint8Array(values).buffer;
+  ok(app.fingerprint(bytes([1, 2, 3])) !== app.fingerprint(bytes([3, 2, 1])),
+    'a hash that ignores order cannot tell two files apart');
+});
+
 check('id3Size: reads the syncsafe length, tolerates untagged files', () => {
   const tagged = Buffer.alloc(20);
   tagged.write('ID3');
