@@ -21,7 +21,8 @@ const fs = require('fs');
 const path = require('path');
 const { open } = require('../test/dom/browser.js');
 
-const OUT = path.join(__dirname, '..', 'docs', 'screenshot.png');
+const SHOT = path.join(__dirname, '..', 'docs', 'screenshot.png');
+const CARD = path.join(__dirname, '..', 'docs', 'social-card.png');
 
 /* A program that shows the tool doing its job: three songs, a blend at each
    join, and a total inside the allowed window so the timer reads green. A
@@ -86,6 +87,12 @@ const SETUP = `
   };
 `;
 
+function write(file, base64, size) {
+  fs.writeFileSync(file, Buffer.from(base64, 'base64'));
+  const kb = Math.round(fs.statSync(file).size / 1024);
+  console.log(`\n  ${path.relative(process.cwd(), file)} — ${size}, ${kb} KB`);
+}
+
 async function main() {
   const session = await open({ url: '/index.html' });
   try {
@@ -108,11 +115,28 @@ async function main() {
       captureBeyondViewport: true,
     });
 
-    fs.mkdirSync(path.dirname(OUT), { recursive: true });
-    fs.writeFileSync(OUT, Buffer.from(shot.data, 'base64'));
-    const kb = Math.round(fs.statSync(OUT).size / 1024);
-    console.log(`\n  ${path.relative(process.cwd(), OUT)} — ${1440 * 2}x${height * 2}, ${kb} KB`);
-    console.log(`  ${shown.total} · ${shown.verdict}\n`);
+    fs.mkdirSync(path.dirname(SHOT), { recursive: true });
+    write(SHOT, shot.data, `${1440 * 2}x${height * 2}`);
+    console.log(`  ${shown.total} · ${shown.verdict}`);
+
+    /* The link preview card. 1200x630 is 1.91:1, which is what Facebook,
+       LinkedIn and X crop to — at 2:1 they take the sides off. */
+    await session.page.send('Emulation.setDeviceMetricsOverride', {
+      width: 1200, height: 630, deviceScaleFactor: 2, mobile: false,
+    });
+    await session.page.send('Page.navigate', { url: `${session.origin}/tools/social-card.html` });
+    await session.page.evaluate(`
+      await new Promise(r => (document.readyState === 'complete' ? r() : addEventListener('load', r)));
+      await Promise.all([...document.images].map(i => i.complete
+        ? Promise.resolve() : new Promise(r => { i.onload = i.onerror = r; })));
+      if (![...document.images].every(i => i.naturalWidth > 0)) throw new Error('the logo did not load');
+      return true;
+    `);
+    const card = await session.page.send('Page.captureScreenshot', {
+      format: 'png', clip: { x: 0, y: 0, width: 1200, height: 630, scale: 1 },
+    });
+    write(CARD, card.data, '1200x630');
+    console.log('');
   } finally {
     await session.close();
   }
