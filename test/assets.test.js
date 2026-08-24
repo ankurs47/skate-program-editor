@@ -373,3 +373,28 @@ check('every link that opens a new tab is safe, and the source is reachable', ()
       `${file} does not link to the source`);
   }
 });
+
+check('the theme bootstrap in the page agrees with the logic in app.js', () => {
+  /* The key and the two explicit mode names are written twice: once in the
+     inline script in <head>, which has to run before the stylesheet to stop an
+     explicit choice flashing the other theme first, and once in app.js, which
+     owns everything else about it. Spelled differently, the page would come up
+     in one theme and the button would claim the other, and nothing else here
+     would notice. */
+  const app = fs.readFileSync(path.join(ROOT, 'src/app.js'), 'utf8');
+  const boot = html.match(/<script>([\s\S]*?)<\/script>/);
+  ok(boot, 'index.html has no inline theme bootstrap');
+
+  const key = app.match(/const THEME_KEY = '([\w.]+)'/);
+  ok(key, 'app.js no longer defines THEME_KEY');
+  ok(boot[1].includes(`'${key[1]}'`), `the bootstrap does not read ${key[1]}`);
+
+  for (const mode of ['light', 'dark']) {
+    ok(boot[1].includes(`'${mode}'`), `the bootstrap does not handle ${mode}`);
+    ok(app.includes(`'${mode}'`), `app.js does not handle ${mode}`);
+  }
+  ok(/data-theme/.test(boot[1]) && /data-theme/.test(app),
+    'the two halves disagree about the attribute name');
+  ok(/\[data-theme="dark"\]/.test(css) && /\[data-theme="light"\]/.test(css),
+    'the stylesheet does not act on data-theme in both directions');
+});

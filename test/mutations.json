@@ -259,5 +259,41 @@
     "find": "    <a class=\"guide-link\" href=\"docs/help.html\">Full guide &rarr;</a>\n",
     "replace": "",
     "expect": "no longer links to the guide"
+  },
+  {
+    "name": "an explicit light choice stops beating the system",
+    "guards": "the toggle works in both directions, not just towards dark",
+    "file": "src/style.css",
+    "suite": "dom",
+    "find": "  :root:not([data-theme=\"light\"]) {\n    color-scheme: dark;",
+    "replace": "  :root {\n    color-scheme: dark;",
+    "expect": "the attribute"
+  },
+  {
+    "name": "the theme choice is not remembered",
+    "guards": "the theme survives a reload",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "  try { localStorage.setItem(THEME_KEY, mode); } catch (_) { /* private mode */ }",
+    "replace": "  void mode;",
+    "expect": "remembered"
+  },
+  {
+    "name": "collapsing the sidebar takes every panel header with it",
+    "guards": "only the music panel's own header goes",
+    "file": "src/style.css",
+    "suite": "dom",
+    "find": "main.library-collapsed #library .panel-head > :not(.lib-toggle) { display: none; }",
+    "replace": "main.library-collapsed .panel-head > :not(.lib-toggle) { display: none; }",
+    "expect": "panel header disappeared"
+  },
+  {
+    "name": "the collapsed sidebar keeps its column",
+    "guards": "collapsing actually gives the workspace the room",
+    "file": "src/style.css",
+    "suite": "dom",
+    "find": "main.library-collapsed { grid-template-columns: auto 1fr; }",
+    "replace": "main.library-collapsed { grid-template-columns: 300px 1fr; }",
+    "expect": "no room"
   }
 ]

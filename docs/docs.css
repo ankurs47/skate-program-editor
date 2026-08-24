@@ -11,6 +11,7 @@
  */
 
 :root {
+  color-scheme: light;
   --bg: #f6f7f9;
   --panel: #ffffff;
   --ink: #1b1e23;
@@ -29,8 +30,18 @@
   --mono: ui-monospace, "JetBrains Mono", "DejaVu Sans Mono", monospace;
 }
 
+/* Three states, not two. No attribute means "whatever this computer is set to",
+   which is the default and the one that keeps following the system when it
+   switches at dusk. The :not() is what lets an explicit choice of light win
+   against a system set to dark — without it the media query would override it
+   and the toggle would only work in one direction.
+
+   The dark values appear twice on purpose: a media query and a plain selector
+   cannot be combined into one rule. docs.css carries the same three blocks, and
+   a test compares them, which is what keeps the two from drifting. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --bg: #14171c;
     --panel: #1c2027;
     --ink: #e8ebef;
@@ -46,6 +57,24 @@
     --topbar-ink: #eef1f5;
     --topbar-dim: #98a1ae;
   }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #14171c;
+  --panel: #1c2027;
+  --ink: #e8ebef;
+  --muted: #939caa;
+  --line: #2c323b;
+  --accent: #5b8cff;
+  --accent-soft: #23304d;
+  --good: #35c07f;
+  --bad: #ef6b6b;
+  --wave: #5b6572;
+  --wave-sel: #5b8cff;
+  --topbar-bg: #0e1116;
+  --topbar-ink: #eef1f5;
+  --topbar-dim: #98a1ae;
 }
 
 * { box-sizing: border-box; }

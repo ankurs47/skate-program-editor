@@ -83,6 +83,77 @@ async function main() {
       eq(session.page.consoleErrors(), [], 'the page logged errors on startup: ');
     });
 
+    await check('the theme toggle cycles, sticks, and repaints the canvases', async () => {
+      /* Three modes, and the light one has to win against a system set to dark
+         — that is the whole point of the :not([data-theme="light"]) guard, and
+         it is the direction a plain two-state toggle gets wrong. */
+      const seen = await run(`
+        /* Every check shares one page load, so this starts from a known mode
+           and hands it back afterwards — otherwise the theme, and the repaint
+           that comes with it, leaks into whatever runs next. */
+        localStorage.removeItem('skate.theme');
+        applyTheme('auto');
+        const button = document.getElementById('btnTheme');
+        const read = () => ({
+          mode: button.dataset.mode,
+          label: document.getElementById('themeLabel').textContent,
+          attr: document.documentElement.getAttribute('data-theme'),
+          bg: getComputedStyle(document.body).backgroundColor,
+          stored: localStorage.getItem('skate.theme'),
+        });
+        const out = [read()];
+        for (let i = 0; i < 3; i++) { button.click(); out.push(read()); }
+        localStorage.removeItem('skate.theme');
+        applyTheme('auto');
+        return out;
+      `);
+      eq(seen.map((s) => s.mode), ['auto', 'light', 'dark', 'auto'], 'the cycle: ');
+      eq(seen.map((s) => s.label), ['Auto', 'Light', 'Dark', 'Auto'], 'the wording: ');
+      eq(seen.map((s) => s.attr), [null, 'light', 'dark', null], 'the attribute: ');
+      eq(seen[3].stored, 'auto', 'the choice is remembered: ');
+      ok(seen[1].bg !== seen[2].bg, 'light and dark painted the same background');
+    });
+
+    await check('collapsing the music panel frees the column and nothing else', async () => {
+      /* The first version of this hid `.panel-head > :not(.lib-toggle)` without
+         scoping it to #library, which took the Program header — Even out, Play,
+         Stop — off the screen along with the sidebar. Reclaimed width alone
+         would not have caught that. */
+      const out = await run(`
+        /* Shared page again: start expanded whatever the last check left. */
+        setLibraryCollapsed(false);
+        const main = document.querySelector('main');
+        const button = document.getElementById('btnLibraryToggle');
+        const width = () => Math.round(document.getElementById('scrubber').getBoundingClientRect().width);
+        const heads = () => [...document.querySelectorAll('.panel-head')]
+          .filter(h => h.offsetParent).length;
+        const spot = () => { const r = button.getBoundingClientRect();
+          return Math.round(r.left) + ',' + Math.round(r.top); };
+        const before = { w: width(), heads: heads(), spot: spot(),
+                         expanded: button.getAttribute('aria-expanded') };
+        button.click();
+        const after = { w: width(), heads: heads(), spot: spot(),
+                        expanded: button.getAttribute('aria-expanded'),
+                        stored: localStorage.getItem('skate.musicPanel'),
+                        listShown: !!document.getElementById('libraryList').offsetParent };
+        button.click();
+        const back = { w: width(), expanded: button.getAttribute('aria-expanded') };
+        localStorage.removeItem('skate.musicPanel');
+        return { before, after, back };
+      `);
+      ok(out.after.w > out.before.w, `collapsing gave the workspace no room: ${out.before.w} -> ${out.after.w}`);
+      eq(out.after.heads, out.before.heads, 'a panel header disappeared with the sidebar: ');
+      eq(out.after.listShown, false, 'the music list is still on screen when collapsed: ');
+      eq(out.after.stored, 'collapsed', 'the choice is remembered: ');
+      eq([out.before.expanded, out.after.expanded, out.back.expanded],
+        ['true', 'false', 'true'], 'aria-expanded: ');
+      eq(out.back.w, out.before.w, 'expanding again did not restore the width: ');
+      /* The button is the only way back, so it must not move when it is used —
+         collapsed it is the one thing left on screen, and a control that shifts
+         is one you have to go looking for the second time. */
+      eq(out.after.spot, out.before.spot, 'the toggle moved when the panel collapsed: ');
+    });
+
     await check('the start dialog is unskippable on a first visit', async () => {
       // A program should begin with a name and a length rather than defaults
       // nobody chose, so at startup Escape and the backdrop must not dismiss it.

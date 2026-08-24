@@ -6,6 +6,16 @@
 <meta name="color-scheme" content="light dark">
 <title>Skate Program Editor</title>
 <link rel="icon" href="src/logo.svg" type="image/svg+xml">
+<script>
+  /* Runs before the stylesheet so an explicit choice never flashes the other
+     theme first. All this has to do is set the attribute the CSS watches for;
+     the rest of the logic — the button, the wording, the repaint — is in
+     src/app.js, which spells this key the same way. A test checks that. */
+  try {
+    var m = localStorage.getItem('skate.theme');
+    if (m === 'light' || m === 'dark') document.documentElement.setAttribute('data-theme', m);
+  } catch (e) { /* private mode: fall back to following the system */ }
+</script>
 <link rel="stylesheet" href="src/style.css">
 </head>
 <body>
@@ -50,6 +60,12 @@
     <button class="help-btn" data-help="keys">Keyboard</button>
   </nav>
   <span class="topbar-links">
+    <button class="topbar-link theme-btn" id="btnTheme" type="button" data-mode="auto">
+      <svg class="ico ico-auto" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path fill="currentColor" d="M8 1.8a6.2 6.2 0 0 1 0 12.4Z"/></svg>
+      <svg class="ico ico-light" viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="3.1"/><path d="M8 1v1.6M8 13.4V15M1 8h1.6M13.4 8H15M3.05 3.05l1.13 1.13M11.82 11.82l1.13 1.13M12.95 3.05l-1.13 1.13M4.18 11.82l-1.13 1.13"/></svg>
+      <svg class="ico ico-dark" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M13.5 10.3A6 6 0 0 1 5.7 2.5a6 6 0 1 0 7.8 7.8Z"/></svg>
+      <span id="themeLabel">Auto</span>
+    </button>
     <a class="topbar-link" href="docs/help.html">Full guide</a>
     <a class="topbar-link" href="https://github.com/ankurs47/skate-program-editor"
        target="_blank" rel="noopener" title="Source code on GitHub">
@@ -87,6 +103,11 @@
 <main>
   <aside id="library">
     <div class="panel-head">
+      <button id="btnLibraryToggle" class="lib-toggle" type="button" aria-expanded="true"
+              aria-controls="libraryList" title="Hide the music list">
+        <svg class="ico ico-hide" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m16 15-3-3 3-3"/></svg>
+        <svg class="ico ico-show" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m14 9 3 3-3 3"/></svg>
+      </button>
       <h2>Music</h2>
       <button id="btnAddFiles">Add files</button>
     </div>

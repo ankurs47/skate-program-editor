@@ -519,6 +519,80 @@ function repaintForTheme() {
   drawClipEditor();
 }
 
+/* ----------------------------------------------------------------- theme */
+
+/* Three modes, not two. "auto" is the default and means the page keeps
+   following whatever the computer is set to, including when that flips at
+   dusk — a plain light/dark switch throws that away the first time it is
+   touched. The stored value is read by the guide page too, which is why the
+   key and the three names are spelled the same in both. */
+const THEME_KEY = 'skate.theme';
+const THEME_MODES = ['auto', 'light', 'dark'];
+const THEME_WORDS = { auto: 'Auto', light: 'Light', dark: 'Dark' };
+
+/** The stored mode, or 'auto' when nothing valid is stored. */
+function storedTheme() {
+  let value = null;
+  try { value = localStorage.getItem(THEME_KEY); } catch (_) { /* private mode */ }
+  return THEME_MODES.includes(value) ? value : 'auto';
+}
+
+/**
+ * Put `mode` on the root element, where the stylesheet is watching for it.
+ *
+ * 'auto' removes the attribute rather than setting it to anything: the media
+ * query is the default, and an attribute of "auto" would just be a value the
+ * CSS has to know to ignore.
+ */
+function applyTheme(mode) {
+  const root = document.documentElement;
+  if (mode === 'auto') root.removeAttribute('data-theme');
+  else root.setAttribute('data-theme', mode);
+
+  const button = $('btnTheme');
+  if (!button) return;
+  button.dataset.mode = mode;
+  $('themeLabel').textContent = THEME_WORDS[mode];
+  const next = THEME_MODES[(THEME_MODES.indexOf(mode) + 1) % THEME_MODES.length];
+  button.title = mode === 'auto'
+    ? `Colours follow this computer. Switch to ${THEME_WORDS[next].toLowerCase()}.`
+    : `Colours are set to ${THEME_WORDS[mode].toLowerCase()}. Switch to ${THEME_WORDS[next].toLowerCase()}.`;
+  button.setAttribute('aria-label', button.title);
+}
+
+/** Step to the next mode, remember it, and repaint what the CSS cannot. */
+function cycleTheme() {
+  const mode = THEME_MODES[(THEME_MODES.indexOf(storedTheme()) + 1) % THEME_MODES.length];
+  try { localStorage.setItem(THEME_KEY, mode); } catch (_) { /* private mode */ }
+  applyTheme(mode);
+  /* The canvases hold colours that were resolved when they were drawn, so the
+     stylesheet changing underneath them is not enough on its own. */
+  repaintForTheme();
+}
+
+/* ------------------------------------------------------- the music sidebar */
+
+/* Collapsing it is a view preference rather than part of the programme, so it
+   lives beside the theme in storage and never touches the project file. */
+const LIBRARY_KEY = 'skate.musicPanel';
+
+/** Show or hide the music sidebar, and remember which. */
+function setLibraryCollapsed(collapsed) {
+  document.querySelector('main').classList.toggle('library-collapsed', collapsed);
+  const button = $('btnLibraryToggle');
+  button.setAttribute('aria-expanded', String(!collapsed));
+  button.title = collapsed ? 'Show the music list' : 'Hide the music list';
+  button.setAttribute('aria-label', button.title);
+  try { localStorage.setItem(LIBRARY_KEY, collapsed ? 'collapsed' : 'open'); }
+  catch (_) { /* private mode */ }
+  /* Every canvas is sized from its box, and the box just changed by 300px.
+     Nothing fires a resize event for a class change, so they are redrawn by
+     hand — without this the waveforms stay at the old width until the window
+     itself is resized. */
+  renderTimeline();
+  drawScrubber();
+  drawClipEditor();
+}
 
 /* --------------------------------------------------------------- library */
 
@@ -1238,10 +1312,18 @@ function drawClipEditor() {
   const { g, w, h } = fitCanvas(canvas);
   const x = (t) => (t / duration) * w;
 
-  // dim everything outside the kept region
-  g.fillStyle = 'rgba(0,0,0,.35)';
+  /* Fade everything outside the kept region back towards the panel it sits on.
+     This used to be a flat rgba(0,0,0,.35), which reads as "dimmed" over a dark
+     panel and as a heavy grey slab over a light one — the discarded audio ended
+     up louder than the audio being kept. Painting the panel colour over it
+     instead washes the waveform out in either theme, which is what dimming is
+     supposed to look like. */
+  g.save();
+  g.globalAlpha = 0.62;
+  g.fillStyle = css('--panel');
   g.fillRect(0, 0, x(clip.srcStart), h);
   g.fillRect(x(clip.srcEnd), 0, w - x(clip.srcEnd), h);
+  g.restore();
 
   // the fade shape actually being applied, drawn over the kept region
   const points = fadeEnvelope(clip);
@@ -2732,7 +2814,12 @@ function bind() {
   bindScrubber();
   bindHelp();
   window.addEventListener('resize', () => { renderTimeline(); drawScrubber(); drawClipEditor(); });
-  // The colours are cached, so switching the system theme has to say so.
+  $('btnTheme').onclick = cycleTheme;
+  $('btnLibraryToggle').onclick = () =>
+    setLibraryCollapsed(!document.querySelector('main').classList.contains('library-collapsed'));
+  /* The colours are cached, so a change of system theme has to say so. Only
+     reaches anything while the mode is 'auto' — with an explicit choice the CSS
+     ignores the system, and the repaint is harmless. */
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', repaintForTheme);
   document.addEventListener('keydown', onKey);
 }
@@ -2892,6 +2979,9 @@ function maybeWarnSmallScreen() {
 }
 
 function init() {
+  /* The head already set the attribute; this catches the button up with it. */
+  applyTheme(storedTheme());
+
   const missing = unsupportedReasons();
   if (missing.length) {
     $('unsupportedWhy').textContent =
@@ -2913,6 +3003,11 @@ function init() {
       loadProject(saved);
     }
   } catch (_) { /* start empty */ }
+
+  let collapsed = false;
+  try { collapsed = localStorage.getItem(LIBRARY_KEY) === 'collapsed'; }
+  catch (_) { /* private mode */ }
+  setLibraryCollapsed(collapsed);
 
   refresh();
   // Which files we could offer to reopen is a question for storage, so the
