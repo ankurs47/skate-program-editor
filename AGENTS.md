@@ -17,7 +17,7 @@ analysis.js  beat detection, phrase detection, loudness — samples in, numbers 
 formats.js   ID3/MPEG/Ogg parsing and the Good/Fair/Low verdict
 app.js       state, decode, waveforms, editing, playback, render, export, wiring
 style.css    theming via CSS custom properties, light and dark
-test/        147 checks, no dependencies — one file per script file
+test/        151 checks, no dependencies — one file per script file
 tools/       music-get.sh and .cmd — optional YouTube downloader, not the app
 ```
 
