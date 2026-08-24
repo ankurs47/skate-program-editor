@@ -8,3 +8,6 @@ report/
 
 # CI tees the mutation run here to quote from it in the issue it opens
 mutation.log
+
+# written by tools/check-sources.js when a source has moved
+sources-report.md

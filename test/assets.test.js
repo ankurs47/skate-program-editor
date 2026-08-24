@@ -434,3 +434,23 @@ check('everything is written in American English', () => {
   }
   eq(found, [], 'British spellings: ');
 });
+
+check('every rule source is one the checker knows how to read', () => {
+  /* tools/sources.json says where the program lengths come from; the extractor
+     that reads each source lives in tools/check-sources.js. An entry with no
+     extractor is silently unwatched, which is the failure this guards: the
+     monthly job would go on passing while nothing was being looked at. */
+  const baseline = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/sources.json'), 'utf8'));
+  const checker = fs.readFileSync(path.join(ROOT, 'tools/check-sources.js'), 'utf8');
+  ok(baseline.sources.length >= 2, 'both governing bodies should be watched');
+
+  for (const source of baseline.sources) {
+    ok(checker.includes(`'${source.id}':`), `no extractor for ${source.id}`);
+    ok(/^https:\/\//.test(source.url), `${source.id} is not fetched over https`);
+    ok(source.what && source.what.length > 10, `${source.id} does not say what it watches`);
+    ok(Array.isArray(source.seen) && source.seen.length,
+      `${source.id} has no baseline — run: npm run check:sources -- --update`);
+  }
+  ok(/^\d{4}-\d{2}-\d{2}$/.test(baseline.checked), 'no date for when a person last looked');
+  ok(baseline.checked > '2020-01-01', 'the baseline date looks unset');
+});
