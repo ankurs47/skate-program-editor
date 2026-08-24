@@ -508,6 +508,15 @@ button.wide { width: 100%; padding: 9px 14px; }
   height: 1px;
   background: var(--line);
 }
+/* The one thing worth knowing before you hand over your files, and the only
+   place in the app that still says it since the topbar note went. Set apart
+   from the hint above it, which is housekeeping rather than reassurance. */
+.start-privacy {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.start-privacy b { color: var(--ink); }
 
 .help-card { width: min(600px, 94vw); max-height: 84vh; overflow-y: auto; }
 .help-head {
