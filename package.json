@@ -10,6 +10,7 @@
     "test:mutate": "./tools/mutate-worktree.sh",
     "test:mutate:here": "node test/mutate.js",
     "check:sources": "node tools/check-sources.js",
+    "screenshot": "node tools/screenshot.js",
     "lint": "eslint .",
     "check": "npm run lint && npm test",
     "prepare": "git config core.hooksPath .githooks || true"
