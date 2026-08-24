@@ -326,3 +326,35 @@ check('every link between the docs and the README points at something', () => {
     }
   }
 });
+
+check('the logo is used as a favicon and a mark on every page that has one', () => {
+  /* One file does three jobs — favicon, topbar mark, README header — so it
+     carries fixed colours rather than theme tokens: two of those three never
+     load a stylesheet. A palette token creeping in would look right in the app
+     and render as an unstyled black shape everywhere else. */
+  const logo = fs.readFileSync(path.join(ROOT, 'src/logo.svg'), 'utf8');
+  ok(!/var\(--/.test(logo), 'the logo uses a CSS variable, which a favicon cannot resolve');
+  ok(/<title/.test(logo), 'the logo has no <title> for screen readers');
+
+  for (const [file, prefix] of [['index.html', 'src/'], ['docs/help.html', '../src/']]) {
+    const page = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    ok(page.includes(`<link rel="icon" href="${prefix}logo.svg"`), `${file} has no favicon`);
+    ok(page.includes(`src="${prefix}logo.svg"`), `${file} does not show the logo`);
+  }
+  ok(fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8').includes('src="src/logo.svg"'),
+    'the README no longer shows the logo');
+});
+
+check('the README shows the state of the build', () => {
+  /* The point of the badge is that it is fetched live. One written down as a
+     static image, or pointing at a workflow file that has been renamed, would
+     read as a passing build for as long as nobody checked. */
+  const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
+  const badges = [...readme.matchAll(/actions\/workflows\/([\w.-]+)\/badge\.svg/g)].map((m) => m[1]);
+  ok(badges.length > 0, 'the README shows no build status');
+  for (const workflow of badges) {
+    ok(fs.existsSync(path.join(ROOT, '.github/workflows', workflow)),
+      `the README badges ${workflow}, which no longer exists`);
+  }
+  ok(badges.includes('ci.yml'), 'the README does not show whether CI passes');
+});

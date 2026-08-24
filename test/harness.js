@@ -21,7 +21,8 @@ const SCRIPTS = ['src/analysis.js', 'src/formats.js', 'src/app.js'];
 /* The documentation pages. They are served alongside the app rather than only
    read on GitHub, so whatever must never ship applies to them too. */
 const DOCS = ['docs/help.html', 'docs/docs.css'];
-const SHIPPED = ['index.html', 'src/style.css', ...SCRIPTS, ...DOCS];
+const ASSETS = ['src/logo.svg'];
+const SHIPPED = ['index.html', 'src/style.css', ...SCRIPTS, ...DOCS, ...ASSETS];
 
 const app = require(path.join(ROOT, 'src/app.js'));
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
@@ -80,6 +81,6 @@ function reportPath(argv) {
 }
 
 module.exports = {
-  ROOT, SCRIPTS, SHIPPED, DOCS, app, html, css,
+  ROOT, SCRIPTS, SHIPPED, DOCS, ASSETS, app, html, css,
   check, eq, near, ok, results, writeReport, reportPath,
 };

@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="logo-title">
+  <title id="logo-title">Skate Program Editor</title>
+  <!--
+    A quaver standing on a skate blade: music, and the thing it is cut for.
+
+    Two mistakes shaped what is here. The note head first sat over the toe, and
+    the picks came out from behind it looking like spikes on the note — so the
+    toe moved to the right, where nothing else is. And the picks first splayed
+    outward like a tail; a real toe pick is teeth down the *front edge*, biting
+    into the ice, so they now run down the sweep and turn from pointing forward
+    to pointing down as they descend.
+
+    Proportions were settled at 16px, the favicon size, which is where a mark
+    either survives or turns to mush. The teeth are the first thing to go as it
+    shrinks, and that is fine — by then the silhouette carries it.
+
+    Fixed colours rather than theme tokens: this is served as a favicon and
+    rendered on GitHub's light and dark backgrounds, and none of those load a
+    stylesheet. The tile is what makes one file work on all three.
+  -->
+  <rect width="64" height="64" rx="14" fill="#2f6df6"/>
+
+  <!-- toe picks, down the leading edge -->
+  <g fill="#fff">
+    <path d="M51.6 39.4 L55.4 44   L50.4 43.6 z"/>
+    <path d="M50   44.4 L53.6 49.4 L48.4 48.6 z"/>
+    <path d="M47   49   L50   54   L44.8 52.6 z"/>
+  </g>
+
+  <!-- the blade: heel lifting at the left, sweeping up to the toe at the right -->
+  <path fill="none" stroke="#fff" stroke-width="5.2" stroke-linecap="round"
+        d="M11 46.5 C11 49 12.5 50 15 50 H43 C49 50 51 46 51 37"/>
+
+  <!-- the quaver -->
+  <ellipse cx="21" cy="40" rx="8.6" ry="6.7" fill="#fff" transform="rotate(-20 21 40)"/>
+  <path fill="none" stroke="#fff" stroke-width="4.1" stroke-linecap="round"
+        d="M28.35 37.4 V12"/>
+  <path fill="none" stroke="#fff" stroke-width="4.1" stroke-linecap="round"
+        d="M28.35 13 C36.35 15 40.35 20 38.65 27"/>
+</svg>

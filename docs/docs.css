@@ -69,6 +69,8 @@ body {
   background: var(--topbar-bg);
   color: var(--topbar-ink);
 }
+.topbar .brand { display: flex; align-items: center; gap: 9px; }
+.topbar .logo { display: block; flex: 0 0 auto; }
 .topbar h1 { font-size: 17px; margin: 0; font-weight: 600; }
 .topbar a { color: var(--topbar-ink); }
 .topbar .open-app {

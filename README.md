@@ -1,11 +1,32 @@
-# Skate Program Editor
+<div align="center">
 
-A small browser tool for cutting figure skating program music. Trim songs, put
-them in order, blend the joins, and watch the running total against the time
-limit for your event.
+<img src="src/logo.svg" alt="" width="88" height="88">
 
-**[Use it here →](https://ankurs47.github.io/skate-program-editor/)** ·
-**[Full guide →](https://ankurs47.github.io/skate-program-editor/docs/help.html)**
+<h1>Skate Program Editor</h1>
+
+<p>
+  <b>Cut figure skating program music in your browser.</b><br>
+  Trim songs, put them in order, blend the joins, and watch the running total
+  against the time limit for your event.
+</p>
+
+<p>
+  <a href="https://github.com/ankurs47/skate-program-editor/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/ankurs47/skate-program-editor/actions/workflows/ci.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/ankurs47/skate-program-editor/actions/workflows/mutation.yml"><img alt="Mutation testing" src="https://github.com/ankurs47/skate-program-editor/actions/workflows/mutation.yml/badge.svg?branch=main"></a>
+  <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-2f6df6"></a>
+</p>
+
+<p>
+  <a href="https://ankurs47.github.io/skate-program-editor/">▶&nbsp;&nbsp;<b>Use it</b></a>
+  &nbsp; · &nbsp;
+  <a href="https://ankurs47.github.io/skate-program-editor/docs/help.html">📖&nbsp;&nbsp;<b>Guide</b></a>
+  &nbsp; · &nbsp;
+  <a href="docs/development.md">🔧&nbsp;&nbsp;<b>Development</b></a>
+  &nbsp; · &nbsp;
+  <a href="https://github.com/ankurs47/skate-program-editor/issues">🐛&nbsp;&nbsp;<b>Issues</b></a>
+</p>
+
+</div>
 
 Nothing to install and nothing to sign up for. Your music never leaves your
 computer — the files are read straight from disk by the browser and stay there.

@@ -439,6 +439,7 @@ body.dropping #timelineWrap .timeline {
   margin: 0 20px 0 0;
   color: var(--topbar-ink);
 }
+.logo { display: block; flex: 0 0 auto; margin-right: 9px; }
 .help-nav { display: flex; gap: 2px; flex-wrap: wrap; }
 .topbar-note {
   margin-left: auto;
