@@ -18,7 +18,7 @@ src/formats.js   ID3/MPEG/Ogg parsing and the Good/Fair/Low verdict
 src/app.js       state, decode, waveforms, editing, playback, render, export, wiring
 src/style.css    theming via CSS custom properties, light and dark
 docs/            help.html — the user guide, linked from the topbar;
-                 development.md; docs.css, whose colour tokens copy
+                 development.md; docs.css, whose color tokens copy
                  style.css's and are held to them by a test
 test/            161 checks, no dependencies — one file per script file
 test/dom/        browser checks and render budgets, driven over CDP
@@ -28,7 +28,7 @@ tools/           music-get.sh and .cmd — optional YouTube downloader, not the 
 `index.html` stays at the repository root and two things keep it there. GitHub
 Pages serves this repo from `/` — moving the page would break the published
 address, which is the link in the README. And "clone it and open index.html" is
-a ground rule, which is easiest to honour when the file is the first thing you
+a ground rule, which is easiest to honor when the file is the first thing you
 see. Everything it loads sits under `src/`.
 
 `tools/` sits outside the rules below. Nothing in it ships, the editor never
@@ -78,7 +78,7 @@ single place that turns clips into timeline positions; nothing should compute
 positions independently.
 
 **`crossfade` is an overlap with the *previous* clip**, so blending makes the
-programme *shorter*. Clip durations therefore sum to more than the total length.
+program *shorter*. Clip durations therefore sum to more than the total length.
 This trips people up constantly.
 
 **Preview and export share one code path.** `scheduleProgram()` builds the Web
@@ -87,7 +87,7 @@ you hear is what you get. Do not add an export-only path.
 
 **Two views, different jobs.** The clip strip is a *list* — click to select,
 drag to reorder, widths only roughly proportional. The scrubber below it is real
-programme time, where overlapping blocks are blends. Seeking uses the scrubber.
+program time, where overlapping blocks are blends. Seeking uses the scrubber.
 
 **Three files, one global scope.** `index.html` loads `analysis.js`, then
 `formats.js`, then `app.js`, and they share one scope — so app.js calls into the
@@ -129,7 +129,7 @@ happened three times: a check that watched two gain nodes being created stayed
 green while the audio bypassed them both; a check on a frame fallback could not
 fail because headless Chrome paints; a check that "a real change still rebuilds"
 missed a stale marker left on screen. All three asserted on something *adjacent*
-to the behaviour rather than the behaviour.
+to the behavior rather than the behavior.
 
 `test/mutations.json` is the guard against that: each entry names an invariant,
 a one-line break that violates it, and the check that should catch it.
@@ -149,7 +149,7 @@ throwaway worktree from HEAD, so the tree you are working in is never touched
 and you can keep editing while it runs — which also means **uncommitted work is
 not tested**, and the script refuses to start rather than pretend otherwise.
 
-`npm run test:mutate:here` is the old in-place behaviour, for when you want it.
+`npm run test:mutate:here` is the old in-place behavior, for when you want it.
 The runner restores from a copy in memory, never with git — reverting with git
 is how an earlier session destroyed uncommitted work.
 
@@ -160,8 +160,8 @@ files themselves.
 four and reports. A new test goes in the file matching the code it covers.
 Requiring `app.js` still gets everything, because it re-exports the other two.
 
-**Beat detection answers with a confidence, and callers must honour it.**
-`analyseBeats()` finds a tempo and a beat grid in a window of samples;
+**Beat detection answers with a confidence, and callers must honor it.**
+`analyzeBeats()` finds a tempo and a beat grid in a window of samples;
 `suggestJoin()` uses two of those to nudge a pair of cut points onto the beat.
 Both are pure, and beat times are relative to the window they were measured in,
 never to the song. The grid is *always* found — on applause, on a held chord, on
@@ -172,7 +172,7 @@ snapshot for undo *after* deciding to act, so a declined suggestion doesn't leav
 a no-op on the undo stack.
 
 **The join button has two strategies, and beats is only the first.** Much
-skating music — solo piano especially — has no steady pulse, and `analyseBeats`
+skating music — solo piano especially — has no steady pulse, and `analyzeBeats`
 correctly refuses to name one. `suggestJoinForBuffers()` then falls back to
 `suggestPhraseJoin()`, which cuts at phrase boundaries found from lulls in the
 onset envelope and changes of harmony in a chroma curve. Both strategies return
@@ -183,7 +183,7 @@ decline does nothing happen.
 
 **Loudness is measured on the kept part of a clip, never the whole file.** They
 trimmed twenty seconds out of a four-minute song; the rest is not in the
-programme and must not influence its level. `measureClip()` takes the trim
+program and must not influence its level. `measureClip()` takes the trim
 bounds for that reason, and because the answer goes stale the moment anything is
 re-trimmed, it is recomputed on demand rather than cached against the file — a
 gating pass over thirty seconds is about 25 ms, which is cheaper than being
@@ -252,7 +252,7 @@ still fire; do not let anything above become load-bearing.
   Searching fractional lags instead is *not* a fix: interpolating the envelope
   flattens the very peaks being correlated, by an amount that depends on the
   fractional part, so the scan then prefers round lags for a different reason.
-  Integer lags find the neighbourhood; `refinePeriod()` finds the value.
+  Integer lags find the neighborhood; `refinePeriod()` finds the value.
 - **A confidence that is a maximum needs a baseline that is also a maximum.**
   The grid score is the best over dozens of phases, and taking a best lifts the
   number on anything, structure or not — white noise scored 0.5 before
@@ -272,7 +272,7 @@ still fire; do not let anything above become load-bearing.
   ends in a long fade measures far below what anyone hears and gets boosted for
   it; without the relative gate, a quiet passage does the same thing more
   subtly. Both are tested with the size of the mistake they prevent — around
-  6 dB — asserted alongside, so neither can be dropped as an optimisation.
+  6 dB — asserted alongside, so neither can be dropped as an optimization.
 - **Mono is measured 3 dB louder than the standard says.** Web Audio copies a
   mono buffer to both speakers, so measuring it as a single channel would leave
   every mono file reading 3 dB quiet and ending up that much too loud. This is a
@@ -297,12 +297,12 @@ still fire; do not let anything above become load-bearing.
 - **A free-tempo test fixture must be genuinely irregular.** The first one
   spaced its phrases about 3.5 s apart, which the beat detector duly locked
   onto, so the fallback never ran and the test proved nothing. Fixtures for this
-  path assert that `analyseBeats` is below `BEAT.minConfidence` on the exact
+  path assert that `analyzeBeats` is below `BEAT.minConfidence` on the exact
   window under test, so they fail loudly rather than silently testing the wrong
   branch.
 - **Sparse music still reads as having a beat more often than it should.**
   A dozen piano notes in a twelve second window let a metronome fit a few of
-  them by chance, and the contrast measure in `analyseBeats` rates that as
+  them by chance, and the contrast measure in `analyzeBeats` rates that as
   confidently as a drum track. `BEAT.minCoverage` — what share of the grid's
   beats are actually played — damps it, and cut the affected windows of the test
   fixture from 33 of 55 to 12. It is not a cure. Finishing this needs real piano
@@ -313,7 +313,7 @@ still fire; do not let anything above become load-bearing.
 - **Round to the precision you display, then split the minutes off.** Both
   clock formatters did it the other way round, so any value that came to 60 once
   rounded was shown as sixty seconds instead of carrying: a 59.98 second
-  programme read `0:60.0` on the timer, and a 119.6 second song was listed as
+  program read `0:60.0` on the timer, and a 119.6 second song was listed as
   `1:60`. Neither was noticed for the length of the project, because the level
   times that dominate the interface are all whole minutes. This is what writing
   a test for an untested export is *for*.
@@ -321,7 +321,7 @@ still fire; do not let anything above become load-bearing.
   in the project, so nothing has compared `srcEnd` against a real duration until
   `addFiles` decodes one. Web Audio does not complain when a source is asked to
   play past its end — it plays silence — so a shorter copy of a song gave a clip
-  duration that was a lie and an exported programme of the wrong length, with
+  duration that was a lie and an exported program of the wrong length, with
   nothing said. `clampClipsToFile()` runs on every decode and reports what it
   had to change.
 - **Waiting on a frame in a background tab waits forever.** `withBusy()` yields
@@ -361,7 +361,7 @@ still fire; do not let anything above become load-bearing.
 - **Grid and flex items need `min-width: 0`.** A long clip name once widened the
   whole column and pushed the buttons off-screen. Relatedly, the timeline sizes
   clips with `flex-grow`, not computed pixels — computing widths from the
-  programme length overflowed, because of the overlap point above.
+  program length overflowed, because of the overlap point above.
 - **`decodeAudioData` detaches its ArrayBuffer.** Copy any bytes you need for
   header inspection *before* decoding.
 - **Decoded audio is uncompressed** — roughly 90 MB per four minutes of stereo.
@@ -369,7 +369,7 @@ still fire; do not let anything above become load-bearing.
 
 ## Things that must stay verifiable
 
-**Programme lengths** in the `LEVELS` table are set by the ISU and U.S. Figure
+**Program lengths** in the `LEVELS` table are set by the ISU and U.S. Figure
 Skating and change between seasons. They are a convenience, not an authority.
 Every dropdown option shows its time beside the level name so a wrong number is
 visible rather than hidden, and saved projects store the actual target seconds

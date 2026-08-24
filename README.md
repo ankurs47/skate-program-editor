@@ -13,7 +13,7 @@
 <p>
   <a href="https://github.com/ankurs47/skate-program-editor/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/ankurs47/skate-program-editor/actions/workflows/ci.yml/badge.svg?branch=main"></a>
   <a href="https://github.com/ankurs47/skate-program-editor/actions/workflows/mutation.yml"><img alt="Mutation testing" src="https://github.com/ankurs47/skate-program-editor/actions/workflows/mutation.yml/badge.svg?branch=main"></a>
-  <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-2f6df6"></a>
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-2f6df6"></a>
 </p>
 
 <p>
@@ -104,6 +104,6 @@ coach, before an entry deadline.
 This project is not affiliated with, endorsed by, or connected to the ISU or
 U.S. Figure Skating.
 
-## Licence
+## License
 
 MIT — see [LICENSE](LICENSE).

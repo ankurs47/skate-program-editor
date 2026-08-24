@@ -425,7 +425,7 @@ aside, section {
 .dropzone.over { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 /* Music can be dropped anywhere on the page, so while one is over it both
    places that mean something light up: the list it will join, and the timeline,
-   which also puts it straight into the programme. */
+   which also puts it straight into the program. */
 body.dropping .dropzone {
   border-color: var(--accent);
   color: var(--accent);
@@ -736,7 +736,7 @@ button.primary > kbd { color: #fff; border-color: rgba(255, 255, 255, .5); }
 
 /* Both width transitions above are feedback rather than decoration, but the
    system setting is a request to stop things moving and nothing is lost by
-   honouring it — the bars still land where they were going to. */
+   honoring it — the bars still land where they were going to. */
 @media (prefers-reduced-motion: reduce) {
   .budget-fill, .progress > div { transition: none; }
 }

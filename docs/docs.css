@@ -2,7 +2,7 @@
  * The documentation pages, which are prose rather than an instrument panel and
  * so want almost none of what src/style.css does.
  *
- * The colour tokens below are a copy of the ones there, deliberately. Loading
+ * The color tokens below are a copy of the ones there, deliberately. Loading
  * the app's stylesheet here would drag in its layout — it styles `header`,
  * `main`, `section` and `h2` for a control surface, and a page of text is not
  * one. Two token blocks that must agree is the same arrangement the two
@@ -209,7 +209,7 @@ th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spa
 /* Only where the first column is a label. The troubleshooting table's first
    column is a sentence, and nowrap there pushes the page wider than the
    viewport on a phone. */
-.labelled td:first-child { white-space: nowrap; }
+.labeled td:first-child { white-space: nowrap; }
 
 pre {
   background: var(--panel);
@@ -245,7 +245,7 @@ kbd {
 }
 
 /* The verdict badges, copied from the app so the key here shows the reader the
-   same thing they are looking at. The caution colours are the app's exact
+   same thing they are looking at. The caution colors are the app's exact
    values, which were chosen for contrast — 5.56:1 on the panel, where 10px bold
    needs 4.5:1 — so picking a nicer-looking amber here would quietly undo that.
    Sized up a little, because this is a table rather than a dense list row. */

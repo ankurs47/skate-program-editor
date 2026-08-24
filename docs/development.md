@@ -123,7 +123,7 @@ measurement agreeing with an independent meter.
 `assets.test.js` covers the wiring rather than the logic: that a saved project
 survives a round trip through the file format, that every element id the code
 reaches for exists in the HTML, that every help button has content, that both
-colour themes define the same variables, and that no personal information or
+color themes define the same variables, and that no personal information or
 local path ever ships.
 
 The harness catches, so one failure does not hide the rest. A run reports
@@ -176,7 +176,7 @@ twice before the script existed.
 The worktree means you can keep editing while it runs. It also means
 **uncommitted work is not tested** — the script refuses to start on a dirty tree
 rather than quietly testing something else. `npm run test:mutate:here` is the
-old in-place behaviour if you want it.
+old in-place behavior if you want it.
 
 The runner restores from in-memory copies of the files, never from git. This is
 not a stylistic preference: an earlier version used `git checkout --` and
@@ -195,7 +195,7 @@ failing suite still gets its summary posted. Fork pull requests skip the comment
 because their token cannot write one.
 
 **`mutation.yml`** runs on every push to `main`, weekly, and on demand. If any
-mutation survives it opens — or comments on — an issue labelled `mutation`.
+mutation survives it opens — or comments on — an issue labeled `mutation`.
 
 ## Ground rules
 

@@ -102,7 +102,7 @@ check('FFT: round trips a known signal', () => {
 
 check('tempo: found within 1% for a range of speeds', () => {
   for (const bpm of [90, 120, 150]) {
-    const found = app.analyseBeats(clickTrain(bpm, 12), 44100);
+    const found = app.analyzeBeats(clickTrain(bpm, 12), 44100);
     near(found.bpm, bpm, bpm * 0.01, `${bpm} BPM: `);
     ok(found.confidence > 0.5, `${bpm} BPM: confidence only ${found.confidence.toFixed(2)}`);
   }
@@ -110,13 +110,13 @@ check('tempo: found within 1% for a range of speeds', () => {
 
 check('tempo: the prior resolves the half-or-double ambiguity', () => {
   // 76 BPM correlates just as well at 38 and 152; the prior should pick 76.
-  const found = app.analyseBeats(clickTrain(76, 14), 44100);
+  const found = app.analyzeBeats(clickTrain(76, 14), 44100);
   near(found.bpm, 76, 1.5);
 });
 
 check('beats: land on the clicks, whatever the phase', () => {
   const offset = 0.23;
-  const found = app.analyseBeats(clickTrain(120, 12, { offset }), 44100);
+  const found = app.analyzeBeats(clickTrain(120, 12, { offset }), 44100);
   ok(found.beats.length > 15, `only ${found.beats.length} beats found`);
   for (const beat of found.beats) {
     ok(offGrid(beat.t, 0.5, offset) < 0.02,
@@ -125,7 +125,7 @@ check('beats: land on the clicks, whatever the phase', () => {
 });
 
 check('beats: an accent every four bars gives a downbeat in 4', () => {
-  const found = app.analyseBeats(clickTrain(120, 14, { accent: 4 }), 44100);
+  const found = app.analyzeBeats(clickTrain(120, 14, { accent: 4 }), 44100);
   eq(found.meter, 4);
   const downbeats = found.beats.filter((b) => b.downbeat);
   ok(downbeats.length > 3, 'no downbeats marked');
@@ -137,7 +137,7 @@ check('beats: an accent every four bars gives a downbeat in 4', () => {
 check('beats: material with no pulse reports no confidence', () => {
   // The detector always returns *something*; the point is that it says so.
   for (const [what, samples] of [['noise', noise(12)], ['a held tone', tone(12)]]) {
-    const found = app.analyseBeats(samples, 44100);
+    const found = app.analyzeBeats(samples, 44100);
     ok(found.confidence < app.BEAT.minConfidence,
       `${what} scored ${found.confidence.toFixed(2)}, above the ${app.BEAT.minConfidence} threshold`);
   }
@@ -145,7 +145,7 @@ check('beats: material with no pulse reports no confidence', () => {
 
 check('beats: silence and near-empty input return nothing, not NaN', () => {
   for (const samples of [new Float32Array(0), new Float32Array(100), new Float32Array(44100)]) {
-    const found = app.analyseBeats(samples, 44100);
+    const found = app.analyzeBeats(samples, 44100);
     eq(found.beats, []);
     eq(found.confidence, 0);
     ok(!Number.isNaN(found.bpm), 'bpm went NaN');
@@ -156,7 +156,7 @@ check('onsetEnvelope: measures energy arriving, and how much is playing', () => 
   const clicks = app.onsetEnvelope(clickTrain(120, 6), 44100);
   eq(clicks.rate, 44100 / app.BEAT.hop, 'one envelope sample per hop: ');
   near(clicks.offset, (app.BEAT.hop + app.BEAT.frame / 2) / 44100, 1e-12,
-    'env[i] compares frame i+1 with i, so it belongs at that frame centre: ');
+    'env[i] compares frame i+1 with i, so it belongs at that frame center: ');
   ok(clicks.env.length > 400, `only ${clicks.env.length} envelope samples`);
   ok(clicks.level > 0, 'a click track has energy in it');
 
@@ -169,7 +169,7 @@ check('onsetEnvelope: measures energy arriving, and how much is playing', () => 
   const t = peakAt / clicks.rate + clicks.offset;
   ok(offGrid(t, 0.5) < 0.03, `the strongest onset at ${t.toFixed(3)}s is not on a click`);
 
-  // Silence has nothing starting and nothing playing — the pair `analyseBeats`
+  // Silence has nothing starting and nothing playing — the pair `analyzeBeats`
   // uses to tell a held chord from music.
   const quiet = app.onsetEnvelope(new Float32Array(44100 * 4), 44100);
   eq(quiet.level, 0, 'silence has no level: ');
@@ -189,7 +189,7 @@ check('flattenEnvelope: removes the local level and never goes negative', () => 
     near(flat[i], 0, 1e-6, `a constant envelope carries no onsets (at ${i}): `);
   }
   // The blur reads past the ends as zero, so the first and last samples sit
-  // low and lift their neighbourhood slightly. Small, and bounded — but real,
+  // low and lift their neighborhood slightly. Small, and bounded — but real,
   // so it is pinned here rather than discovered as a surprise later.
   ok(flat[0] < 3 * 0.02, `the edge lift is ${flat[0].toFixed(3)} on a level of 3`);
 
@@ -201,12 +201,12 @@ check('flattenEnvelope: removes the local level and never goes negative', () => 
   ok(out[rate * 2 + Math.round(rate / 3)] === 0, 'the gap between onsets should not');
 
   // The one-frame blur is what stops alternate beats measuring weaker; it puts
-  // a quarter of each spike into each neighbour.
-  ok(out[rate * 2 - 1] > 0 && out[rate * 2 + 1] > 0, 'the blur should reach both neighbours');
+  // a quarter of each spike into each neighbor.
+  ok(out[rate * 2 - 1] > 0 && out[rate * 2 + 1] > 0, 'the blur should reach both neighbors');
 });
 
-check('estimateTempoLag: lands in the right neighbourhood for a known tempo', () => {
-  // It only has to find the neighbourhood — refinePeriod finds the value.
+check('estimateTempoLag: lands in the right neighborhood for a known tempo', () => {
+  // It only has to find the neighborhood — refinePeriod finds the value.
   for (const bpm of [90, 120, 150]) {
     const raw = app.onsetEnvelope(clickTrain(bpm, 12), 44100);
     const env = app.flattenEnvelope(raw.env, raw.rate);
@@ -488,7 +488,7 @@ const HZ = { C4: 261.63, E4: 329.63, G4: 392.00, A4: 440, D4: 293.66, F4: 349.23
  * The irregularity is load-bearing. An earlier version spaced notes evenly
  * enough that the beat detector accepted it, and the fallback under test never
  * ran — so the fixture asserts its own premise below, and every test using it
- * checks that `analyseBeats` really is declining before drawing a conclusion.
+ * checks that `analyzeBeats` really is declining before drawing a conclusion.
  *
  * Returns the audio and the spans where nothing is sounding. Spans, not
  * midpoints: anywhere inside a pause is a legitimate cut, and asserting against
@@ -570,7 +570,7 @@ check('chroma: a single tone lands on its own pitch class', () => {
   eq(loudest, 9, 'A is pitch class 9: ');
 });
 
-check('chroma: too short to analyse returns nothing, not a crash', () => {
+check('chroma: too short to analyze returns nothing, not a crash', () => {
   const { chroma } = app.chromaFrames(new Float32Array(100), 44100);
   eq(chroma, []);
   eq(app.noveltyScores([], 21).length, 0);
@@ -607,7 +607,7 @@ check('novelty: rises where the harmony moves, stays flat inside a chord', () =>
 check('phrases: found in free-tempo music that has no beat at all', () => {
   const { audio, silences } = rubato(16);
   // the premise: the beat detector should be declining this
-  const beats = app.analyseBeats(audio, 44100);
+  const beats = app.analyzeBeats(audio, 44100);
   ok(beats.confidence < app.BEAT.minConfidence,
     `this fixture has a beat after all (${beats.confidence.toFixed(2)}), so it tests nothing`);
 
@@ -746,7 +746,7 @@ check('the join button falls back to phrasing on free-tempo music', () => {
     // the premise, per window: the beat path has to be the one declining
     for (const at of [cutOut, cutIn]) {
       const w = app.windowAround(buffer, at);
-      ok(app.analyseBeats(w.samples, w.sampleRate).confidence < app.BEAT.minConfidence,
+      ok(app.analyzeBeats(w.samples, w.sampleRate).confidence < app.BEAT.minConfidence,
         `the window at ${at}s reads as having a beat, so this tests nothing`);
     }
     const result = app.suggestJoinForBuffers(buffer, cutOut, buffer, cutIn, { crossfade: 1.5 });
@@ -764,8 +764,8 @@ check('beats: a grid mostly nobody plays is not a pulse', () => {
      It is a damper, not a cure: some windows of sparse music still read as
      having a beat. Finishing that needs real recordings to calibrate against,
      and it is written up in AGENTS.md rather than tuned against fixtures. */
-  const sparse = app.analyseBeats(rubato(14).audio, 44100);
-  const steady = app.analyseBeats(clickTrain(120, 14, { accent: 4 }), 44100);
+  const sparse = app.analyzeBeats(rubato(14).audio, 44100);
+  const steady = app.analyzeBeats(clickTrain(120, 14, { accent: 4 }), 44100);
 
   ok(sparse.coverage < app.BEAT.minCoverage,
     `sparse piano covers ${sparse.coverage.toFixed(2)} of its grid, which is not sparse`);

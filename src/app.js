@@ -109,7 +109,7 @@ const state = {
   playPosition: 0,    // program-time position of the playhead, kept across stops
   // name -> {bytes, seconds, fingerprint} from the project file, so a song that
   // arrives can be checked against the one the edit was built from. Empty for a
-  // programme built in this sitting, where the question does not arise.
+  // program built in this sitting, where the question does not arise.
   expectedFiles: new Map(),
 };
 
@@ -129,7 +129,7 @@ const $ = (id) => document.getElementById(id);
 /* Both of these round to the precision they display *before* splitting the
    minutes off, not after. Rounding afterwards means a value that comes to 60
    once rounded is shown as sixty seconds rather than carried: 59.98 read as
-   "0:60.0" on the programme timer, and a 119.6 second song listed as "1:60". */
+   "0:60.0" on the program timer, and a 119.6 second song listed as "1:60". */
 
 function fmt(seconds) {
   if (!isFinite(seconds) || seconds < 0) seconds = 0;
@@ -175,7 +175,7 @@ function clipDuration(clip) {
 /**
  * A clip's level as a plain multiplier. Anything missing, negative or absurd
  * becomes 1 — a hand-edited project file must not be able to silence the
- * programme or blow the speakers.
+ * program or blow the speakers.
  */
 function clipGain(clip) {
   const gain = clip ? clip.gain : undefined;
@@ -329,7 +329,7 @@ function stopPlayback() {
   drawScrubber();   // the playhead stays where it is, so Space resumes there
 }
 
-/** `until` stops playback at a point in programme time, for auditioning a join. */
+/** `until` stops playback at a point in program time, for auditioning a join. */
 function playProgram(fromTime = 0, until = Infinity) {
   const { total } = layout(state.clips);
   if (total <= 0) return;
@@ -486,10 +486,10 @@ function drawWave(canvas, peaks, duration, t0, t1, color, gain = 1) {
 }
 
 /**
- * A colour from the stylesheet.
+ * A color from the stylesheet.
  *
  * Cached, because `getComputedStyle` forces the browser to resolve style before
- * it can answer, and the drawing code asks for four to eight colours every
+ * it can answer, and the drawing code asks for four to eight colors every
  * animation frame while something is playing. The values only change when the
  * theme does, which is a thing we are told about.
  */
@@ -503,11 +503,11 @@ function css(name) {
 }
 
 /**
- * Forget the cached colours and repaint, for when the theme changes underneath.
+ * Forget the cached colors and repaint, for when the theme changes underneath.
  *
  * The strip and the list only rebuild when their contents change, and a theme
  * change is invisible to that test — so the caches saying "already drawn" have
- * to be cleared as well, or the new colours never reach the canvases.
+ * to be cleared as well, or the new colors never reach the canvases.
  */
 function repaintForTheme() {
   palette.clear();
@@ -562,7 +562,7 @@ function chooseTheme(mode) {
   if (!THEME_MODES.includes(mode)) return;
   try { localStorage.setItem(THEME_KEY, mode); } catch (_) { /* private mode */ }
   applyTheme(mode);
-  /* The canvases hold colours that were resolved when they were drawn, so the
+  /* The canvases hold colors that were resolved when they were drawn, so the
      stylesheet changing underneath them is not enough on its own. */
   repaintForTheme();
 }
@@ -584,7 +584,7 @@ function settingsOpen() {
 /**
  * Say what this browser is holding, in the plainest terms available.
  *
- * Worth stating rather than implying: the editor keeps the programme between
+ * Worth stating rather than implying: the editor keeps the program between
  * visits, and on Chrome and Edge it also keeps a way back to the song files.
  * Neither is obvious, and on a rink's shared laptop both are worth being able
  * to get rid of.
@@ -593,14 +593,14 @@ function describeStored() {
   const parts = [];
   /* An empty shell is written back on the first refresh after anything is
      cleared, so "is there a key" is not the question — "is there any work in
-     it" is. Reporting a programme that has nothing in it would make the button
+     it" is. Reporting a program that has nothing in it would make the button
      look broken right after it had worked. */
   let clips = 0;
   try {
     const stored = localStorage.getItem(STORE_KEY);
     if (stored) clips = (JSON.parse(stored).clips || []).length;
   } catch (_) { /* private mode, or something we did not write */ }
-  if (clips) parts.push('the programme you are working on');
+  if (clips) parts.push('the program you are working on');
   if (rememberedNames.size) {
     parts.push(rememberedNames.size === 1
       ? 'a way back to 1 song file'
@@ -615,9 +615,9 @@ function describeStored() {
 /**
  * Drop everything the editor has put in this browser.
  *
- * The programme on screen goes too, and it has to: `save()` writes on the next
- * edit, so clearing storage while a programme is still loaded would simply put
- * it back a moment later. Colours and the sidebar are left alone — they are
+ * The program on screen goes too, and it has to: `save()` writes on the next
+ * edit, so clearing storage while a program is still loaded would simply put
+ * it back a moment later. Colors and the sidebar are left alone — they are
  * preferences, not anything anyone needs cleared off a shared machine.
  */
 async function forgetEverything() {
@@ -641,7 +641,7 @@ async function forgetEverything() {
   }
   refresh();
   /* After the refresh, not before: refresh() runs save(), which would put an
-     empty programme straight back into the storage this just emptied. */
+     empty program straight back into the storage this just emptied. */
   try { localStorage.removeItem(STORE_KEY); } catch (_) { /* private mode */ }
   describeStored();
   toast('Forgotten. Nothing from the editor is left in this browser.');
@@ -650,7 +650,7 @@ async function forgetEverything() {
 
 /* ------------------------------------------------------- the music sidebar */
 
-/* Collapsing it is a view preference rather than part of the programme, so it
+/* Collapsing it is a view preference rather than part of the program, so it
    lives beside the theme in storage and never touches the project file. */
 const LIBRARY_KEY = 'skate.musicPanel';
 
@@ -682,7 +682,7 @@ function setLibraryCollapsed(collapsed) {
  * out shorter than the project expects — a different copy of the song, a fresh
  * download, a hand-edited project — the clip is claiming time that does not
  * exist. Web Audio plays silence past the end rather than failing, so the strip
- * shows a duration that is a lie and the finished programme comes out the wrong
+ * shows a duration that is a lie and the finished program comes out the wrong
  * length with nothing said about it.
  *
  * Mutates the clips it has to, and returns how many that was.
@@ -737,7 +737,7 @@ async function addFiles(fileList) {
       entry.buffer = buffer;
       entry.duration = buffer.duration;
       entry.peaks = computePeaks(buffer);
-      entry.quality = analyseSource(head, tagEnd, file, buffer);
+      entry.quality = analyzeSource(head, tagEnd, file, buffer);
       entry.bytes = file.size;
       entry.fingerprint = fingerprint(head);
       entry.state = 'ready';
@@ -775,7 +775,7 @@ async function addFiles(fileList) {
   /* What is now playable of what was asked for, in the order it was dropped, so
      a drop onto the timeline can add exactly those. Looked up rather than
      collected in the loop above, which skips files that were already loaded —
-     dropping one of those again should still put it in the programme. */
+     dropping one of those again should still put it in the program. */
   return files
     .map((file) => library.get(file.name))
     .filter((entry) => entry && entry.buffer);
@@ -807,7 +807,7 @@ function removeFromLibrary(name) {
 
 /* Nothing about the list changes as often as it was being rebuilt. It is in
    `refresh()` because whether a file can be removed depends on whether the
-   programme still uses it — but that answer, and everything else on show here,
+   program still uses it — but that answer, and everything else on show here,
    changes far less often than `refresh()` is called. */
 let libraryShape = null;
 
@@ -908,7 +908,7 @@ let undoRun = { tag: null, at: 0 };
 /**
  * Everything an undo has to put back.
  *
- * Not just the clips. Renaming the programme or changing the event used to be
+ * Not just the clips. Renaming the program or changing the event used to be
  * outside the stack entirely, so picking the wrong level lost the length you
  * had been working to with no way back — the one number the whole edit is aimed
  * at. These are the same fields the project file records, for the same reason.
@@ -1392,8 +1392,8 @@ function drawClipEditor() {
 
   /* Fade everything outside the kept region back towards the panel it sits on.
      This used to be a flat rgba(0,0,0,.35), which reads as "dimmed" over a dark
-     panel and as a heavy grey slab over a light one — the discarded audio ended
-     up louder than the audio being kept. Painting the panel colour over it
+     panel and as a heavy gray slab over a light one — the discarded audio ended
+     up louder than the audio being kept. Painting the panel color over it
      instead washes the waveform out in either theme, which is what dimming is
      supposed to look like. */
   g.save();
@@ -1454,7 +1454,7 @@ function drawClipEditor() {
 }
 
 /**
- * The two order buttons, greyed at the ends of the program.
+ * The two order buttons, grayed at the ends of the program.
  *
  * Dragging a block is the quick way to reorder and stays the headline one, but
  * it is the *only* way, and HTML drag-and-drop does not fire on a touchscreen
@@ -1489,7 +1489,7 @@ function moveSelected(by) {
 const JOIN_PREVIEW = { lead: 4, tail: 4 };
 
 /**
- * The stretch of programme time to play when auditioning one join.
+ * The stretch of program time to play when auditioning one join.
  *
  * The join is where clip `i` begins; the blend, if there is one, runs on from
  * there, so the tail is measured from the end of the overlap rather than from
@@ -1586,7 +1586,7 @@ function alignSelectedJoin() {
 /**
  * Run a piece of analysis that takes long enough to look like a hang.
  *
- * Measuring a four-minute programme is around half a second, and lining up a
+ * Measuring a four-minute program is around half a second, and lining up a
  * join runs FFTs over two twelve-second windows. Neither is worth moving off
  * the main thread — but both are long enough that a button which does not
  * change reads as broken and gets clicked a second time. The double frame yield
@@ -1753,7 +1753,7 @@ function updateBudget() {
 
 /* ------------------------------------------------------------ persistence */
 
-/** One record per song the programme uses, for the project file. */
+/** One record per song the program uses, for the project file. */
 function usedFiles() {
   const names = [...new Set(state.clips.map((c) => c.file))];
   return names.map((name) => {
@@ -1774,7 +1774,7 @@ function project() {
   return {
     name: state.name,
     level: state.level,
-    // Denormalised on purpose: if the rulebook table changes, an old project
+    // Denormalized on purpose: if the rulebook table changes, an old project
     // still knows the length it was actually built to.
     levelLabel: level ? level.label : 'Custom',
     targetSeconds: state.targetSeconds,
@@ -1909,7 +1909,7 @@ function exportFileName(extension) {
 let clippingAccepted = false;
 
 /**
- * Say that the programme is too loud to store cleanly, and what fixes it.
+ * Say that the program is too loud to store cleanly, and what fixes it.
  *
  * Deliberately the same shape as the length warning: the route through is still
  * open, because a draft is a legitimate thing to want, but it stops looking like
@@ -1961,12 +1961,12 @@ function showLengthWarning(total) {
   return true;
 }
 
-/* A hair above 1, so a programme that merely touches full scale is not nagged
+/* A hair above 1, so a program that merely touches full scale is not nagged
  * about. Anything genuinely past it is flat-topped by the encoders below. */
 const PEAK_TOLERANCE = 1e-4;
 
 /**
- * Does the finished programme go past what a sound file can hold?
+ * Does the finished program go past what a sound file can hold?
  *
  * `solveGains` guards the automatic path carefully, but the Volume slider
  * reaches +24 dB by hand and nothing downstream stops it. `encodeWav` clamps,
@@ -2132,7 +2132,7 @@ async function rememberDropped(transfer) {
  *
  * Matching is by file name because that is all a browser gives us, and two
  * different songs can easily share one — "track01.mp3" from two albums, or a
- * re-download at a different quality. Rebuilding a programme around the wrong
+ * re-download at a different quality. Rebuilding a program around the wrong
  * one silently is the failure worth catching: the trims would still apply, the
  * timer would still read correctly, and it would all be wrong.
  *
@@ -2342,7 +2342,7 @@ async function doExport() {
     bar.style.width = '40%';
 
     // Rendering is the cheap half; the encode is what takes the time. Checking
-    // the peak here means a distorted programme is caught before any of that,
+    // the peak here means a distorted program is caught before any of that,
     // and before a file anyone might take to a competition exists.
     if (clipsOnExport(peakOf(channelsOf(rendered))) && !clippingAccepted) {
       clippingAccepted = true;          // saying "anyway" once is enough
@@ -2561,7 +2561,7 @@ function bindStartDialog() {
 }
 
 /**
- * Grey out "Make music file" whenever it could only fail. Better to show the
+ * Gray out "Make music file" whenever it could only fail. Better to show the
  * door is shut than to let someone through it and explain afterwards.
  */
 function updateExportAvailability() {
@@ -2594,7 +2594,7 @@ function updateMissingNotice() {
   }
 
   /* Where the browser can hand a file back, offer that instead of a picker:
-     one click for the whole programme rather than finding each song again.
+     one click for the whole program rather than finding each song again.
      Everywhere else this button never appears and the notice reads as it
      always did. */
   const back = reconnectableFiles();
@@ -2656,7 +2656,7 @@ function buildLevelPicker() {
   fillLevelOptions(select);
 
   /* The snapshot goes here rather than inside applyLevel, because that is also
-     how a brand new programme gets its length — and starting one should not
+     how a brand new program gets its length — and starting one should not
      leave a step on a stack that resetProgram has just emptied. */
   select.onchange = () => { pushUndo(); applyLevel(select.value); };
   $('customLength').onchange = () => {
@@ -2708,7 +2708,7 @@ function draggingFiles(e) {
  * It used to be the small box under the list only, and everywhere else had a
  * blanket preventDefault so nothing happened at all — including on the timeline,
  * which is the obvious thing to aim at. A drop on the timeline also puts the
- * songs in the programme, because that is plainly what was meant by it.
+ * songs in the program, because that is plainly what was meant by it.
  *
  * `dragenter` and `dragleave` fire for every element the pointer crosses, so
  * the highlight is driven by a depth count rather than by the last event seen.
@@ -2821,7 +2821,7 @@ function bind() {
     if (total <= 0) { toast('Add some music to your program first'); return; }
     $('exportSummary').textContent =
       `${fmt(total)} — target ${fmtShort(state.targetSeconds)} ±${state.toleranceSeconds}s`;
-    // A fresh look at the programme: whatever was too loud last time may have
+    // A fresh look at the program: whatever was too loud last time may have
     // been turned down since.
     clippingAccepted = false;
     $('clipWarning').classList.add('hidden');
@@ -2910,7 +2910,7 @@ function bind() {
   });
   $('btnLibraryToggle').onclick = () =>
     setLibraryCollapsed(!document.querySelector('main').classList.contains('library-collapsed'));
-  /* The colours are cached, so a change of system theme has to say so. Only
+  /* The colors are cached, so a change of system theme has to say so. Only
      reaches anything while the mode is 'auto' — with an explicit choice the CSS
      ignores the system, and the repaint is harmless. */
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', repaintForTheme);
@@ -2930,7 +2930,7 @@ function onKey(e) {
 
   // A dialog is open — it owns the keyboard, and Tab stays inside it. The
   // export dialog used to be left out of this, so Space, Delete and the trim
-  // keys all still reached the programme behind it.
+  // keys all still reached the program behind it.
   const dialog = openDialog();
   if (dialog) { trapFocus(e, dialog.querySelector('.modal-card') || dialog); return; }
 

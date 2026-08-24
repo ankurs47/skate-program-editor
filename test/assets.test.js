@@ -51,9 +51,9 @@ check('outcomes are announced, and every dialog says it is one', () => {
   for (const attrs of cards) {
     ok(/role="dialog"/.test(attrs), `a dialog has no role:${attrs}`);
     ok(/aria-modal="true"/.test(attrs), `a dialog is not marked modal:${attrs}`);
-    const named = attrs.match(/aria-labelledby="([\w-]+)"/);
+    const named = attrs.match(/aria-labeledby="([\w-]+)"/);
     ok(named, `a dialog has no name:${attrs}`);
-    ok(html.includes(`id="${named[1]}"`), `aria-labelledby points at a missing id: ${named[1]}`);
+    ok(html.includes(`id="${named[1]}"`), `aria-labeledby points at a missing id: ${named[1]}`);
   }
 });
 
@@ -207,7 +207,7 @@ check('every CSS custom property used is defined', () => {
   eq([...used].filter((v) => !defined.has(v)), [], 'used but never defined: ');
 });
 
-check('both colour themes define the same variables', () => {
+check('both color themes define the same variables', () => {
   const dark = css.slice(css.indexOf('prefers-color-scheme: dark'));
   const light = css.slice(0, css.indexOf('prefers-color-scheme: dark'));
   const names = (block) => new Set([...block.matchAll(/^\s*(--[\w-]+):/gm)].map((m) => m[1]));
@@ -220,7 +220,7 @@ check('both colour themes define the same variables', () => {
 /* The two music-get wrappers are the same tool written twice, once for a shell
    and once for cmd. Nothing forces them to agree, and a fix applied to one and
    forgotten on the other is the obvious way for that to rot, so the flags that
-   define the behaviour are asserted in both. */
+   define the behavior are asserted in both. */
 check('the music-get wrappers agree on what they do', () => {
   const sh = fs.readFileSync(path.join(ROOT, 'tools/music-get.sh'), 'utf8');
   const cmd = fs.readFileSync(path.join(ROOT, 'tools/music-get.cmd'), 'utf8');
@@ -273,7 +273,7 @@ function tokensOf(source) {
     .map((m) => `${m[1]}: ${m[2].trim()}`);
 }
 
-check('the two stylesheets agree on the colours', () => {
+check('the two stylesheets agree on the colors', () => {
   /* docs.css copies the token block rather than loading src/style.css, which
      would drag in a layout built for a control surface — it styles `header`,
      `main`, `section` and `h2` for one, and a page of prose is not one. The
@@ -329,7 +329,7 @@ check('every link between the docs and the README points at something', () => {
 
 check('the logo is used as a favicon and a mark on every page that has one', () => {
   /* One file does three jobs — favicon, topbar mark, README header — so it
-     carries fixed colours rather than theme tokens: two of those three never
+     carries fixed colors rather than theme tokens: two of those three never
      load a stylesheet. A palette token creeping in would look right in the app
      and render as an unstyled black shape everywhere else. */
   const logo = fs.readFileSync(path.join(ROOT, 'src/logo.svg'), 'utf8');
@@ -397,4 +397,40 @@ check('the theme bootstrap in the page agrees with the logic in app.js', () => {
     'the two halves disagree about the attribute name');
   ok(/\[data-theme="dark"\]/.test(css) && /\[data-theme="light"\]/.test(css),
     'the stylesheet does not act on data-theme in both directions');
+});
+
+/* American spellings throughout, including in comments — the interface says
+   "program" for a skating program, and a file that says "programme" two lines
+   above it reads as two people arguing. Only forms that actually differ are
+   listed: "analysis" and the plural "analyses" are spelled the same either way,
+   so the analyse pattern refuses to match the latter.
+
+   This file is the one thing not scanned, because the list below would match
+   itself on every entry. Nothing else is exempt. */
+const BRITISH = [
+  'colour', 'programme', 'behaviour', 'neighbour', 'honour', 'centre', 'licence',
+  'grey', 'labelled', 'analyse(?!s\\b)', 'recognis', 'organis', 'realis',
+  'summaris', 'normalis', 'optimis', 'initialis', 'utilis', 'minimis', 'maximis',
+  'apologis', 'favourite', 'defence', 'catalogue', 'practis', 'whilst',
+  'amongst', 'learnt',
+];
+
+check('everything is written in American English', () => {
+  const files = execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' })
+    .split('\n')
+    .filter((f) => /\.(js|html|css|md|json|yml|svg|sh|cmd)$/.test(f))
+    // The license text is quoted verbatim and is not ours to restyle.
+    .filter((f) => !['LICENSE', 'package-lock.json', 'test/assets.test.js'].includes(f));
+  ok(files.length > 15, `only ${files.length} files were scanned`);
+
+  const found = [];
+  for (const file of files) {
+    const body = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    body.split('\n').forEach((line, i) => {
+      for (const word of BRITISH) {
+        if (new RegExp(word, 'i').test(line)) found.push(`${file}:${i + 1} ${word}`);
+      }
+    });
+  }
+  eq(found, [], 'British spellings: ');
 });

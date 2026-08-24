@@ -187,7 +187,7 @@ function oggAudioStart(bytes) {
  * page where a file lives, and a handle to one cannot be written into a project
  * file. So a project cannot record a location. What it can record is what the
  * audio looked like, and that is enough to say "this is a different song with
- * the same name" rather than silently rebuilding the programme around it.
+ * the same name" rather than silently rebuilding the program around it.
  *
  * Taken from the bytes where the audio starts, not the head of the file, so
  * editing the title or artwork does not make a file look like a stranger. FNV-1a
@@ -207,7 +207,7 @@ function fingerprint(head) {
 /**
  * The verdict for one source: good, caution, poor, or unknown.
  *
- * Separate from `analyseSource`, which needs a decoded buffer and a File to say
+ * Separate from `analyzeSource`, which needs a decoded buffer and a File to say
  * anything at all. The judgement itself is the part that is easy to get wrong
  * and easy to check, so it stands on its own and takes plain numbers — the test
  * for it used to reimplement these thresholds and assert against its own copy,
@@ -240,7 +240,7 @@ function qualityKind({ bitrate = null, sampleRate = null, codec = '', lossless =
  * the buffer. `tagEnd` is where the ID3v2 tag ended — with embedded artwork
  * that is routinely several hundred KB, so it cannot be assumed small.
  */
-function analyseSource(head, tagEnd, file, buffer) {
+function analyzeSource(head, tagEnd, file, buffer) {
   const lossless = /\.(wav|flac|aiff?)$/i.test(file.name);
   // Only attempt MPEG parsing on files that could plausibly be MPEG. The frame
   // validator would reject Opus anyway, but not paying for the scan is better.
@@ -316,6 +316,6 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     QUALITY, CODEC_EFFICIENCY, codecOf,
     id3Size, oggAudioStart, readMpegFrame, parseFrameHeader,
-    qualityKind, analyseSource, qualityLabel, qualityDetail, fingerprint,
+    qualityKind, analyzeSource, qualityLabel, qualityDetail, fingerprint,
   };
 }

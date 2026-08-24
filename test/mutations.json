@@ -1,7 +1,7 @@
 [
   {
     "name": "undo snapshots only the clips again",
-    "guards": "the target length and the programme name are inside undo",
+    "guards": "the target length and the program name are inside undo",
     "file": "src/app.js",
     "suite": "unit",
     "find": "return JSON.stringify({\n    name: state.name,",
@@ -37,7 +37,7 @@
   },
   {
     "name": "trims are no longer clamped to the file that arrives",
-    "guards": "a programme cannot claim time the audio does not have",
+    "guards": "a program cannot claim time the audio does not have",
     "file": "src/app.js",
     "suite": "unit",
     "find": "    if (start === clip.srcStart && end === clip.srcEnd) continue;",
@@ -64,7 +64,7 @@
   },
   {
     "name": "a swapped song is accepted without comment",
-    "guards": "a different song with the same name is not built into the programme",
+    "guards": "a different song with the same name is not built into the program",
     "file": "src/app.js",
     "suite": "unit",
     "find": "  if (expected.fingerprint === entry.fingerprint) return null;",
@@ -117,7 +117,7 @@
     "expect": "offered back instead of a picker"
   },
   {
-    "name": "the colour cache is bypassed",
+    "name": "the color cache is bypassed",
     "guards": "drawing does not force a style resolve every frame",
     "file": "src/app.js",
     "suite": "dom",
@@ -162,7 +162,7 @@
     "expect": "rebuilds what it must"
   },
   {
-    "name": "a theme change trusts the stale colour cache",
+    "name": "a theme change trusts the stale color cache",
     "guards": "switching theme repaints the canvases",
     "file": "src/app.js",
     "suite": "dom",
@@ -190,7 +190,7 @@
   },
   {
     "name": "the drop handler reads text/plain again",
-    "guards": "a stray drop cannot reorder the programme",
+    "guards": "a stray drop cannot reorder the program",
     "file": "src/app.js",
     "suite": "dom",
     "find": "      const from = e.dataTransfer.getData(CLIP_DRAG_TYPE);",
@@ -199,7 +199,7 @@
   },
   {
     "name": "an open dialog stops owning the keyboard",
-    "guards": "editing keys do not reach the programme behind a dialog",
+    "guards": "editing keys do not reach the program behind a dialog",
     "file": "src/app.js",
     "suite": "dom",
     "find": "  if (dialog) { trapFocus(e, dialog.querySelector('.modal-card') || dialog); return; }",
@@ -208,7 +208,7 @@
   },
   {
     "name": "the export clipping guard is removed",
-    "guards": "a distorted programme is caught before it is encoded",
+    "guards": "a distorted program is caught before it is encoded",
     "file": "src/app.js",
     "suite": "dom",
     "find": "    if (clipsOnExport(peakOf(channelsOf(rendered))) && !clippingAccepted) {",
@@ -235,21 +235,21 @@
   },
   {
     "name": "a drop on the timeline no longer adds the song",
-    "guards": "dropping on the strip puts the music in the programme",
+    "guards": "dropping on the strip puts the music in the program",
     "file": "src/app.js",
     "suite": "dom",
     "find": "    if (ontoTimeline) for (const entry of added) addClip(entry);",
     "replace": "    void ontoTimeline;",
-    "expect": "puts the song in the programme"
+    "expect": "puts the song in the program"
   },
   {
-    "name": "a colour is changed in the app but not the docs",
+    "name": "a color is changed in the app but not the docs",
     "guards": "the guide keeps looking like the app it documents",
     "file": "src/style.css",
     "suite": "unit",
     "find": "  --good: #17935a;",
     "replace": "  --good: #17935b;",
-    "expect": "agree on the colours"
+    "expect": "agree on the colors"
   },
   {
     "name": "the app stops linking to the guide",
@@ -267,7 +267,7 @@
     "suite": "dom",
     "find": "  :root:not([data-theme=\"light\"]) {\n    color-scheme: dark;",
     "replace": "  :root {\n    color-scheme: dark;",
-    "expect": "the attribute"
+    "expect": "did not beat a system set to dark"
   },
   {
     "name": "the theme choice is not remembered",
@@ -307,11 +307,11 @@
   },
   {
     "name": "the menu counts a stored key rather than stored work",
-    "guards": "an emptied programme is not reported as work",
+    "guards": "an emptied program is not reported as work",
     "file": "src/app.js",
     "suite": "dom",
-    "find": "  if (clips) parts.push('the programme you are working on');",
-    "replace": "  if (true) parts.push('the programme you are working on');",
+    "find": "  if (clips) parts.push('the program you are working on');",
+    "replace": "  if (true) parts.push('the program you are working on');",
     "expect": "still live with nothing left"
   },
   {
