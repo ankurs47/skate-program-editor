@@ -7,7 +7,8 @@
     "test": "node test/run.js",
     "test:net": "node test/run.js --net",
     "test:dom": "node test/dom/run.js",
-    "test:mutate": "node test/mutate.js",
+    "test:mutate": "./tools/mutate-worktree.sh",
+    "test:mutate:here": "node test/mutate.js",
     "lint": "eslint .",
     "check": "npm run lint && npm test",
     "prepare": "git config core.hooksPath .githooks || true"

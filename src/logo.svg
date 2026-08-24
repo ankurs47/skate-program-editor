@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="logo-title">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labeledby="logo-title">
   <title id="logo-title">Skate Program Editor</title>
   <!--
-    A pair of beamed quavers with a lightning split down the middle, the colours
+    A pair of beamed quavers with a lightning split down the middle, the colors
     inverted either side of it. The music is whole; what changes is which side
     of the cut you are on.
 
@@ -18,13 +18,13 @@
     read as a crack in ice.
 
     Nothing is displaced. An earlier version slid the two halves apart along the
-    cut, which worked, but once colour does the telling nothing needs to move —
+    cut, which worked, but once color does the telling nothing needs to move —
     and standing still keeps the notes legible at 16px.
 
     The beam is slanted. Flat, it squares off with the two stems into a box and
     the mark reads as a rectangle rather than as music.
 
-    The tile carries a 2px edge in the accent colour. Without it the white half
+    The tile carries a 2px edge in the accent color. Without it the white half
     dissolves into GitHub's white page and the mark loses a quarter of itself —
     which only showed up when it was rendered against the background it actually
     ships on, rather than the dark one it was drawn on.
@@ -36,7 +36,7 @@
     notched out read as a boat with sails; a note mounted on a blade with sole
     plate, posts and toe picks was accurate and far too literal.
 
-    Fixed colours rather than theme tokens: this is served as a favicon and
+    Fixed colors rather than theme tokens: this is served as a favicon and
     rendered on GitHub's light and dark backgrounds, none of which load a
     stylesheet. The tile is what lets one file do all three.
   -->

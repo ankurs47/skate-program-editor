@@ -23,7 +23,7 @@ check('layout: clips run back to back when nothing is blended', () => {
   eq(total, 100);
 });
 
-check('layout: blending shortens the programme by the overlap', () => {
+check('layout: blending shortens the program by the overlap', () => {
   const clips = [
     { srcStart: 0, srcEnd: 60, crossfade: 0 },
     { srcStart: 30, srcEnd: 90, crossfade: 2.5 },
@@ -34,7 +34,7 @@ check('layout: blending shortens the programme by the overlap', () => {
   eq(total, 189.5);              // 60 + 60 + 75 − 2.5 − 3
 });
 
-check('layout: a blend cannot exceed either neighbour', () => {
+check('layout: a blend cannot exceed either neighbor', () => {
   const clips = [
     { srcStart: 0, srcEnd: 5, crossfade: 0 },
     { srcStart: 0, srcEnd: 40, crossfade: 12 },
@@ -43,7 +43,7 @@ check('layout: a blend cannot exceed either neighbour', () => {
   eq(app.crossfadeOf(clips, 0), 0, 'first clip has nothing to blend into: ');
 });
 
-check('layout: empty programme is zero, not NaN', () => {
+check('layout: empty program is zero, not NaN', () => {
   const { parts, total } = app.layout([]);
   eq(parts, []);
   eq(total, 0);
@@ -53,7 +53,7 @@ check('clips: trims are brought inside the file that actually arrives', () => {
   /* A project records trims but not the audio, so nothing checks those numbers
      against a real duration until the file turns up. Web Audio plays silence
      past the end rather than failing, so an overrun used to show a clip
-     duration that was a lie and export a programme of the wrong length. */
+     duration that was a lie and export a program of the wrong length. */
   const clips = [
     { file: 'a.mp3', srcStart: 0, srcEnd: 200 },    // the file is only 120s long
     { file: 'a.mp3', srcStart: 10, srcEnd: 60 },    // already fits
@@ -90,17 +90,17 @@ check('join preview: plays a few seconds either side of the join', () => {
   eq(range.until, 64, 'the tail is measured from the end of the blend, not the cut: ');
 });
 
-check('join preview: stays inside the programme, and declines when there is no join', () => {
+check('join preview: stays inside the program, and declines when there is no join', () => {
   const clips = [
     { srcStart: 0, srcEnd: 3, crossfade: 0 },
     { srcStart: 0, srcEnd: 3, crossfade: 0 },
   ];
   const range = app.joinPreviewRange(clips, 1);
-  eq(range.from, 0, 'cannot start before the programme does: ');
+  eq(range.from, 0, 'cannot start before the program does: ');
   eq(range.until, 6, 'cannot run past the end of it: ');
   eq(app.joinPreviewRange(clips, 0), null, 'the first clip has nothing before it: ');
   eq(app.joinPreviewRange(clips, 9), null, 'a clip that is not there: ');
-  eq(app.joinPreviewRange([], 1), null, 'an empty programme: ');
+  eq(app.joinPreviewRange([], 1), null, 'an empty program: ');
 
   // With room either side the defaults are what decide the window, and they
   // have to be long enough to judge a join by and short enough not to be a wait.
@@ -115,7 +115,7 @@ check('join preview: stays inside the programme, and declines when there is no j
 check('export: too loud is caught before anything is encoded', () => {
   // solveGains guards the automatic path, but the Volume slider reaches +24 dB
   // by hand and the encoders clamp, which is flat-topped distortion.
-  ok(app.clipsOnExport(1.2), 'a boosted programme clips');
+  ok(app.clipsOnExport(1.2), 'a boosted program clips');
   ok(app.clipsOnExport(1.01), 'a little over is still flat-topped');
   ok(!app.clipsOnExport(1), 'exactly full scale is not clipping');
   ok(!app.clipsOnExport(Math.pow(10, app.LOUDNESS.ceiling / 20)),
@@ -186,7 +186,7 @@ check('movingAverage: smooths, and treats the ends as shorter windows', () => {
   const spike = new Float32Array(21);
   spike[10] = 7;
   const smoothed = app.movingAverage(spike, 2);
-  // A window of 5 spreads the spike over its neighbours and divides by 5.
+  // A window of 5 spreads the spike over its neighbors and divides by 5.
   near(smoothed[10], 7 / 5, 1e-6, 'the peak is flattened: ');
   near(smoothed[8], 7 / 5, 1e-6, 'and reaches exactly as far as the half width: ');
   eq(smoothed[7], 0, 'but no further: ');
@@ -245,7 +245,7 @@ check('blends: the two sides sum to 1 through the overlap', () => {
 check('fmt: carries the minute rather than showing sixty seconds', () => {
   /* Both formatters used to round the seconds after splitting the minutes off,
      so anything that rounded up to 60 was displayed as sixty seconds: a 59.98s
-     programme read "0:60.0" on the timer, and a 119.6s song listed as "1:60". */
+     program read "0:60.0" on the timer, and a 119.6s song listed as "1:60". */
   eq(app.fmt(59.98), '1:00.0', 'rounding up to a whole minute has to carry: ');
   eq(app.fmt(119.97), '2:00.0');
   eq(app.fmtShort(59.7), '1:00');
@@ -260,7 +260,7 @@ check('fmt: carries the minute rather than showing sixty seconds', () => {
 });
 
 check('fmt: nothing measurable shows as zero, never NaN', () => {
-  // These land in the programme timer and the library, where "NaN:aN" would be
+  // These land in the program timer and the library, where "NaN:aN" would be
   // alarming and meaningless.
   for (const bad of [NaN, -5, -0.4, Infinity, -Infinity]) {
     eq(app.fmt(bad), '0:00.0', `fmt(${bad}): `);
@@ -368,7 +368,7 @@ check('project file: the document holds exactly the fields it is documented to',
       ['clips', 'files', 'level', 'levelLabel', 'name', 'targetSeconds', 'toleranceSeconds']);
     eq(Object.keys(doc.clips[0]).sort(),
       ['crossfade', 'fadeIn', 'fadeOut', 'file', 'gain', 'srcEnd', 'srcStart', 'title']);
-    eq(doc.levelLabel, 'Juvenile', 'the label is denormalised so an old file still reads: ');
+    eq(doc.levelLabel, 'Juvenile', 'the label is denormalized so an old file still reads: ');
   });
 });
 
@@ -464,7 +464,7 @@ check('reconnect: the messages stay in plain language', () => {
 check('project file: a level whose length has changed reopens as custom', () => {
   /* The rulebook numbers move between seasons. A project stores the seconds it
      was actually built to, so reopening it must keep that time and give up the
-     level — never quietly retarget the programme to the new number. */
+     level — never quietly retarget the program to the new number. */
   const level = app.allLevels()[0];
   const read = app.readProject({
     name: 'last season', level: level.id,

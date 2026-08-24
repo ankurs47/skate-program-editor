@@ -2,7 +2,7 @@
  * The documentation pages, which are prose rather than an instrument panel and
  * so want almost none of what src/style.css does.
  *
- * The colour tokens below are a copy of the ones there, deliberately. Loading
+ * The color tokens below are a copy of the ones there, deliberately. Loading
  * the app's stylesheet here would drag in its layout — it styles `header`,
  * `main`, `section` and `h2` for a control surface, and a page of text is not
  * one. Two token blocks that must agree is the same arrangement the two
@@ -11,6 +11,7 @@
  */
 
 :root {
+  color-scheme: light;
   --bg: #f6f7f9;
   --panel: #ffffff;
   --ink: #1b1e23;
@@ -29,8 +30,18 @@
   --mono: ui-monospace, "JetBrains Mono", "DejaVu Sans Mono", monospace;
 }
 
+/* Three states, not two. No attribute means "whatever this computer is set to",
+   which is the default and the one that keeps following the system when it
+   switches at dusk. The :not() is what lets an explicit choice of light win
+   against a system set to dark — without it the media query would override it
+   and the toggle would only work in one direction.
+
+   The dark values appear twice on purpose: a media query and a plain selector
+   cannot be combined into one rule. docs.css carries the same three blocks, and
+   a test compares them, which is what keeps the two from drifting. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --bg: #14171c;
     --panel: #1c2027;
     --ink: #e8ebef;
@@ -46,6 +57,24 @@
     --topbar-ink: #eef1f5;
     --topbar-dim: #98a1ae;
   }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #14171c;
+  --panel: #1c2027;
+  --ink: #e8ebef;
+  --muted: #939caa;
+  --line: #2c323b;
+  --accent: #5b8cff;
+  --accent-soft: #23304d;
+  --good: #35c07f;
+  --bad: #ef6b6b;
+  --wave: #5b6572;
+  --wave-sel: #5b8cff;
+  --topbar-bg: #0e1116;
+  --topbar-ink: #eef1f5;
+  --topbar-dim: #98a1ae;
 }
 
 * { box-sizing: border-box; }
@@ -73,12 +102,27 @@ body {
 .topbar .logo { display: block; flex: 0 0 auto; }
 .topbar h1 { font-size: 17px; margin: 0; font-weight: 600; }
 .topbar a { color: var(--topbar-ink); }
+.topbar-links { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.topbar-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--topbar-dim);
+  font-size: 13px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.topbar-link:hover { color: var(--topbar-ink); background: rgba(255, 255, 255, .11); }
+.topbar-link svg { display: block; }
+
 .topbar .open-app {
-  margin-left: auto;
   border: 1px solid var(--topbar-dim);
-  border-radius: var(--radius);
+  border-radius: 8px;
   padding: 5px 12px;
   text-decoration: none;
+  color: var(--topbar-ink);
 }
 .topbar .open-app:hover { background: rgba(255, 255, 255, .1); }
 
@@ -165,7 +209,7 @@ th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spa
 /* Only where the first column is a label. The troubleshooting table's first
    column is a sentence, and nowrap there pushes the page wider than the
    viewport on a phone. */
-.labelled td:first-child { white-space: nowrap; }
+.labeled td:first-child { white-space: nowrap; }
 
 pre {
   background: var(--panel);
@@ -201,7 +245,7 @@ kbd {
 }
 
 /* The verdict badges, copied from the app so the key here shows the reader the
-   same thing they are looking at. The caution colours are the app's exact
+   same thing they are looking at. The caution colors are the app's exact
    values, which were chosen for contrast — 5.56:1 on the panel, where 10px bold
    needs 4.5:1 — so picking a nicer-looking amber here would quietly undo that.
    Sized up a little, because this is a table rather than a dense list row. */
@@ -237,5 +281,5 @@ footer {
 
 @media (max-width: 34rem) {
   .toc ul { columns: 1; }
-  .topbar .open-app { margin-left: 0; }
+  .topbar-links { margin-left: 0; }
 }

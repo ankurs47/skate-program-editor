@@ -26,6 +26,9 @@ const browser = {
   FileReader: 'readonly', Blob: 'readonly', URL: 'readonly',
   DataView: 'readonly', TextDecoder: 'readonly',
   matchMedia: 'readonly', getComputedStyle: 'readonly',
+  // Used to tell an Element apart from the document, which also receives
+  // events but has no closest().
+  Element: 'readonly',
   // Where the browser has it, file handles are kept here so a project can
   // find its music again without being asked for every song.
   indexedDB: 'readonly',

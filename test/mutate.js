@@ -3,7 +3,7 @@
  * Mutation testing: break the code on purpose, and check a test notices.
  *
  *   npm run test:mutate
- *   npm run test:mutate -- --only "colour cache"
+ *   npm run test:mutate -- --only "color cache"
  *
  * An ordinary test asks whether the code passes. This asks whether the test can
  * fail — which is not the same question, and three times here the answer was

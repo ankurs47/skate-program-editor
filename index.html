@@ -6,6 +6,16 @@
 <meta name="color-scheme" content="light dark">
 <title>Skate Program Editor</title>
 <link rel="icon" href="src/logo.svg" type="image/svg+xml">
+<script>
+  /* Runs before the stylesheet so an explicit choice never flashes the other
+     theme first. All this has to do is set the attribute the CSS watches for;
+     the rest of the logic — the button, the wording, the repaint — is in
+     src/app.js, which spells this key the same way. A test checks that. */
+  try {
+    var m = localStorage.getItem('skate.theme');
+    if (m === 'light' || m === 'dark') document.documentElement.setAttribute('data-theme', m);
+  } catch (e) { /* private mode: fall back to following the system */ }
+</script>
 <link rel="stylesheet" href="src/style.css">
 </head>
 <body>
@@ -38,17 +48,45 @@
 </div>
 
 <div class="topbar">
-  <img class="logo" src="src/logo.svg" width="24" height="24" alt="">
-  <h1>Skate Program Editor</h1>
+  <span class="topbar-brand">
+    <img class="logo" src="src/logo.svg" width="24" height="24" alt="">
+    <h1>Skate Program Editor</h1>
+  </span>
   <nav class="help-nav" aria-label="Help topics">
     <button class="help-btn" data-help="basics">Basics</button>
     <button class="help-btn" data-help="tips">Tips</button>
     <button class="help-btn" data-help="saving">Saving</button>
     <button class="help-btn" data-help="quality">Sound quality</button>
     <button class="help-btn" data-help="keys">Keyboard</button>
-    <a class="guide-link" href="docs/help.html">Full guide &rarr;</a>
   </nav>
-  <span class="topbar-note">Nothing is uploaded &mdash; everything stays on this computer.</span>
+  <span class="topbar-links">
+    <span class="menu-wrap">
+      <button class="topbar-link" id="btnSettings" type="button"
+              aria-haspopup="true" aria-expanded="false" aria-controls="settingsMenu">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+        Settings
+      </button>
+      <div class="menu hidden" id="settingsMenu" role="dialog" aria-modal="false" aria-label="Settings">
+        <p class="menu-head" id="themeGroupLabel">Colors</p>
+        <div class="seg" role="radiogroup" aria-labeledby="themeGroupLabel">
+          <button type="button" role="radio" data-theme-choice="auto" aria-checked="true">Auto</button>
+          <button type="button" role="radio" data-theme-choice="light" aria-checked="false">Light</button>
+          <button type="button" role="radio" data-theme-choice="dark" aria-checked="false">Dark</button>
+        </div>
+        <p class="hint menu-note" id="themeNote">Auto follows whatever this computer is set to.</p>
+
+        <p class="menu-head">This computer</p>
+        <p class="hint menu-note" id="forgetNote"></p>
+        <button type="button" id="btnForget" class="small danger">Forget it all</button>
+      </div>
+    </span>
+    <a class="topbar-link" href="docs/help.html">Full guide</a>
+    <a class="topbar-link" href="https://github.com/ankurs47/skate-program-editor"
+       target="_blank" rel="noopener" title="Source code on GitHub">
+      <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" focusable="false"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+      GitHub
+    </a>
+  </span>
 </div>
 
 <header>
@@ -79,8 +117,13 @@
 <main>
   <aside id="library">
     <div class="panel-head">
+      <button id="btnLibraryToggle" class="lib-toggle" type="button" aria-expanded="true"
+              aria-controls="libraryList" title="Hide the music list">
+        <svg class="ico ico-hide" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m16 15-3-3 3-3"/></svg>
+        <svg class="ico ico-show" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m14 9 3 3-3 3"/></svg>
+      </button>
       <h2>Music</h2>
-      <button id="btnAddFiles" class="small">Add files</button>
+      <button id="btnAddFiles">Add files</button>
     </div>
     <ul id="libraryList"></ul>
     <div id="dropzone" class="dropzone">Drop audio files here</div>
@@ -89,7 +132,7 @@
   <section id="workspace">
     <div class="panel-head">
       <h2>Program</h2>
-      <button id="btnEvenOut" class="small">Even out the volume</button>
+      <button id="btnEvenOut">Even out the volume</button>
       <div class="transport">
         <button id="btnPlay" class="play"><span id="btnPlayLabel">Play</span><kbd>Space</kbd></button>
         <button id="btnStop" title="Return to start">Stop</button>
@@ -103,7 +146,7 @@
       <p class="hint">
         A saved project remembers your editing, but not the music. Add these
         files and your cuts, fades and blends come straight back. Until then the
-        program won&rsquo;t play, and <b>Make music file</b> stays greyed out.
+        program won&rsquo;t play, and <b>Make music file</b> stays grayed out.
       </p>
       <div class="missing-actions">
         <!-- Only shown where the browser can hand a file back after a reload;
@@ -176,7 +219,7 @@
 </main>
 
 <div id="startDialog" class="modal hidden">
-  <div class="modal-card start-card" role="dialog" aria-modal="true" aria-labelledby="startTitle">
+  <div class="modal-card start-card" role="dialog" aria-modal="true" aria-labeledby="startTitle">
     <h2 id="startTitle">Skate Program Editor</h2>
 
     <div id="startWarn" class="warn hidden">
@@ -210,6 +253,10 @@
     <p class="hint">
       You can change the name and the event at any time from the bar at the top.
     </p>
+    <p class="hint start-privacy">
+      <b>Your music never leaves this computer.</b> Files are read straight from
+      your disk, and nothing is uploaded.
+    </p>
     <div class="modal-actions" id="startCancelRow">
       <button id="btnStartCancel">Cancel</button>
     </div>
@@ -217,7 +264,7 @@
 </div>
 
 <div id="helpModal" class="modal hidden">
-  <div class="modal-card help-card" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+  <div class="modal-card help-card" role="dialog" aria-modal="true" aria-labeledby="helpTitle">
     <div class="help-head">
       <h2 id="helpTitle"></h2>
       <button id="helpClose" class="small" aria-label="Close">Close</button>
@@ -386,7 +433,7 @@
 </div>
 
 <div id="exportDialog" class="modal hidden">
-  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="exportTitle">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labeledby="exportTitle">
     <h2 id="exportTitle">Make the music file</h2>
     <p id="exportSummary" class="hint"></p>
     <div id="lengthWarning" class="warn hidden">

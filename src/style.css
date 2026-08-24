@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light;
   --bg: #f6f7f9;
   --panel: #ffffff;
   --ink: #1b1e23;
@@ -17,8 +18,18 @@
   --mono: ui-monospace, "JetBrains Mono", "DejaVu Sans Mono", monospace;
 }
 
+/* Three states, not two. No attribute means "whatever this computer is set to",
+   which is the default and the one that keeps following the system when it
+   switches at dusk. The :not() is what lets an explicit choice of light win
+   against a system set to dark — without it the media query would override it
+   and the toggle would only work in one direction.
+
+   The dark values appear twice on purpose: a media query and a plain selector
+   cannot be combined into one rule. docs.css carries the same three blocks, and
+   a test compares them, which is what keeps the two from drifting. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --bg: #14171c;
     --panel: #1c2027;
     --ink: #e8ebef;
@@ -34,6 +45,24 @@
     --topbar-ink: #eef1f5;
     --topbar-dim: #98a1ae;
   }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #14171c;
+  --panel: #1c2027;
+  --ink: #e8ebef;
+  --muted: #939caa;
+  --line: #2c323b;
+  --accent: #5b8cff;
+  --accent-soft: #23304d;
+  --good: #35c07f;
+  --bad: #ef6b6b;
+  --wave: #5b6572;
+  --wave-sel: #5b8cff;
+  --topbar-bg: #0e1116;
+  --topbar-ink: #eef1f5;
+  --topbar-dim: #98a1ae;
 }
 
 * { box-sizing: border-box; }
@@ -120,17 +149,22 @@ header {
   color: var(--ink);
   background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 4px 8px;
   width: 260px;
 }
 #programName:hover { border-color: var(--muted); }
 #programName:focus { border-color: var(--accent); outline: none; background: var(--bg); }
 
-.budget { flex: 1; min-width: 260px; max-width: 460px; }
+.budget { flex: 1 1 380px; min-width: 260px; max-width: 560px; }
 .budget-time { font: 600 30px/1.1 var(--mono); font-variant-numeric: tabular-nums; }
 .budget-meta { display: flex; align-items: center; gap: 10px; margin-top: 2px; }
-.delta { font-size: 13px; font-weight: 600; }
+/* The readout never wraps, so the select is what gives way when the header is
+   tight: a truncated level name is still readable, a readout broken across two
+   lines mid-phrase is not. */
+.budget-meta > select { min-width: 0; flex: 0 1 auto; }
+.budget-meta > .delta { flex: 0 0 auto; }
+.delta { font-size: 13px; font-weight: 600; white-space: nowrap; }
 .delta.ok { color: var(--good); }
 .delta.bad { color: var(--bad); }
 .budget-bar {
@@ -188,8 +222,99 @@ main {
   padding: 16px 20px 40px;
   align-items: start;
 }
+/* Collapsed, the sidebar hands its whole column back to the workspace and
+   keeps only the button that brings it out again — put anywhere else, that
+   button would be a control for a panel with nothing on screen to attach it
+   to. Below the breakpoint there is one column anyway and nothing to reclaim,
+   so the collapsed rule has to be overridden rather than merely outranked:
+   main.library-collapsed is the more specific selector. */
+main.library-collapsed { grid-template-columns: auto 1fr; }
+/* The same padding as the expanded panel, so the toggle keeps the exact spot it
+   was in rather than sliding as the sidebar goes. */
+main.library-collapsed #library { padding: 14px; }
+main.library-collapsed #library > :not(.panel-head) { display: none; }
+main.library-collapsed #library .panel-head { margin-bottom: 0; }
+main.library-collapsed #library .panel-head > :not(.lib-toggle) { display: none; }
+/* ---- settings menu ---- */
+
+.menu-wrap { position: relative; }
+.menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 40;
+  width: 260px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .28);
+}
+.menu-head {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--muted);
+}
+.menu-head + * { margin-top: -2px; }
+.menu-note { font-size: 12px; }
+.menu hr { width: 100%; border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
+
+/* One control, three states, and the chosen one is obvious without reading —
+   which a cycling button never manages, because it can only ever show you where
+   you are and not what else there is. */
+.seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg > button {
+  flex: 1;
+  border: 0;
+  border-radius: 0;
+  padding: 6px 4px;
+  font-size: 13px;
+  color: var(--muted);
+  background: transparent;
+}
+.seg > button + button { border-left: 1px solid var(--line); }
+.seg > button:hover:not([aria-checked="true"]) { color: var(--ink); background: var(--bg); }
+.seg > button[aria-checked="true"] { color: #fff; background: var(--accent); }
+
+/* The panel-with-a-chevron mark, which is what editors and browsers use for
+   "show or hide the side panel". A bare arrow was the first attempt and says
+   nothing about what it acts on; this draws the panel itself, with the bar down
+   the side standing for the sidebar and the chevron pointing the way it is
+   about to go. */
+.lib-toggle .ico-show { display: none; }
+main.library-collapsed .lib-toggle .ico-hide { display: none; }
+main.library-collapsed .lib-toggle .ico-show { display: block; }
+
+/* The toggle comes first in the row and the heading takes the slack, so the
+   button sits at the far left whether the panel is open or shut. Collapsed it
+   is the only thing left, and a control that moves when you use it is a control
+   you have to go looking for the second time. */
+#library .panel-head > h2 { margin-right: auto; }
+.lib-toggle {
+  display: grid;
+  place-items: center;
+  /* Matches a full-size button, which is what sets the height of this row while
+     the panel is open. Without it the row shrinks to the icon when everything
+     else is hidden and the toggle rises by several pixels as you collapse —
+     small, and exactly the kind of movement that makes you hunt for a control
+     you just used. A browser check pins the position in both states. */
+  min-height: 39px;
+  padding: 4px 6px;
+  color: var(--muted);
+  background: transparent;
+  border-color: transparent;
+}
+.lib-toggle:hover:not(:disabled) { color: var(--ink); border-color: var(--line); }
+
 @media (max-width: 860px) {
-  main { grid-template-columns: 1fr; }
+  main, main.library-collapsed { grid-template-columns: 1fr; }
 }
 
 aside, section {
@@ -300,7 +425,7 @@ aside, section {
 .dropzone.over { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 /* Music can be dropped anywhere on the page, so while one is over it both
    places that mean something light up: the list it will join, and the timeline,
-   which also puts it straight into the programme. */
+   which also puts it straight into the program. */
 body.dropping .dropzone {
   border-color: var(--accent);
   color: var(--accent);
@@ -343,7 +468,7 @@ body.dropping #timelineWrap .timeline {
   flex: 1 1 0;          /* grow factor is set per clip from its duration */
   min-width: 52px;      /* a very short clip stays clickable */
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--panel);
   padding: 6px;
   cursor: grab;
@@ -381,7 +506,7 @@ body.dropping #timelineWrap .timeline {
   cursor: pointer;
   touch-action: none;
 }
-.scrub-help { margin: 5px 2px 0; font-size: 12px; }
+.scrub-help { margin: 5px 2px 0; }
 
 /* ---- clip editor ---- */
 .editor { margin-top: 16px; }
@@ -439,23 +564,49 @@ body.dropping #timelineWrap .timeline {
   margin: 0 20px 0 0;
   color: var(--topbar-ink);
 }
-.logo { display: block; flex: 0 0 auto; margin-right: 9px; }
 .help-nav { display: flex; gap: 2px; flex-wrap: wrap; }
-.topbar-note {
+/* Logo and title travel together; without this they can be split by the wrap
+   that the rest of the bar depends on at narrow widths. */
+.topbar-brand { display: flex; align-items: center; gap: 9px; flex: 0 0 auto; }
+/* The two outbound links sit apart from the help buttons, at the far end of the
+   bar: they leave the page, and the help buttons open a dialog over it. Looking
+   alike was the whole problem — same shape, two different kinds of thing. The
+   distance is what separates them now, so no rule is needed between. */
+.topbar-links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
   margin-left: auto;
-  font-size: 12px;
+}
+.topbar-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: var(--topbar-dim);
+  font-size: 13px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  text-decoration: none;
+  white-space: nowrap;
 }
-@media (max-width: 820px) {
-  .topbar-note { display: none; }
-}
+.topbar-link:hover { color: var(--topbar-ink); background: rgba(255, 255, 255, .11); }
+.topbar-link svg { display: block; }
+/* The toggle is a button wearing the link styling, so it has to shed the
+   button defaults first. Only the icon for the current mode is shown; all
+   three ship in the markup so no JavaScript has to build an icon. */
+button.topbar-link { border: 0; background: transparent; font: inherit; cursor: pointer; }
+.theme-btn .ico { display: none; }
+.theme-btn[data-mode="auto"] .ico-auto,
+.theme-btn[data-mode="light"] .ico-light,
+.theme-btn[data-mode="dark"] .ico-dark { display: block; }
 .help-btn {
   border: none;
   background: transparent;
   color: var(--topbar-dim);
   font-size: 13px;
   padding: 5px 11px;
-  border-radius: 7px;
+  border-radius: 8px;
 }
 .help-btn:hover {
   color: var(--topbar-ink);
@@ -463,19 +614,6 @@ body.dropping #timelineWrap .timeline {
   border-color: transparent;
 }
 .help-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-
-/* The one link out of the app. Sits with the help buttons because it is the
-   same offer at greater length, so it reads as one of them rather than as
-   navigation away. */
-.guide-link {
-  color: var(--topbar-dim);
-  font-size: 13px;
-  padding: 5px 11px;
-  border-radius: 7px;
-  text-decoration: none;
-  white-space: nowrap;
-}
-.guide-link:hover { color: var(--topbar-ink); background: rgba(255, 255, 255, .11); }
 
 /* ---- start dialog ---- */
 .start-card { width: min(430px, 94vw); }
@@ -498,6 +636,15 @@ button.wide { width: 100%; padding: 9px 14px; }
   height: 1px;
   background: var(--line);
 }
+/* The one thing worth knowing before you hand over your files, and the only
+   place in the app that still says it since the topbar note went. Set apart
+   from the hint above it, which is housekeeping rather than reassurance. */
+.start-privacy {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.start-privacy b { color: var(--ink); }
 
 .help-card { width: min(600px, 94vw); max-height: 84vh; overflow-y: auto; }
 .help-head {
@@ -586,6 +733,13 @@ button.primary > kbd { color: #fff; border-color: rgba(255, 255, 255, .5); }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 .progress { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
 .progress > div { height: 100%; width: 0; background: var(--accent); transition: width .1s linear; }
+
+/* Both width transitions above are feedback rather than decoration, but the
+   system setting is a request to stop things moving and nothing is lost by
+   honoring it — the bars still land where they were going to. */
+@media (prefers-reduced-motion: reduce) {
+  .budget-fill, .progress > div { transition: none; }
+}
 
 .toast {
   position: fixed;

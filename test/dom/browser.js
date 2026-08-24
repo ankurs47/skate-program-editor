@@ -179,6 +179,10 @@ async function open({ url = '/index.html' } = {}) {
       '--headless=new', '--disable-gpu', '--no-sandbox', '--no-first-run',
       '--disable-extensions', '--disable-background-networking',
       '--autoplay-policy=no-user-gesture-required',
+      /* Headless defaults to 800x600, which is below the 860px breakpoint — so
+         without this every check ran against the one-column phone layout and
+         the two-column one the app actually ships in was never exercised. */
+      '--window-size=1280,900',
       `--user-data-dir=${profile}`,
       `--remote-debugging-port=${port}`,
       'about:blank',

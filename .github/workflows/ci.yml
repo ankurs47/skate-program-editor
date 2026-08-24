@@ -53,7 +53,7 @@ jobs:
       # the alternative — pull_request_target — would run this workflow with
       # write access against code from the fork, which is not a trade worth
       # making for a comment.
-      - name: Summarise on the pull request
+      - name: Summarize on the pull request
         if: >
           always() && github.event_name == 'pull_request'
           && github.event.pull_request.head.repo.full_name == github.repository

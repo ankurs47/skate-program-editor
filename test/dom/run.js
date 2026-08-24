@@ -74,13 +74,56 @@ async function main() {
         return {
           scripts: [...document.querySelectorAll('script[src]')]
             .map(s => s.getAttribute('src')).filter(s => !s.startsWith('http')),
-          crossFile: ['clamp', 'analyseBeats', 'qualityKind', 'layout']
+          crossFile: ['clamp', 'analyzeBeats', 'qualityKind', 'layout']
             .map(n => typeof window[n] === 'function' || typeof eval(n) === 'function'),
         };
       `);
       eq(state.scripts, SCRIPTS, 'load order: ');
       eq(state.crossFile, [true, true, true, true], 'every cross-file name resolves: ');
       eq(session.page.consoleErrors(), [], 'the page logged errors on startup: ');
+    });
+
+    await check('collapsing the music panel frees the column and nothing else', async () => {
+      /* The first version of this hid `.panel-head > :not(.lib-toggle)` without
+         scoping it to #library, which took the Program header — Even out, Play,
+         Stop — off the screen along with the sidebar. Reclaimed width alone
+         would not have caught that. */
+      const out = await run(`
+        /* Shared page again: start expanded whatever the last check left. */
+        setLibraryCollapsed(false);
+        const main = document.querySelector('main');
+        const button = document.getElementById('btnLibraryToggle');
+        const width = () => Math.round(document.getElementById('scrubber').getBoundingClientRect().width);
+        /* Count the controls, not the headers. An emptied .panel-head is still
+           an element with an offsetParent, so counting headers stayed at three
+           while Play and Stop were off the screen — the check could not fail. */
+        const heads = () => [...document.querySelectorAll('.panel-head *')]
+          .filter(e => e.offsetParent && !e.closest('#library')).length;
+        const spot = () => { const r = button.getBoundingClientRect();
+          return Math.round(r.left) + ',' + Math.round(r.top); };
+        const before = { w: width(), heads: heads(), spot: spot(),
+                         expanded: button.getAttribute('aria-expanded') };
+        button.click();
+        const after = { w: width(), heads: heads(), spot: spot(),
+                        expanded: button.getAttribute('aria-expanded'),
+                        stored: localStorage.getItem('skate.musicPanel'),
+                        listShown: !!document.getElementById('libraryList').offsetParent };
+        button.click();
+        const back = { w: width(), expanded: button.getAttribute('aria-expanded') };
+        localStorage.removeItem('skate.musicPanel');
+        return { before, after, back };
+      `);
+      ok(out.after.w > out.before.w, `collapsing gave the workspace no room: ${out.before.w} -> ${out.after.w}`);
+      eq(out.after.heads, out.before.heads, 'a panel header disappeared with the sidebar: ');
+      eq(out.after.listShown, false, 'the music list is still on screen when collapsed: ');
+      eq(out.after.stored, 'collapsed', 'the choice is remembered: ');
+      eq([out.before.expanded, out.after.expanded, out.back.expanded],
+        ['true', 'false', 'true'], 'aria-expanded: ');
+      eq(out.back.w, out.before.w, 'expanding again did not restore the width: ');
+      /* The button is the only way back, so it must not move when it is used —
+         collapsed it is the one thing left on screen, and a control that shifts
+         is one you have to go looking for the second time. */
+      eq(out.after.spot, out.before.spot, 'the toggle moved when the panel collapsed: ');
     });
 
     await check('the start dialog is unskippable on a first visit', async () => {
@@ -227,7 +270,7 @@ async function main() {
 
     await check('a dialog owns the keyboard while it is open', async () => {
       // The export dialog used to be left out of this, so Space, Delete and the
-      // trim keys still reached the programme behind it.
+      // trim keys still reached the program behind it.
       const result = await run(`
         window.__reset([['a.mp3', window.__tone(220, 30)], ['b.mp3', window.__tone(330, 30)]]);
         state.selected = state.clips[1].id;
@@ -248,7 +291,7 @@ async function main() {
         };
       `);
       eq(result, { open: true, clipsUnchanged: true, trimUnchanged: true, notPlaying: true },
-        'editing keys reached the programme behind the dialog: ');
+        'editing keys reached the program behind the dialog: ');
     });
 
     await check('focus is trapped in the dialog and handed back on Escape', async () => {
@@ -282,9 +325,9 @@ async function main() {
 
     /* ------------------------------------------------------------- export */
 
-    await check('a programme that would distort warns before it encodes', async () => {
+    await check('a program that would distort warns before it encodes', async () => {
       /* The peak is measured after the render and before the encode, so a
-         distorted programme is caught before a file anyone might take to a
+         distorted program is caught before a file anyone might take to a
          competition exists. Nothing is written to disk here: download is
          replaced for the duration. */
       const result = await run(`
@@ -312,14 +355,14 @@ async function main() {
         }
       `);
       eq(result.warnedBeforeClicking, false, 'the warning should not precede the attempt: ');
-      eq(result.first.warned, true, 'a clipping programme must warn: ');
+      eq(result.first.warned, true, 'a clipping program must warn: ');
       eq(result.first.files, 0, 'nothing may be encoded on the first click: ');
       eq(result.first.button, 'Save it anyway');
       ok(result.first.danger, 'the way through should not look like the routine path');
       eq(result.filesAfterSecond, 1, 'the second click must go through: ');
     });
 
-    await check('a programme that does not distort is saved straight away', async () => {
+    await check('a program that does not distort is saved straight away', async () => {
       const result = await run(`
         window.__reset([['a.mp3', window.__tone(220, 20, 0.3)]]);
         const realDownload = window.download;
@@ -334,12 +377,12 @@ async function main() {
           __id('exportDialog').classList.add('hidden');
         }
       `);
-      eq(result, { warned: false, files: 1}, 'a clean programme must not be nagged: ');
+      eq(result, { warned: false, files: 1}, 'a clean program must not be nagged: ');
     });
 
     /* ------------------------------------------------------------ library */
 
-    await check('a file can only be removed once the programme stops using it', async () => {
+    await check('a file can only be removed once the program stops using it', async () => {
       const result = await run(`
         window.__reset([['a.mp3', window.__tone(220, 20)], ['b.mp3', window.__tone(330, 20)]]);
         window.__addToLibrary('spare.mp3', window.__tone(440, 10));
@@ -359,7 +402,7 @@ async function main() {
         'only the unused file should be removable: ');
       eq(result.after.find((b) => b.file === 'b.mp3').removable, true,
         'taking a clip out should free its file: ');
-      ok(result.stillThere, 'a file still in the programme was removed anyway');
+      ok(result.stillThere, 'a file still in the program was removed anyway');
     });
 
     /* -------------------------------------------------------- audio graph */
@@ -432,7 +475,7 @@ async function main() {
       eq(result.shape, [[0, 0], [3, 1], [14, 1], [18, 0]], 'the fade shape: ');
     });
 
-    await check('playing a join stops before the end of the programme', async () => {
+    await check('playing a join stops before the end of the program', async () => {
       const result = await run(`
         window.__reset([['a.mp3', window.__clicks(120, 30)], ['b.mp3', window.__clicks(120, 30)]]);
         state.clips[1].crossfade = 2;
@@ -453,7 +496,7 @@ async function main() {
       `);
       eq(result.armed.from, result.armed.joinAt - 4, 'four seconds of lead-in: ');
       eq(result.armed.until, result.armed.joinAt + 2 + 4, 'the tail runs from the end of the blend: ');
-      ok(result.armed.until < result.armed.total, 'the preview should stop before the programme does');
+      ok(result.armed.until < result.armed.total, 'the preview should stop before the program does');
       eq(result.plain.stopAt, result.armed.total, 'ordinary play must still run to the end: ');
     });
 
@@ -555,7 +598,7 @@ async function main() {
       eq(result.start, 'abc');
       eq(result.afterLeft, 'acb', 'Move earlier should move it one place: ');
       eq(result.atFront.order, 'cab');
-      eq(result.atFront.leftDisabled, true, 'at the front it should grey out: ');
+      eq(result.atFront.leftDisabled, true, 'at the front it should gray out: ');
       eq(result.atFront.stillSelected, 'c', 'selection must follow the clip: ');
       eq(result.afterStrayDrops, 'cab', 'a stray drop must not reorder anything: ');
       eq(result.afterRealDrag, 'abc', 'a real drag must still work: ');
@@ -717,7 +760,7 @@ async function main() {
       eq(result.names, ['dropped.mp3', 'dropped.mp3', 'dropped.mp3']);
     });
 
-    await check('a drop on the timeline also puts the song in the programme', async () => {
+    await check('a drop on the timeline also puts the song in the program', async () => {
       const result = await run(`
         window.__reset([]);
         window.__addToLibrary('dropped.mp3', window.__tone(220, 12));
@@ -859,7 +902,7 @@ async function main() {
       eq(result.created, 0,
         'sixty input events built elements — the strip is being rebuilt again: ');
       eq(result.styleReads, 0,
-        'the stylesheet was read during drawing; the colour cache is not being used: ');
+        'the stylesheet was read during drawing; the color cache is not being used: ');
       ok(result.timelineWaves <= result.clips * 4,
         `${result.timelineWaves} waveform draws for ${result.clips} clips over sixty events — `
         + 'they are meant to coalesce to about one batch a frame (it was 240)');
@@ -867,7 +910,7 @@ async function main() {
 
     await check('a refresh that changes nothing rebuilds nothing', async () => {
       /* refresh() redraws the library because whether a file can be removed
-         depends on the programme using it — but that answer changes far less
+         depends on the program using it — but that answer changes far less
          often than refresh is called. */
       const result = await run(`
         window.__reset([
@@ -959,7 +1002,7 @@ async function main() {
     });
 
     await check('changing the theme repaints rather than trusting the cache', async () => {
-      /* The colours are cached and the strip only rebuilds when its contents
+      /* The colors are cached and the strip only rebuilds when its contents
          change — neither of which notices a theme change, so it has to be told. */
       const result = await run(`
         window.__reset([['a.mp3', window.__tone(220, 60)]]);
@@ -976,6 +1019,151 @@ async function main() {
     });
 
     /* -------------------------------------------------------------- close */
+
+    /* These four go last on purpose. They share the page with everything above
+       and two of them are destructive — forgetting empties the library and the
+       program that earlier checks build on, and the format one drives
+       mp3Ready by hand. Run from the top they took a different unrelated check
+       down on each run. */
+    await check('the color choice sticks, and light beats a system set to dark', async () => {
+      /* The system is emulated as dark for this one, because that is the only
+         arrangement where the interesting half is visible: choosing light has
+         to beat a media query that is actively asking for dark. Asserting the
+         data-theme attribute proves nothing — JavaScript sets that whatever the
+         stylesheet does — so this reads the background the page actually paints.
+
+         Every check shares one page load, so the emulation and the stored mode
+         are both handed back afterwards. */
+      await session.page.send('Emulation.setEmulatedMedia', {
+        features: [{ name: 'prefers-color-scheme', value: 'dark' }],
+      });
+      try {
+        const out = await run(`
+          localStorage.removeItem('skate.theme');
+          applyTheme('auto');
+          const read = () => ({
+            attr: document.documentElement.getAttribute('data-theme'),
+            bg: getComputedStyle(document.body).backgroundColor,
+            checked: [...document.querySelectorAll('[data-theme-choice]')]
+              .filter(b => b.getAttribute('aria-checked') === 'true')
+              .map(b => b.dataset.themeChoice),
+            stored: localStorage.getItem('skate.theme'),
+          });
+          const seen = { auto: read() };
+          for (const mode of ['light', 'dark', 'auto']) {
+            document.querySelector('[data-theme-choice="' + mode + '"]').click();
+            seen[mode === 'auto' ? 'backToAuto' : mode] = read();
+          }
+          localStorage.removeItem('skate.theme');
+          applyTheme('auto');
+          return seen;
+        `);
+        eq(out.auto.checked, ['auto'], 'nothing stored means auto: ');
+        eq(out.auto.attr, null, 'auto should set no attribute: ');
+        eq(out.light.checked, ['light'], 'exactly one option reads as chosen: ');
+        eq(out.dark.stored, 'dark', 'the choice is remembered: ');
+        eq(out.backToAuto.attr, null, 'auto again: ');
+
+        // With the system asking for dark, auto and dark agree and light does not.
+        eq(out.auto.bg, out.dark.bg, 'auto did not follow the system into dark: ');
+        ok(out.light.bg !== out.dark.bg,
+          `choosing light did not beat a system set to dark: both painted ${out.light.bg}`);
+        eq(out.backToAuto.bg, out.dark.bg, 'going back to auto did not follow the system: ');
+      } finally {
+        await session.page.send('Emulation.setEmulatedMedia', { features: [] });
+      }
+    });
+
+    await check('the settings menu opens, closes, and says what is stored', async () => {
+      const out = await run(`
+        /* Shared page: start shut whatever anything above left behind. */
+        setSettingsOpen(false);
+        const button = document.getElementById('btnSettings');
+        const menu = document.getElementById('settingsMenu');
+        const shut = () => menu.classList.contains('hidden');
+        const start = shut();
+        button.click();
+        const opened = { shut: shut(), expanded: button.getAttribute('aria-expanded'),
+                         note: document.getElementById('forgetNote').textContent };
+        document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+        const afterOutside = shut();
+        button.click();
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        const afterEscape = shut();
+        setSettingsOpen(false);
+        return { start, opened, afterOutside, afterEscape };
+      `);
+      eq(out.start, true, 'the menu should begin shut: ');
+      eq(out.opened.shut, false, 'clicking the gear did not open it: ');
+      eq(out.opened.expanded, 'true', 'aria-expanded: ');
+      ok(out.opened.note.length > 0, 'the menu says nothing about what is stored');
+      eq(out.afterOutside, true, 'a click outside did not shut it: ');
+      eq(out.afterEscape, true, 'Escape did not shut it: ');
+    });
+
+    await check('the export format defaults to MP3 and remembers only a real choice', async () => {
+      /* MP3 is what competitions ask for, so it stays the default: nothing
+         stored, a stale value, or anything unrecognized all land on MP3, and
+         only a deliberate WAV comes back as WAV. When the encoder could not be
+         reached there is no choice to make. */
+      const out = await run(`
+        const before = localStorage.getItem('skate.exportFormat');
+        const ready = mp3Ready;
+        const pick = (stored, encoder) => {
+          if (stored === null) localStorage.removeItem('skate.exportFormat');
+          else localStorage.setItem('skate.exportFormat', stored);
+          mp3Ready = encoder;
+          updateExportOptions();
+          return document.getElementById('exportFormat').value;
+        };
+        const out = {
+          nothingStored: pick(null, true),
+          storedMp3: pick('mp3', true),
+          storedWav: pick('wav', true),
+          storedRubbish: pick('flac', true),
+          noEncoder: pick('mp3', false),
+          noEncoderAfterWav: pick('wav', false),
+        };
+        if (before === null) localStorage.removeItem('skate.exportFormat');
+        else localStorage.setItem('skate.exportFormat', before);
+        mp3Ready = ready;
+        updateExportOptions();
+        return out;
+      `);
+      eq(out.nothingStored, 'mp3', 'a first export should offer MP3: ');
+      eq(out.storedMp3, 'mp3', 'MP3 was chosen last time: ');
+      eq(out.storedWav, 'wav', 'WAV was chosen last time: ');
+      eq(out.storedRubbish, 'mp3', 'an unrecognized stored value should fall back to MP3: ');
+      eq(out.noEncoder, 'wav', 'without the encoder only WAV is possible: ');
+      eq(out.noEncoderAfterWav, 'wav', 'without the encoder only WAV is possible: ');
+    });
+
+    await check('forgetting leaves nothing behind, and says so afterwards', async () => {
+      /* refresh() calls save(), so clearing storage before it runs puts an empty
+         program straight back — the first version did exactly that and the
+         menu went on claiming there was something stored. */
+      const out = await run(`
+        state.clips = [{ id: 'x', title: 'a song', file: 'a song.mp3',
+          srcStart: 0, srcEnd: 10, fadeIn: 0, fadeOut: 0, crossfade: 0, gain: 1 }];
+        save();
+        describeStored();
+        const before = { stored: !!localStorage.getItem('skate.program.v1'),
+                         note: document.getElementById('forgetNote').textContent,
+                         disabled: document.getElementById('btnForget').disabled };
+        await forgetEverything();
+        const after = { stored: !!localStorage.getItem('skate.program.v1'),
+                        clips: state.clips.length,
+                        note: document.getElementById('forgetNote').textContent,
+                        disabled: document.getElementById('btnForget').disabled };
+        return { before, after };
+      `);
+      eq(out.before.stored, true, 'nothing was stored to begin with: ');
+      eq(out.before.disabled, false, 'the button was dead while there was work to forget: ');
+      eq(out.after.stored, false, 'the program was written back after being cleared: ');
+      eq(out.after.clips, 0, 'the program is still on screen: ');
+      eq(out.after.disabled, true, 'the button is still live with nothing left to forget: ');
+      ok(out.after.note !== out.before.note, 'the menu still claims the same thing is stored');
+    });
 
     await check('nothing logged an error along the way', async () => {
       const errors = session.page.consoleErrors();

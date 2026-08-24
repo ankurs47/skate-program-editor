@@ -35,7 +35,7 @@ function clamp(v, lo, hi) {
 
    It is deliberately willing to give up. A lot of skating music is rubato — no
    steady pulse to snap to — and tempo detection will happily return a confident
-   wrong answer on it. `analyseBeats` reports a confidence so the caller can
+   wrong answer on it. `analyzeBeats` reports a confidence so the caller can
    leave the cut alone instead of moving it somewhere arbitrary.
 
    Everything here takes samples and returns numbers, so it is testable without
@@ -46,11 +46,11 @@ const BEAT = {
   hop: 512,             // ~12 ms between envelope samples
   minBpm: 60,
   maxBpm: 200,
-  centreBpm: 120,       // tempo prior, so 90 is preferred over 45 or 180
+  centerBpm: 120,       // tempo prior, so 90 is preferred over 45 or 180
   spreadOctaves: 0.9,   // width of that prior
   compression: 100,     // γ in log(1 + γ|X|): lets quiet onsets count too
   smoothing: 0.4,       // seconds of moving average removed from the envelope
-  window: 12,           // seconds of audio analysed around a cut
+  window: 12,           // seconds of audio analyzed around a cut
   minConfidence: 0.3,   // below this we decline rather than guess
   minOnsets: 0.05,      // flux, as a share of frame magnitude, for "notes start here"
   minCoverage: 0.5,     // share of the grid's beats that must actually be played
@@ -191,7 +191,7 @@ function onsetEnvelope(samples, sampleRate) {
     if (f > 0) env[f - 1] = flux;
   });
 
-  // env[i] compares frame i+1 against frame i, so it belongs at that frame's centre
+  // env[i] compares frame i+1 against frame i, so it belongs at that frame's center
   return { env, rate, offset: (hop + n / 2) / sampleRate, level: level / frames };
 }
 
@@ -207,7 +207,7 @@ function onsetEnvelope(samples, sampleRate) {
  * frames in a proportion that changes from beat to beat. That makes alternate
  * beats measure weaker, which is a period-two pattern the autocorrelation
  * happily reports as half the real tempo. Spreading each frame into its
- * neighbours restores the beats to roughly equal size.
+ * neighbors restores the beats to roughly equal size.
  */
 function flattenEnvelope(env, rate) {
   const blurred = new Float32Array(env.length);
@@ -264,7 +264,7 @@ function bestPhaseFor(env, period) {
  * interpolated, and interpolation flattens exactly the sharp peaks being
  * correlated — by an amount that depends on the fractional part, so the scan
  * quietly prefers round numbers. All this has to do is find the right
- * neighbourhood; refinePeriod gets the actual value.
+ * neighborhood; refinePeriod gets the actual value.
  *
  * Returns the best lag in envelope frames, or 0 if the range is unusable.
  */
@@ -279,7 +279,7 @@ function estimateTempoLag(env, rate) {
     let sum = 0;
     for (let i = 0; i + lag < env.length; i++) sum += env[i] * env[i + lag];
     const bpm = (60 * rate) / lag;
-    const octaves = Math.log2(bpm / BEAT.centreBpm) / BEAT.spreadOctaves;
+    const octaves = Math.log2(bpm / BEAT.centerBpm) / BEAT.spreadOctaves;
     const score = (sum / (env.length - lag)) * Math.exp(-0.5 * octaves * octaves);
     if (score > best) { best = score; bestLag = lag; }
   }
@@ -367,7 +367,7 @@ function findBar(beats) {
  * actually played. Near 0 means there is no steady pulse here and the grid,
  * which will have been found regardless, should not be acted on.
  */
-function analyseBeats(samples, sampleRate) {
+function analyzeBeats(samples, sampleRate) {
   const nothing = { bpm: 0, period: 0, confidence: 0, meter: 4, beats: [] };
   const raw = onsetEnvelope(samples, sampleRate);
   if (raw.env.length < 8) return nothing;
@@ -428,13 +428,13 @@ function analyseBeats(samples, sampleRate) {
 /**
  * Choose beat-aligned cut points for one join.
  *
- * `out` and `inc` are analyseBeats results for windows taken around the
+ * `out` and `inc` are analyzeBeats results for windows taken around the
  * outgoing clip's end and the incoming clip's start; `cutOut` and `cutIn` say
  * where those cuts currently sit inside those windows. `outRoom` and `incRoom`
  * bound how far each cut may move before its clip runs out of song.
  *
  * Returns how far to move each cut, what to set the blend to, and how much
- * longer or shorter the programme becomes as a result. `ok: false` means the
+ * longer or shorter the program becomes as a result. `ok: false` means the
  * join should be left exactly as it is.
  */
 /* The two strategies answer the same question in different currencies, so the
@@ -530,7 +530,7 @@ function suggestJoin(out, cutOut, inc, cutIn, opts = {}) {
   }
 
   // Weights are judgement, not physics. Landing on a downbeat is worth roughly
-  // a second of movement; keeping the programme's length is worth slightly less
+  // a second of movement; keeping the program's length is worth slightly less
   // than that, because the timer is visible and easy to correct elsewhere.
   const cost = (endShift, startShift, blend, lengthDelta, a, b) =>
     (0.8 * (Math.abs(endShift) + Math.abs(startShift))) / maxShift
@@ -545,7 +545,7 @@ function suggestJoin(out, cutOut, inc, cutIn, opts = {}) {
     for (const b of incs) {
       const startShift = b.t - cutIn;
       for (const blend of blends) {
-        // Moving the end out lengthens the programme, moving the start in
+        // Moving the end out lengthens the program, moving the start in
         // shortens it, and a longer blend eats the difference.
         const lengthDelta = endShift - startShift - (blend - crossfade);
         const score = cost(endShift, startShift, blend, lengthDelta, a, b);
@@ -588,13 +588,13 @@ function monoWindow(buffer, from, to) {
 function beatsAround(buffer, at, opts = {}) {
   const half = (opts.window ?? BEAT.window) / 2;
   const { samples, start } = monoWindow(buffer, at - half, at + half);
-  return { beats: analyseBeats(samples, buffer.sampleRate), cut: at - start };
+  return { beats: analyzeBeats(samples, buffer.sampleRate), cut: at - start };
 }
 
 /* --------------------------------------------------------------- phrases */
 
 /* Much skating music has no beat to find. Solo piano especially: the tempo
-   pushes and pulls, and there is no grid, so `analyseBeats` correctly refuses
+   pushes and pulls, and there is no grid, so `analyzeBeats` correctly refuses
    to name one. That left the join button with nothing to offer on exactly the
    repertoire skaters use most.
 
@@ -662,7 +662,7 @@ function energyEnvelope(samples, sampleRate, rate) {
 }
 
 /**
- * Twelve pitch classes per frame, each frame normalised to unit length so two
+ * Twelve pitch classes per frame, each frame normalized to unit length so two
  * can be compared by angle alone.
  *
  * A longer frame than the beat detector uses: naming a note needs resolution in
@@ -924,8 +924,8 @@ function suggestJoinForBuffers(outBuffer, cutOut, incBuffer, cutIn, opts = {}) {
   const b = windowAround(incBuffer, cutIn, opts);
 
   const beat = suggestJoin(
-    analyseBeats(a.samples, a.sampleRate), a.cut,
-    analyseBeats(b.samples, b.sampleRate), b.cut, opts);
+    analyzeBeats(a.samples, a.sampleRate), a.cut,
+    analyzeBeats(b.samples, b.sampleRate), b.cut, opts);
   if (beat.ok || beat.reason !== 'no-beat') return beat;
 
   return suggestPhraseJoin(
@@ -938,7 +938,7 @@ function suggestJoinForBuffers(outBuffer, cutOut, incBuffer, cutIn, opts = {}) {
  *
  * The change itself is visible — the waveform, the blocks and the timer all
  * move — so this says the part that isn't: whether it worked, and what it cost
- * in programme length, because that is the number being worked to.
+ * in program length, because that is the number being worked to.
  */
 function describeJoin(result, wasCrossfade) {
   if (!result.ok) {
@@ -1144,8 +1144,8 @@ function measureClip(buffer, from, to) {
  *
  * There is no fixed target. The clip with the widest gap between its peak and
  * its loudness — the most dynamic one — runs out of headroom first, so it sets
- * the level for everyone else. That is the loudest the programme can be while
- * staying both matched and clean, and it means a programme of quiet orchestral
+ * the level for everyone else. That is the loudest the program can be while
+ * staying both matched and clean, and it means a program of quiet orchestral
  * cuts is not dragged down to the level of its quietest moment.
  *
  * `maxCrest` stops one freak clip doing exactly that. A cut that is mostly
@@ -1231,7 +1231,7 @@ if (typeof module !== 'undefined' && module.exports) {
     clamp,
     movingAverage, frameCount,
     BEAT, fftInPlace, onsetEnvelope, flattenEnvelope, estimateTempoLag,
-    analyseBeats, suggestJoin, monoWindow, beatsAround, suggestJoinForBuffers,
+    analyzeBeats, suggestJoin, monoWindow, beatsAround, suggestJoinForBuffers,
     describeJoin,
     PHRASE, gapScores, energyEnvelope, chromaFrames, chromaDistance, noveltyScores,
     phrasePoints, suggestPhraseJoin, windowAround,
