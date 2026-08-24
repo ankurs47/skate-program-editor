@@ -439,6 +439,7 @@ body.dropping #timelineWrap .timeline {
   margin: 0 20px 0 0;
   color: var(--topbar-ink);
 }
+.logo { display: block; flex: 0 0 auto; margin-right: 9px; }
 .help-nav { display: flex; gap: 2px; flex-wrap: wrap; }
 .topbar-note {
   margin-left: auto;
@@ -462,6 +463,19 @@ body.dropping #timelineWrap .timeline {
   border-color: transparent;
 }
 .help-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* The one link out of the app. Sits with the help buttons because it is the
+   same offer at greater length, so it reads as one of them rather than as
+   navigation away. */
+.guide-link {
+  color: var(--topbar-dim);
+  font-size: 13px;
+  padding: 5px 11px;
+  border-radius: 7px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.guide-link:hover { color: var(--topbar-ink); background: rgba(255, 255, 255, .11); }
 
 /* ---- start dialog ---- */
 .start-card { width: min(430px, 94vw); }

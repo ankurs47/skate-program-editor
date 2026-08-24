@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Help — Skate Program Editor</title>
+<meta name="description" content="How to cut, order, blend and export figure skating program music with the Skate Program Editor.">
+<link rel="icon" href="../src/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+
+<div class="topbar">
+  <span class="brand">
+    <img class="logo" src="../src/logo.svg" width="24" height="24" alt="">
+    <h1>Skate Program Editor</h1>
+  </span>
+  <span>Help</span>
+  <a class="open-app" href="../index.html">Open the editor</a>
+</div>
+
+<div class="page">
+
+<p class="lede">
+  Everything the editor does, in roughly the order you will need it. The app
+  itself carries short versions of the first few sections behind the
+  <b>Basics</b>, <b>Tips</b>, <b>Saving</b>, <b>Sound quality</b> and
+  <b>Keyboard</b> buttons at the top of the page. This is the long version.
+</p>
+
+<nav class="toc" aria-labelledby="contents">
+  <h2 id="contents">Contents</h2>
+  <ul>
+    <li><a href="#getting-started">Getting started</a></li>
+    <li><a href="#the-screen">The screen</a></li>
+    <li><a href="#trimming">Trimming a song</a></li>
+    <li><a href="#ordering">Ordering and blending</a></li>
+    <li><a href="#joins">Lining up a join</a></li>
+    <li><a href="#volume">Volume</a></li>
+    <li><a href="#clock">The clock, and program lengths</a></li>
+    <li><a href="#quality">Sound quality labels</a></li>
+    <li><a href="#keys">Keyboard shortcuts</a></li>
+    <li><a href="#saving">Saving and loading</a></li>
+    <li><a href="#project-file">The project file</a></li>
+    <li><a href="#export">Making the music file</a></li>
+    <li><a href="#youtube">Getting music off YouTube</a></li>
+    <li><a href="#browsers">Browsers and devices</a></li>
+    <li><a href="#self-hosting">Running it yourself</a></li>
+    <li><a href="#limits">What it doesn&rsquo;t do</a></li>
+    <li><a href="#troubleshooting">When something goes wrong</a></li>
+  </ul>
+</nav>
+
+<h2 id="getting-started">Getting started</h2>
+
+<ol>
+  <li>Open the <a href="../index.html">editor</a>. There is nothing to install
+      and nothing to sign up for.</li>
+  <li><b>Choose your level</b> at the top. That sets the length you are aiming
+      for, and the big timer turns green once you are inside it.</li>
+  <li><b>Add files</b> &mdash; or drag your music anywhere onto the page.
+      Dropping songs onto the row of blocks adds them to the program at the same
+      time.</li>
+  <li>Pick a song on the left and press <b>Add to program</b>.</li>
+  <li>Trim it, order it, blend the joins, watch the clock, and press <b>Make
+      music file</b> when it sounds right.</li>
+</ol>
+
+<p>
+  Your music never leaves your computer. The files are read straight from disk
+  by the browser, then decoded, mixed and encoded inside the tab and written
+  back to your downloads. There is no server and no upload step.
+</p>
+
+<h2 id="the-screen">The screen</h2>
+
+<p>
+  <b>Music</b>, on the left, is everything you have opened. It is a shelf rather
+  than the program &mdash; a song sitting here is not in your program until you
+  add it.
+</p>
+<p>
+  <b>Program</b>, the row of blocks, is the running order. Click a block to work
+  on that song; drag it left or right to move it.
+</p>
+<p>
+  <b>The bar underneath</b> is the real timing, overlaps included. Where two
+  blocks overlap, that is a blend. The shaded stripe is the length you are
+  allowed. Click anywhere on the bar to move the marker, then press
+  <kbd>Space</kbd> to listen from there.
+</p>
+<p>
+  <b>The clip editor</b> appears below once a song is selected. Trimming, fades
+  and blending all happen there, and they apply to that one song.
+</p>
+
+<h2 id="trimming">Trimming a song</h2>
+
+<p>
+  Drag either end of the waveform. Or put the marker where you want the cut and
+  press <kbd>I</kbd> to start there and <kbd>O</kbd> to end there &mdash; usually
+  more accurate, because you can listen to the exact spot first. The arrow keys
+  nudge the end point, and <kbd>Shift</kbd> moves it further.
+</p>
+<p>
+  <b>Trimming never touches your source files.</b> Nothing the editor does
+  modifies the music on your disk. Trims are only numbers, so you can widen a cut
+  back out at any time.
+</p>
+<p>
+  <b>Play this song</b> auditions the selected clip on its own, exactly as it is
+  set &mdash; trimmed, at its own volume, with its fades. It is the quickest way
+  to check a cut without playing the whole program up to it.
+</p>
+
+<h2 id="ordering">Ordering and blending</h2>
+
+<p>
+  Drag blocks to reorder, or use <b>Move earlier</b> and <b>Move later</b>
+  underneath &mdash; which is how to do it on a touchscreen, where dragging
+  doesn&rsquo;t work.
+</p>
+<p>
+  <b>Blend into previous</b> overlaps this song with the one before it, so one
+  eases into the next. One or two seconds is usually enough. Leave it at 0 for a
+  sudden, deliberate change.
+</p>
+<p>
+  <b>Blending makes the program shorter</b>, because the two songs overlap rather
+  than follow each other. Watch the timer as you move the slider.
+</p>
+<p>
+  <b>Fade in</b> and <b>Fade out</b> are for the very start and the very end.
+  About half a second in stops the music opening with a pop; two or three seconds
+  out lets the ending finish rather than stopping dead.
+</p>
+<p>
+  <b>Hear this join</b> plays the few seconds either side of a cut, so you can
+  judge it without hunting for the spot.
+</p>
+
+<h3>Where to cut</h3>
+<p>
+  Cut where a line of the music finishes, not in the middle of one. If you can
+  hear the join, it is usually in the wrong <em>place</em> rather than badly
+  blended.
+</p>
+
+<h2 id="joins">Lining up a join</h2>
+
+<p>
+  <b>Line up this join</b> nudges a cut by up to a couple of seconds to somewhere
+  the music can actually take it, then tells you what that did to the running
+  total.
+</p>
+<ul>
+  <li>When both songs have a <b>steady beat</b>, it puts them both on it. Two
+      songs whose beats disagree is what makes a blend sound like a stumble, and
+      this is what fixes it.</li>
+  <li>Piano and much orchestral music have <b>no steady beat to find</b>. There
+      it looks for the end of a <em>phrase</em> instead &mdash; the breath
+      between one musical line and the next &mdash; and tells you that is what it
+      did. Cutting there is what makes a join sound intended rather than
+      accidental.</li>
+  <li>If it can find <b>neither</b>, it says so and changes nothing, and you
+      place the cut by ear with <kbd>I</kbd> and <kbd>O</kbd>.</li>
+</ul>
+<p>
+  <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes it either way, so it costs nothing to try.
+</p>
+
+<h2 id="volume">Volume</h2>
+
+<p>
+  <b>Even out the volume</b> sets every song so they all sound about equally
+  loud, without letting any of them distort.
+</p>
+<p>
+  This matters more than it sounds like it should. Records are mastered at wildly
+  different levels, and the rink&rsquo;s sound desk is set once and left alone
+  &mdash; so a quiet cut in the middle of your program simply disappears.
+</p>
+<p>
+  Use it once your cuts are roughly right, and <b>again if you re-trim</b>,
+  because it measures the part you kept rather than the whole song.
+</p>
+<p>
+  The per-song <b>Volume</b> slider adjusts it by hand afterwards. Evening out is
+  a starting point, not the last word: a gentle opening is often <em>meant</em>
+  to be softer than the finish.
+</p>
+
+<h2 id="clock">The clock, and program lengths</h2>
+
+<p>
+  The big timer shows the real length of the program, overlaps included. It turns
+  green inside the allowed window for your event, and tells you exactly how far
+  off you are when you are not.
+</p>
+<p>
+  Aim for the <b>middle</b> of the green range rather than the very edge, so a
+  few seconds either way will not matter. Timing runs from the first sound to the
+  last, so quiet passages still count.
+</p>
+
+<h3>Check the times yourself</h3>
+<div class="note">
+  <p>
+    <b>The built-in times are a convenience, not an authority.</b> Required
+    lengths are set by the governing bodies and do change between seasons. Check
+    your level against the current rulebook, or with your coach, before an entry
+    deadline.
+  </p>
+</div>
+<p>
+  The list covers ISU singles, pairs and ice dance, and U.S. Figure Skating free
+  skate and short program levels. Every option shows its time next to the level
+  name, so a wrong number is visible rather than hidden, and there is a
+  <b>Custom length</b> option for anything not listed.
+</p>
+<p>
+  This project is not affiliated with, endorsed by, or connected to the ISU or
+  U.S. Figure Skating.
+</p>
+
+<h2 id="quality">Sound quality labels</h2>
+
+<p>Each song gets a plain verdict rather than a bitrate you have to interpret.</p>
+
+<table class="labelled">
+  <thead>
+    <tr><th>Label</th><th>What it means</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><span class="badge good">Good</span></td>
+        <td>This song will sound fine at the competition.</td></tr>
+    <tr><td><span class="badge caution">Fair</span></td>
+        <td>It will do, but it won&rsquo;t sound crisp on big speakers.</td></tr>
+    <tr><td><span class="badge poor">Low</span></td>
+        <td>This may sound rough at the rink. Try to find a better copy.</td></tr>
+    <tr><td><span class="badge unknown">Unknown</span></td>
+        <td>We couldn&rsquo;t check this one. It&rsquo;s probably fine.</td></tr>
+  </tbody>
+</table>
+
+<p>
+  The numbers are easy to misread &mdash; a small bitrate for one kind of file
+  can sound better than a big one for another, and a high-bitrate rip of a poor
+  source is still a poor source. Hover a label in the app to see the detail
+  behind the verdict.
+</p>
+<p>
+  <b>Exporting at a higher quality cannot rescue a song that was already poor.</b>
+  You need a better copy of the song itself. The editor says so before you
+  export rather than after.
+</p>
+
+<h2 id="keys">Keyboard shortcuts</h2>
+
+<table class="labelled">
+  <thead>
+    <tr><th>Key</th><th>Does</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><kbd>Space</kbd></td><td>play from the marker, or pause where you are</td></tr>
+    <tr><td><kbd>Home</kbd></td><td>send the marker back to the start</td></tr>
+    <tr><td><kbd>I</kbd></td><td>start the song at the marker</td></tr>
+    <tr><td><kbd>O</kbd></td><td>end the song at the marker</td></tr>
+    <tr><td><kbd>&larr;</kbd> <kbd>&rarr;</kbd></td>
+        <td>move the end point a little &mdash; hold <kbd>Shift</kbd> to move more</td></tr>
+    <tr><td><kbd>[</kbd> <kbd>]</kbd></td><td>go to the previous or next song</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>undo</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td>
+        <td>redo &mdash; <kbd>Ctrl</kbd>+<kbd>Y</kbd> works too</td></tr>
+    <tr><td><kbd>Delete</kbd></td><td>take the selected song out of the program</td></tr>
+  </tbody>
+</table>
+
+<h2 id="saving">Saving and loading</h2>
+
+<p>
+  The browser remembers your work between visits on its own, so you do not need
+  to save after every change. <b>Save project</b> is for keeping a copy, moving
+  to another computer, or being able to go back to an older version later.
+</p>
+
+<div class="note">
+  <p>
+    <b>A project file records your editing, not the music.</b> It is a few
+    kilobytes precisely because the songs are not inside it.
+  </p>
+</div>
+
+<p>That has three consequences worth knowing before a competition:</p>
+<ul>
+  <li>It cannot be played on its own, and it cannot be handed in. Use <b>Make
+      music file</b> for that.</li>
+  <li><b>When you load a project, you add the music files again.</b> Use
+      <b>Add files</b>, or drag them onto the page &mdash; anywhere will do.</li>
+  <li>Until the music is added, those songs show in red and the program will
+      neither play nor export.</li>
+</ul>
+
+<p>
+  Songs reconnect <b>by file name</b>. As long as the names have not changed,
+  every cut, fade and blend comes back exactly. Rename a music file and the link
+  breaks &mdash; rename it back, or remove the song and add it again. Keeping the
+  project file in the same folder as the music is the easy way to keep the two
+  together.
+</p>
+
+<h3 id="reconnect">Opening the music again in one click</h3>
+<p>
+  <b>On Chrome and Edge the editor can usually do this for you.</b> Where the
+  browser supports it, it remembers the songs you opened and offers <b>Open the
+  music again</b> &mdash; one click for the whole program, instead of finding
+  each song by hand.
+</p>
+<p>
+  The audio still never leaves your computer. The browser is only handing back a
+  file you already chose, and it asks your permission before it does.
+</p>
+<p>
+  Firefox and Safari have no such facility, so there it works exactly as it
+  always did: <b>Add files</b>, and the cuts come back. If a remembered song has
+  been moved, renamed or deleted, the editor says which and points you at
+  <b>Add files</b> rather than failing quietly.
+</p>
+
+<h3 id="wrong-song">The wrong song with the right name</h3>
+<p>
+  Because songs are matched by name, the editor also checks that the song it has
+  been handed is the <em>same</em> one &mdash; not a re-download at another
+  quality, and not <code>track01.mp3</code> from a different album.
+</p>
+<p>
+  Without that check the trims would still apply and the timer would still read
+  correctly, and the whole program would quietly be built around the wrong music.
+  If it spots a mismatch it tells you instead.
+</p>
+
+<h3>New</h3>
+<p>
+  <b>New</b> starts a fresh program and asks for a name and an event again. Your
+  loaded songs stay in the list, and nothing is ever deleted from your computer
+  &mdash; but the current program is replaced, so save it first if you want it
+  back.
+</p>
+
+<h2 id="project-file">The project file</h2>
+
+<p><b>Save project</b> writes a small, readable JSON file:</p>
+
+<pre><code>{
+  "name": "my 2026 junior long program",
+  "level": "usfs-jr",
+  "targetSeconds": 210,
+  "toleranceSeconds": 10,
+  "files": [
+    { "name": "chosen song.mp3", "bytes": 5216340, "seconds": 212.5,
+      "fingerprint": "1k4v9p" }
+  ],
+  "clips": [
+    { "file": "chosen song.mp3", "srcStart": 4.76, "srcEnd": 77.08,
+      "fadeIn": 1.5, "fadeOut": 0, "crossfade": 0, "gain": 1 }
+  ]
+}</code></pre>
+
+<p>
+  <code>files</code> records what each song <em>was</em> &mdash; not where it
+  was. A browser will not tell a page where a file lives, so a project cannot
+  save a location. What it saves instead is enough to recognise a different song
+  wearing the same name, which is the check described
+  <a href="#wrong-song">above</a>.
+</p>
+<p>
+  Projects written before this have no <code>files</code> section and are read
+  exactly as before: with nothing recorded, nothing is claimed.
+</p>
+
+<h2 id="export">Making the music file</h2>
+
+<p>
+  <b>Make music file</b> renders the whole program &mdash; trims, fades, blends
+  and volumes &mdash; and saves it as <b>MP3</b> or <b>WAV</b>.
+</p>
+<p>
+  If the program would come out too loud to store cleanly, it warns you
+  <em>before</em> encoding rather than after. Turn the <b>Volume</b> down on the
+  loudest songs, or use <b>Even out the volume</b>, which keeps everything below
+  the limit.
+</p>
+<p>
+  Then listen on proper speakers before the competition. Laptop speakers hide
+  problems the rink&rsquo;s system will not.
+</p>
+
+<h2 id="youtube">Getting the music off YouTube</h2>
+
+<p>
+  The editor works on files that are already on your computer, and often the song
+  you want is one you have only ever heard on YouTube. The repository&rsquo;s
+  <code>tools/</code> folder has a small helper for that &mdash; one script for
+  Mac and Linux, one for Windows, doing the same thing:
+</p>
+
+<pre><code>./tools/music-get.sh "https://www.youtube.com/watch?v=..."     # Mac, Linux
+tools\music-get.cmd "https://www.youtube.com/watch?v=..."      # Windows</code></pre>
+
+<pre><code>  -o DIR      where to put the files (default: here)
+  --playlist  the link is part of a playlist and you want all of it,
+              not just the one song</code></pre>
+
+<p>
+  It saves the sound exactly as YouTube already stores it &mdash; usually a
+  <code>.webm</code> file, which Chrome and Firefox open without complaint.
+  Nothing is converted, so no quality is lost before you start cutting and there
+  is no ffmpeg to install. Give it several links at once and it works through
+  them in turn.
+</p>
+<p>
+  The one thing to install is <a href="https://github.com/yt-dlp/yt-dlp">yt-dlp</a>,
+  which does the actual work:
+</p>
+
+<pre><code>brew install yt-dlp             # Mac
+sudo apt install yt-dlp         # Debian, Ubuntu
+winget install yt-dlp.yt-dlp    # Windows</code></pre>
+
+<p>
+  The script says so, with the command for your system, if it is not there.
+  YouTube changes often enough that a download failing usually means yt-dlp is
+  due an update &mdash; <code>yt-dlp -U</code>.
+</p>
+<p>
+  Competition music is normally covered by the licence your rink or federation
+  holds, but that is between you and them; this tool only moves audio onto your
+  own disk.
+</p>
+
+<h2 id="browsers">Browsers and devices</h2>
+
+<p>
+  Any current Chrome, Edge, Firefox or Safari on a computer. The page tells you
+  if something it needs is missing, rather than failing quietly.
+</p>
+<p>
+  It works on a tablet but warns you first. Trimming by touch is fiddly, and
+  decoded audio is uncompressed &mdash; roughly 90&nbsp;MB of memory per four
+  minutes of stereo &mdash; so a few long songs can exhaust what a mobile browser
+  allows.
+</p>
+
+<h2 id="self-hosting">Running it yourself</h2>
+
+<p>
+  Clone the repository and open <code>index.html</code>. That is the whole build
+  process: no build step, and no runtime dependencies.
+</p>
+<p>
+  To host it, copy <code>index.html</code> and the <code>src/</code> folder
+  anywhere that serves static files. Because users&rsquo; music never reaches the
+  host, there is no storage, no per-user cost, and no third-party audio on your
+  infrastructure.
+</p>
+<p>
+  The one outbound request the page makes is for
+  <a href="https://github.com/zhuker/lamejs">lamejs</a>, the MP3 encoder, from a
+  CDN &mdash; browsers can play MP3 but none of them can create one. It is loaded
+  in the background with a Subresource Integrity hash pinning the exact bytes,
+  and if it cannot be reached the editor still works and export falls back to
+  WAV.
+</p>
+
+<h2 id="limits">What it deliberately doesn&rsquo;t do</h2>
+
+<ul>
+  <li><b>Songs play in sequence.</b> No layering, no second track, no EQ. A
+      program is a sequence of cuts, and the tool is shaped around that.</li>
+  <li><b>It never modifies your source files.</b></li>
+  <li><b>It cannot improve a poor recording.</b> Exporting at a higher quality
+      will not rescue a song that was already bad.</li>
+</ul>
+
+<h2 id="troubleshooting">When something goes wrong</h2>
+
+<table>
+  <thead>
+    <tr><th>What you see</th><th>What to do</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Songs in red, and the program won&rsquo;t play</td>
+      <td>That project&rsquo;s music has not been added yet. Use <b>Add files</b>,
+          or <b>Open the music again</b> if the button is there.</td>
+    </tr>
+    <tr>
+      <td>No <b>Open the music again</b> button</td>
+      <td>Either the browser cannot do it (Firefox, Safari) or nothing was
+          remembered for this project. <b>Add files</b> always works.</td>
+    </tr>
+    <tr>
+      <td>A song has moved, been renamed or been deleted</td>
+      <td>The browser can no longer reach the file it remembered. Find it again
+          with <b>Add files</b>.</td>
+    </tr>
+    <tr>
+      <td>This is a different song with the same name</td>
+      <td>You have been handed another copy &mdash; a different album, or a
+          re-download at another quality. Use the original file, or re-trim
+          against the new one.</td>
+    </tr>
+    <tr>
+      <td><b>Line up this join</b> changed nothing</td>
+      <td>The music has neither a steady beat nor a phrase ending near that cut.
+          Place it by ear with <kbd>I</kbd> and <kbd>O</kbd>.</td>
+    </tr>
+    <tr>
+      <td>A YouTube download fails</td>
+      <td>yt-dlp is usually due an update &mdash; <code>yt-dlp -U</code>.</td>
+    </tr>
+    <tr>
+      <td>Export only offers WAV</td>
+      <td>The MP3 encoder could not be fetched from the CDN. WAV is losslessly
+          fine to hand in; it is just a much bigger file.</td>
+    </tr>
+  </tbody>
+</table>
+
+<footer>
+  <p>
+    <a href="../index.html">Open the editor</a> &middot;
+    <a href="https://github.com/ankurs47/skate-program-editor">Source on GitHub</a> &middot;
+    <a href="development.md">Development notes</a>
+  </p>
+</footer>
+
+</div>
+</body>
+</html>

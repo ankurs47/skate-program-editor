@@ -1,0 +1,241 @@
+/*
+ * The documentation pages, which are prose rather than an instrument panel and
+ * so want almost none of what src/style.css does.
+ *
+ * The colour tokens below are a copy of the ones there, deliberately. Loading
+ * the app's stylesheet here would drag in its layout — it styles `header`,
+ * `main`, `section` and `h2` for a control surface, and a page of text is not
+ * one. Two token blocks that must agree is the same arrangement the two
+ * music-get wrappers are in, and it is held the same way: a test compares them
+ * and fails if they drift.
+ */
+
+:root {
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --ink: #1b1e23;
+  --muted: #6a7280;
+  --line: #dfe3e8;
+  --accent: #2f6df6;
+  --accent-soft: #e6edfe;
+  --good: #17935a;
+  --bad: #cf3b3b;
+  --wave: #9aa5b4;
+  --wave-sel: #2f6df6;
+  --topbar-bg: #1b1e23;
+  --topbar-ink: #f3f5f8;
+  --topbar-dim: #a6adb9;
+  --radius: 10px;
+  --mono: ui-monospace, "JetBrains Mono", "DejaVu Sans Mono", monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171c;
+    --panel: #1c2027;
+    --ink: #e8ebef;
+    --muted: #939caa;
+    --line: #2c323b;
+    --accent: #5b8cff;
+    --accent-soft: #23304d;
+    --good: #35c07f;
+    --bad: #ef6b6b;
+    --wave: #5b6572;
+    --wave-sel: #5b8cff;
+    --topbar-bg: #0e1116;
+    --topbar-ink: #eef1f5;
+    --topbar-dim: #98a1ae;
+  }
+}
+
+* { box-sizing: border-box; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/* ---- the bar across the top, matching the app's ---- */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 10px 20px;
+  background: var(--topbar-bg);
+  color: var(--topbar-ink);
+}
+.topbar .brand { display: flex; align-items: center; gap: 9px; }
+.topbar .logo { display: block; flex: 0 0 auto; }
+.topbar h1 { font-size: 17px; margin: 0; font-weight: 600; }
+.topbar a { color: var(--topbar-ink); }
+.topbar .open-app {
+  margin-left: auto;
+  border: 1px solid var(--topbar-dim);
+  border-radius: var(--radius);
+  padding: 5px 12px;
+  text-decoration: none;
+}
+.topbar .open-app:hover { background: rgba(255, 255, 255, .1); }
+
+/* ---- the page itself ---- */
+
+.page {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 32px 20px 80px;
+}
+
+h2, h3 { line-height: 1.25; }
+h2 {
+  font-size: 25px;
+  margin: 2.2em 0 .5em;
+  padding-top: .6em;
+  border-top: 1px solid var(--line);
+}
+h3 { font-size: 18px; margin: 1.8em 0 .4em; }
+.page > h2:first-of-type { border-top: 0; }
+
+p, ul, ol { margin: 0 0 1em; }
+li { margin-bottom: .35em; }
+a { color: var(--accent); }
+
+.lede {
+  font-size: 17px;
+  color: var(--muted);
+  margin-bottom: 2em;
+}
+
+/* The contents list: a plain two-column set of links, not a sidebar. Sidebars
+   need a viewport wide enough to spare, and this page is read on phones at the
+   rink as often as anywhere else. */
+.toc {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  margin-bottom: 2.5em;
+}
+.toc h2 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--muted);
+  border: 0;
+  margin: 0 0 .7em;
+  padding: 0;
+}
+.toc ul {
+  columns: 2;
+  column-gap: 28px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.toc li { margin: 0 0 .3em; break-inside: avoid; }
+
+/* A callout for the two things that catch people out: the times are not
+   authoritative, and the project file is not the music. */
+.note {
+  background: var(--accent-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 14px 18px;
+  margin: 0 0 1.4em;
+}
+.note > :last-child { margin-bottom: 0; }
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0 0 1.4em;
+  font-size: 15px;
+}
+th, td {
+  text-align: left;
+  vertical-align: top;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+}
+th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+/* Only where the first column is a label. The troubleshooting table's first
+   column is a sentence, and nowrap there pushes the page wider than the
+   viewport on a phone. */
+.labelled td:first-child { white-space: nowrap; }
+
+pre {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  overflow-x: auto;      /* long commands scroll, rather than widening the page */
+  margin: 0 0 1.4em;
+}
+code {
+  font-family: var(--mono);
+  font-size: .875em;
+}
+:not(pre) > code {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+kbd {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 2px 6px;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+/* The verdict badges, copied from the app so the key here shows the reader the
+   same thing they are looking at. The caution colours are the app's exact
+   values, which were chosen for contrast — 5.56:1 on the panel, where 10px bold
+   needs 4.5:1 — so picking a nicer-looking amber here would quietly undo that.
+   Sized up a little, because this is a table rather than a dense list row. */
+.badge {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.badge.good { color: var(--good); border-color: var(--good); }
+.badge.unknown { color: var(--muted); border-color: var(--line); }
+.badge.caution { color: #8f5e0b; border-color: #8f5e0b; }
+.badge.poor {
+  color: var(--bad);
+  border-color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 10%, transparent);
+}
+@media (prefers-color-scheme: dark) {
+  .badge.caution { color: #e0a33c; border-color: #e0a33c; }
+}
+
+footer {
+  margin-top: 3em;
+  padding-top: 1.2em;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 14px;
+}
+
+@media (max-width: 34rem) {
+  .toc ul { columns: 1; }
+  .topbar .open-app { margin-left: 0; }
+}
