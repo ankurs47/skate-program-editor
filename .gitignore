@@ -5,3 +5,6 @@ node_modules/
 
 # test reports, written by --report for the CI summary
 report/
+
+# CI tees the mutation run here to quote from it in the issue it opens
+mutation.log
