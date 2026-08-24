@@ -58,6 +58,7 @@ npm run check        # lint + test, which is what the pre-commit hook runs
 npm run test:net     # also re-verifies the pinned CDN hash over the network
 npm run test:dom     # browser checks and render budgets — needs Chrome
 npm run test:mutate  # break the code on purpose, check a test notices (~4 min)
+                     # runs in a throwaway worktree; needs a clean tree
 ```
 
 `npm test` deliberately excludes the browser suite so it stays fast and works on
@@ -165,9 +166,21 @@ Each mutation carries a `guards` line saying what property it defends and an
 the *expected* failure does not appear, it is reported `STALE` — the code moved
 and the mutation is now testing something else. Stale counts as a failure.
 
+**It runs in a throwaway git worktree**, built from HEAD by
+`tools/mutate-worktree.sh`. The runner edits source files in place, and doing
+that in the tree you are working in ruins both sides: your edit lands in the
+middle of a run, so the results describe a file nobody wrote, and then the
+runner's restore writes its own copy back over what you changed. That happened
+twice before the script existed.
+
+The worktree means you can keep editing while it runs. It also means
+**uncommitted work is not tested** — the script refuses to start on a dirty tree
+rather than quietly testing something else. `npm run test:mutate:here` is the
+old in-place behaviour if you want it.
+
 The runner restores from in-memory copies of the files, never from git. This is
 not a stylistic preference: an earlier version used `git checkout --` and
-destroyed uncommitted work. **Commit before running it anyway.**
+destroyed uncommitted work.
 
 ## Continuous integration
 
@@ -234,7 +247,8 @@ A test that ships without one is a test nobody has proved can fail.
 1. Branch. `main` will not take a direct push.
 2. Make the change, and add tests at whichever layers can see it.
 3. `npm run check`, and `npm run test:dom` if anything touched the DOM.
-4. **Commit**, then `npm run test:mutate` if the change touched logic.
+4. **Commit** — then `npm run test:mutate` if the change touched logic. It
+   builds its worktree from HEAD, so it has nothing to test until you do.
 5. Open a pull request. CI will post the counts as a comment.
 
 The two things worth knowing before you start are in `AGENTS.md`: the

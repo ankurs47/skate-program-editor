@@ -83,98 +83,6 @@ async function main() {
       eq(session.page.consoleErrors(), [], 'the page logged errors on startup: ');
     });
 
-    await check('the colour choice sticks, and light beats a system set to dark', async () => {
-      /* The light option has to win against a system asking for dark — that is
-         the whole point of the :not([data-theme="light"]) guard, and it is the
-         direction a plain two-state toggle gets wrong.
-
-         Every check shares one page load, so this starts from a known mode and
-         hands it back afterwards, or the theme and its repaint leak into
-         whatever runs next. */
-      const out = await run(`
-        localStorage.removeItem('skate.theme');
-        applyTheme('auto');
-        const read = () => ({
-          attr: document.documentElement.getAttribute('data-theme'),
-          bg: getComputedStyle(document.body).backgroundColor,
-          checked: [...document.querySelectorAll('[data-theme-choice]')]
-            .filter(b => b.getAttribute('aria-checked') === 'true')
-            .map(b => b.dataset.themeChoice),
-          stored: localStorage.getItem('skate.theme'),
-        });
-        const seen = { auto: read() };
-        for (const mode of ['light', 'dark', 'auto']) {
-          document.querySelector('[data-theme-choice="' + mode + '"]').click();
-          seen[mode] = read();
-        }
-        localStorage.removeItem('skate.theme');
-        applyTheme('auto');
-        return seen;
-      `);
-      eq(out.auto.checked, ['auto'], 'nothing stored means auto: ');
-      eq(out.light.attr, 'light', 'choosing light: ');
-      eq(out.dark.attr, 'dark', 'choosing dark: ');
-      eq(out.auto2 === undefined ? out.auto.attr : null, null, '');
-      eq(out.light.checked, ['light'], 'exactly one option reads as chosen: ');
-      eq(out.dark.stored, 'dark', 'the choice is remembered: ');
-      ok(out.light.bg !== out.dark.bg, 'light and dark painted the same background');
-      /* The suite runs on a machine whose system theme we do not control, so
-         the claim is the useful half: an explicit light is not the same as
-         whatever auto resolved to here unless the system is light too. */
-      ok(out.light.attr !== out.dark.attr, 'both explicit choices set the same attribute');
-    });
-
-    await check('the settings menu opens, closes, and says what is stored', async () => {
-      const out = await run(`
-        const button = document.getElementById('btnSettings');
-        const menu = document.getElementById('settingsMenu');
-        const shut = () => menu.classList.contains('hidden');
-        const start = shut();
-        button.click();
-        const opened = { shut: shut(), expanded: button.getAttribute('aria-expanded'),
-                         note: document.getElementById('forgetNote').textContent };
-        document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
-        const afterOutside = shut();
-        button.click();
-        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-        const afterEscape = shut();
-        return { start, opened, afterOutside, afterEscape };
-      `);
-      eq(out.start, true, 'the menu starts open: ');
-      eq(out.opened.shut, false, 'clicking the gear did not open it: ');
-      eq(out.opened.expanded, 'true', 'aria-expanded: ');
-      ok(out.opened.note.length > 0, 'the menu says nothing about what is stored');
-      eq(out.afterOutside, true, 'a click outside did not shut it: ');
-      eq(out.afterEscape, true, 'Escape did not shut it: ');
-    });
-
-    await check('forgetting leaves nothing behind, and says so afterwards', async () => {
-      /* refresh() calls save(), so clearing storage before it runs puts an empty
-         programme straight back — the first version did exactly that and the
-         menu went on claiming there was something stored. */
-      const out = await run(`
-        state.clips = [{ id: 'x', title: 'a song', file: 'a song.mp3',
-          srcStart: 0, srcEnd: 10, fadeIn: 0, fadeOut: 0, crossfade: 0, gain: 1 }];
-        save();
-        describeStored();
-        const before = { stored: !!localStorage.getItem('skate.program.v1'),
-                         note: document.getElementById('forgetNote').textContent,
-                         disabled: document.getElementById('btnForget').disabled };
-        await forgetEverything();
-        const after = { stored: !!localStorage.getItem('skate.program.v1'),
-                        clips: state.clips.length,
-                        note: document.getElementById('forgetNote').textContent,
-                        disabled: document.getElementById('btnForget').disabled };
-        return { before, after };
-      `);
-      eq(out.before.stored, true, 'nothing was stored to begin with: ');
-      eq(out.before.disabled, false, 'the button was dead while there was work to forget: ');
-      eq(out.after.stored, false, 'the programme was written back after being cleared: ');
-      eq(out.after.clips, 0, 'the programme is still on screen: ');
-      eq(out.after.disabled, true, 'the button is still live with nothing left to forget: ');
-      ok(out.after.note !== out.before.note, 'the menu still claims the same thing is stored');
-    });
-
     await check('collapsing the music panel frees the column and nothing else', async () => {
       /* The first version of this hid `.panel-head > :not(.lib-toggle)` without
          scoping it to #library, which took the Program header — Even out, Play,
@@ -1111,6 +1019,143 @@ async function main() {
     });
 
     /* -------------------------------------------------------------- close */
+
+    /* These four go last on purpose. They share the page with everything above
+       and two of them are destructive — forgetting empties the library and the
+       programme that earlier checks build on, and the format one drives
+       mp3Ready by hand. Run from the top they took a different unrelated check
+       down on each run. */
+    await check('the colour choice sticks, and light beats a system set to dark', async () => {
+      /* The light option has to win against a system asking for dark — that is
+         the whole point of the :not([data-theme="light"]) guard, and it is the
+         direction a plain two-state toggle gets wrong.
+
+         Every check shares one page load, so this starts from a known mode and
+         hands it back afterwards, or the theme and its repaint leak into
+         whatever runs next. */
+      const out = await run(`
+        localStorage.removeItem('skate.theme');
+        applyTheme('auto');
+        const read = () => ({
+          attr: document.documentElement.getAttribute('data-theme'),
+          bg: getComputedStyle(document.body).backgroundColor,
+          checked: [...document.querySelectorAll('[data-theme-choice]')]
+            .filter(b => b.getAttribute('aria-checked') === 'true')
+            .map(b => b.dataset.themeChoice),
+          stored: localStorage.getItem('skate.theme'),
+        });
+        const seen = { auto: read() };
+        for (const mode of ['light', 'dark', 'auto']) {
+          document.querySelector('[data-theme-choice="' + mode + '"]').click();
+          seen[mode] = read();
+        }
+        localStorage.removeItem('skate.theme');
+        applyTheme('auto');
+        return seen;
+      `);
+      eq(out.auto.checked, ['auto'], 'nothing stored means auto: ');
+      eq(out.light.attr, 'light', 'choosing light: ');
+      eq(out.dark.attr, 'dark', 'choosing dark: ');
+      eq(out.auto2 === undefined ? out.auto.attr : null, null, '');
+      eq(out.light.checked, ['light'], 'exactly one option reads as chosen: ');
+      eq(out.dark.stored, 'dark', 'the choice is remembered: ');
+      ok(out.light.bg !== out.dark.bg, 'light and dark painted the same background');
+      /* The suite runs on a machine whose system theme we do not control, so
+         the claim is the useful half: an explicit light is not the same as
+         whatever auto resolved to here unless the system is light too. */
+      ok(out.light.attr !== out.dark.attr, 'both explicit choices set the same attribute');
+    });
+
+    await check('the settings menu opens, closes, and says what is stored', async () => {
+      const out = await run(`
+        /* Shared page: start shut whatever anything above left behind. */
+        setSettingsOpen(false);
+        const button = document.getElementById('btnSettings');
+        const menu = document.getElementById('settingsMenu');
+        const shut = () => menu.classList.contains('hidden');
+        const start = shut();
+        button.click();
+        const opened = { shut: shut(), expanded: button.getAttribute('aria-expanded'),
+                         note: document.getElementById('forgetNote').textContent };
+        document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+        const afterOutside = shut();
+        button.click();
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        const afterEscape = shut();
+        setSettingsOpen(false);
+        return { start, opened, afterOutside, afterEscape };
+      `);
+      eq(out.start, true, 'the menu should begin shut: ');
+      eq(out.opened.shut, false, 'clicking the gear did not open it: ');
+      eq(out.opened.expanded, 'true', 'aria-expanded: ');
+      ok(out.opened.note.length > 0, 'the menu says nothing about what is stored');
+      eq(out.afterOutside, true, 'a click outside did not shut it: ');
+      eq(out.afterEscape, true, 'Escape did not shut it: ');
+    });
+
+    await check('the export format defaults to MP3 and remembers only a real choice', async () => {
+      /* MP3 is what competitions ask for, so it stays the default: nothing
+         stored, a stale value, or anything unrecognised all land on MP3, and
+         only a deliberate WAV comes back as WAV. When the encoder could not be
+         reached there is no choice to make. */
+      const out = await run(`
+        const before = localStorage.getItem('skate.exportFormat');
+        const ready = mp3Ready;
+        const pick = (stored, encoder) => {
+          if (stored === null) localStorage.removeItem('skate.exportFormat');
+          else localStorage.setItem('skate.exportFormat', stored);
+          mp3Ready = encoder;
+          updateExportOptions();
+          return document.getElementById('exportFormat').value;
+        };
+        const out = {
+          nothingStored: pick(null, true),
+          storedMp3: pick('mp3', true),
+          storedWav: pick('wav', true),
+          storedRubbish: pick('flac', true),
+          noEncoder: pick('mp3', false),
+          noEncoderAfterWav: pick('wav', false),
+        };
+        if (before === null) localStorage.removeItem('skate.exportFormat');
+        else localStorage.setItem('skate.exportFormat', before);
+        mp3Ready = ready;
+        updateExportOptions();
+        return out;
+      `);
+      eq(out.nothingStored, 'mp3', 'a first export should offer MP3: ');
+      eq(out.storedMp3, 'mp3', 'MP3 was chosen last time: ');
+      eq(out.storedWav, 'wav', 'WAV was chosen last time: ');
+      eq(out.storedRubbish, 'mp3', 'an unrecognised stored value should fall back to MP3: ');
+      eq(out.noEncoder, 'wav', 'without the encoder only WAV is possible: ');
+      eq(out.noEncoderAfterWav, 'wav', 'without the encoder only WAV is possible: ');
+    });
+
+    await check('forgetting leaves nothing behind, and says so afterwards', async () => {
+      /* refresh() calls save(), so clearing storage before it runs puts an empty
+         programme straight back — the first version did exactly that and the
+         menu went on claiming there was something stored. */
+      const out = await run(`
+        state.clips = [{ id: 'x', title: 'a song', file: 'a song.mp3',
+          srcStart: 0, srcEnd: 10, fadeIn: 0, fadeOut: 0, crossfade: 0, gain: 1 }];
+        save();
+        describeStored();
+        const before = { stored: !!localStorage.getItem('skate.program.v1'),
+                         note: document.getElementById('forgetNote').textContent,
+                         disabled: document.getElementById('btnForget').disabled };
+        await forgetEverything();
+        const after = { stored: !!localStorage.getItem('skate.program.v1'),
+                        clips: state.clips.length,
+                        note: document.getElementById('forgetNote').textContent,
+                        disabled: document.getElementById('btnForget').disabled };
+        return { before, after };
+      `);
+      eq(out.before.stored, true, 'nothing was stored to begin with: ');
+      eq(out.before.disabled, false, 'the button was dead while there was work to forget: ');
+      eq(out.after.stored, false, 'the programme was written back after being cleared: ');
+      eq(out.after.clips, 0, 'the programme is still on screen: ');
+      eq(out.after.disabled, true, 'the button is still live with nothing left to forget: ');
+      ok(out.after.note !== out.before.note, 'the menu still claims the same thing is stored');
+    });
 
     await check('nothing logged an error along the way', async () => {
       const errors = session.page.consoleErrors();

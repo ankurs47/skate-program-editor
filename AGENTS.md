@@ -140,9 +140,18 @@ mutation that proves it can fail.** It runs on every push to `main`, weekly, and
 on demand; not on pull requests, where it would add minutes to every push and
 break for reasons unrelated to the change.
 
-The runner edits source in place and restores from a copy in memory, never with
-git — reverting with git is how an earlier session destroyed uncommitted work.
-For the same reason: commit before running it.
+**Run it in a worktree, which is what `npm run test:mutate` now does.** The
+runner edits source files in place, so a run and an edit in the same tree ruin
+each other: your change lands mid-run and its results describe a file nobody
+wrote, then the runner's restore puts its own copy back over what you changed.
+Both happened, twice, before `tools/mutate-worktree.sh` existed. It builds a
+throwaway worktree from HEAD, so the tree you are working in is never touched
+and you can keep editing while it runs — which also means **uncommitted work is
+not tested**, and the script refuses to start rather than pretend otherwise.
+
+`npm run test:mutate:here` is the old in-place behaviour, for when you want it.
+The runner restores from a copy in memory, never with git — reverting with git
+is how an earlier session destroyed uncommitted work.
 
 The unit tests mirror the file split — `test/analysis.test.js`,
 `test/formats.test.js`, `test/app.test.js`, plus `test/assets.test.js` for the
