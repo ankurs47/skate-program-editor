@@ -38,17 +38,26 @@
 </div>
 
 <div class="topbar">
-  <img class="logo" src="src/logo.svg" width="24" height="24" alt="">
-  <h1>Skate Program Editor</h1>
+  <span class="topbar-brand">
+    <img class="logo" src="src/logo.svg" width="24" height="24" alt="">
+    <h1>Skate Program Editor</h1>
+  </span>
   <nav class="help-nav" aria-label="Help topics">
     <button class="help-btn" data-help="basics">Basics</button>
     <button class="help-btn" data-help="tips">Tips</button>
     <button class="help-btn" data-help="saving">Saving</button>
     <button class="help-btn" data-help="quality">Sound quality</button>
     <button class="help-btn" data-help="keys">Keyboard</button>
-    <a class="guide-link" href="docs/help.html">Full guide &rarr;</a>
   </nav>
   <span class="topbar-note">Nothing is uploaded &mdash; everything stays on this computer.</span>
+  <span class="topbar-links">
+    <a class="topbar-link" href="docs/help.html">Full guide</a>
+    <a class="topbar-link" href="https://github.com/ankurs47/skate-program-editor"
+       target="_blank" rel="noopener" title="Source code on GitHub">
+      <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" focusable="false"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+      GitHub
+    </a>
+  </span>
 </div>
 
 <header>
@@ -80,7 +89,7 @@
   <aside id="library">
     <div class="panel-head">
       <h2>Music</h2>
-      <button id="btnAddFiles" class="small">Add files</button>
+      <button id="btnAddFiles">Add files</button>
     </div>
     <ul id="libraryList"></ul>
     <div id="dropzone" class="dropzone">Drop audio files here</div>
@@ -89,7 +98,7 @@
   <section id="workspace">
     <div class="panel-head">
       <h2>Program</h2>
-      <button id="btnEvenOut" class="small">Even out the volume</button>
+      <button id="btnEvenOut">Even out the volume</button>
       <div class="transport">
         <button id="btnPlay" class="play"><span id="btnPlayLabel">Play</span><kbd>Space</kbd></button>
         <button id="btnStop" title="Return to start">Stop</button>

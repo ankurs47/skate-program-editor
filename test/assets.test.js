@@ -358,3 +358,18 @@ check('the README shows the state of the build', () => {
   }
   ok(badges.includes('ci.yml'), 'the README does not show whether CI passes');
 });
+
+check('every link that opens a new tab is safe, and the source is reachable', () => {
+  /* `target="_blank"` without `rel="noopener"` hands the opened page a
+     `window.opener` handle back to this one. Nothing here is worth stealing,
+     but the pages are served from the same origin as anything else on
+     github.io, and the fix costs one attribute. */
+  for (const file of ['index.html', 'docs/help.html']) {
+    const page = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    for (const [tag] of page.matchAll(/<a\s[^>]*target="_blank"[^>]*>/g)) {
+      ok(/rel="[^"]*\bnoopener\b/.test(tag), `${file}: target=_blank without rel=noopener: ${tag}`);
+    }
+    ok(/href="https:\/\/github\.com\/[\w-]+\/skate-program-editor"/.test(page),
+      `${file} does not link to the source`);
+  }
+});

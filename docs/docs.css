@@ -73,12 +73,27 @@ body {
 .topbar .logo { display: block; flex: 0 0 auto; }
 .topbar h1 { font-size: 17px; margin: 0; font-weight: 600; }
 .topbar a { color: var(--topbar-ink); }
+.topbar-links { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.topbar-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--topbar-dim);
+  font-size: 13px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.topbar-link:hover { color: var(--topbar-ink); background: rgba(255, 255, 255, .11); }
+.topbar-link svg { display: block; }
+
 .topbar .open-app {
-  margin-left: auto;
   border: 1px solid var(--topbar-dim);
-  border-radius: var(--radius);
+  border-radius: 8px;
   padding: 5px 12px;
   text-decoration: none;
+  color: var(--topbar-ink);
 }
 .topbar .open-app:hover { background: rgba(255, 255, 255, .1); }
 
@@ -237,5 +252,5 @@ footer {
 
 @media (max-width: 34rem) {
   .toc ul { columns: 1; }
-  .topbar .open-app { margin-left: 0; }
+  .topbar-links { margin-left: 0; }
 }
