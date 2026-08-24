@@ -36,7 +36,7 @@ npm test         # unit + wiring + asset checks
 npm run lint
 npm run check    # lint + unit tests
 npm run test:net # also re-verifies the pinned CDN hash
-npm run test:dom # browser checks — needs Chrome, not part of npm test
+npm run test:dom # browser checks and render budgets — needs Chrome
 ```
 
 `main` is protected: pull request required, CI must pass, applies to admins too.
