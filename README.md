@@ -69,18 +69,6 @@ sequence of cuts does not need.
 Everything runs in the browser tab: decoding, playback, mixing and encoding.
 There is no server and no upload step.
 
-The [full guide](https://ankurs47.github.io/skate-program-editor/docs/help.html)
-covers all of it in detail — [where to
-cut](https://ankurs47.github.io/skate-program-editor/docs/help.html#joins),
-[saving and
-reloading](https://ankurs47.github.io/skate-program-editor/docs/help.html#saving),
-[keyboard
-shortcuts](https://ankurs47.github.io/skate-program-editor/docs/help.html#keys),
-[getting music off
-YouTube](https://ankurs47.github.io/skate-program-editor/docs/help.html#youtube)
-and [what to do when something goes
-wrong](https://ankurs47.github.io/skate-program-editor/docs/help.html#troubleshooting).
-
 ## What it needs
 
 Any current Chrome, Edge, Firefox or Safari **on a computer**. The page tells
@@ -106,28 +94,16 @@ coach, before an entry deadline.
 This project is not affiliated with, endorsed by, or connected to the ISU or
 U.S. Figure Skating.
 
-## Running it yourself
+## A note on what this is
 
-Clone the repo and open `index.html`. That's the whole build process — no build
-step, no runtime dependencies.
+I built this for myself, with a lot of help from AI, because I needed to cut a
+program and did not want a digital audio workstation to do it. It is public
+because it may well save someone else the same afternoon.
 
-To host it, copy `index.html` and the `src/` and `docs/` folders anywhere that
-serves static files. Because users' music never reaches the host, there is no
-storage, no per-user cost, and no third-party audio on your infrastructure.
-
-## Development
-
-```bash
-npm install          # installs eslint, and enables the pre-commit hook
-npm run check        # lint + 161 unit checks
-npm run test:dom     # browser checks and render budgets — needs Chrome
-npm run test:mutate  # break the code on purpose, check a test notices
-```
-
-**[Development notes →](docs/development.md)** — the layout, the three layers of
-testing, CI, and the ground rules a change has to keep.
-[`AGENTS.md`](AGENTS.md) has the architecture walkthrough and a list of the
-traps that produced real bugs.
+That is the whole of the offer. There is no team behind it, no support, and no
+undertaking to fix anything or to keep it working. **Use it at your own risk** —
+and before an entry deadline, play the exported file end to end rather than
+trusting that it came out right.
 
 ## Licence
 
