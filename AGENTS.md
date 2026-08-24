@@ -17,7 +17,10 @@ src/analysis.js  beat detection, phrase detection, loudness — samples in, numb
 src/formats.js   ID3/MPEG/Ogg parsing and the Good/Fair/Low verdict
 src/app.js       state, decode, waveforms, editing, playback, render, export, wiring
 src/style.css    theming via CSS custom properties, light and dark
-test/            157 checks, no dependencies — one file per script file
+docs/            help.html — the user guide, linked from the topbar;
+                 development.md; docs.css, whose colour tokens copy
+                 style.css's and are held to them by a test
+test/            161 checks, no dependencies — one file per script file
 test/dom/        browser checks and render budgets, driven over CDP
 tools/           music-get.sh and .cmd — optional YouTube downloader, not the app
 ```

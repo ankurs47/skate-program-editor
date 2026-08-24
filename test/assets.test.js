@@ -172,10 +172,11 @@ check('the page loads the scripts, in an order that works', () => {
   eq(order, SCRIPTS, 'the page must load exactly these, in this order: ');
 });
 
-check('HTML tags are balanced', () => {
+/** Walks tags and returns the names left open, so both pages can be checked. */
+function unclosedTags(source) {
   const voids = new Set(['br', 'img', 'input', 'meta', 'link', 'hr', 'source', 'track']);
   const stack = [];
-  for (const m of html.matchAll(/<(\/?)([a-zA-Z0-9]+)([^>]*?)(\/?)>/g)) {
+  for (const m of source.matchAll(/<(\/?)([a-zA-Z0-9]+)([^>]*?)(\/?)>/g)) {
     const [, closing, tag, , selfClose] = m;
     const name = tag.toLowerCase();
     if (voids.has(name) || selfClose || name === '!doctype') continue;
@@ -187,7 +188,11 @@ check('HTML tags are balanced', () => {
       stack.push(name);
     }
   }
-  eq(stack, [], 'unclosed tags: ');
+  return stack;
+}
+
+check('HTML tags are balanced', () => {
+  eq(unclosedTags(html), [], 'unclosed tags in index.html: ');
 });
 
 check('CSS braces balance', () => {
@@ -256,3 +261,68 @@ if (process.argv.includes('--net')) {
   });
 }
 
+
+/* ------------------------------------------------------- 4. documentation */
+
+const helpHtml = fs.readFileSync(path.join(ROOT, 'docs/help.html'), 'utf8');
+const docsCss = fs.readFileSync(path.join(ROOT, 'docs/docs.css'), 'utf8');
+
+/** The `--name: value` pairs a stylesheet defines, in order, as one string. */
+function tokensOf(source) {
+  return [...source.matchAll(/^\s*(--[\w-]+):\s*([^;]+);/gm)]
+    .map((m) => `${m[1]}: ${m[2].trim()}`);
+}
+
+check('the two stylesheets agree on the colours', () => {
+  /* docs.css copies the token block rather than loading src/style.css, which
+     would drag in a layout built for a control surface — it styles `header`,
+     `main`, `section` and `h2` for one, and a page of prose is not one. The
+     copy is the same arrangement the two music-get wrappers are in, and it is
+     held the same way: here. Drift shows up as the guide slowly not looking
+     like the app any more, which nothing else would notice. */
+  eq(tokensOf(docsCss), tokensOf(css), 'docs/docs.css has drifted from src/style.css: ');
+});
+
+check('the documentation page is well formed and its contents work', () => {
+  eq(unclosedTags(helpHtml), [], 'unclosed tags in docs/help.html: ');
+
+  const ids = new Set([...helpHtml.matchAll(/id="([\w-]+)"/g)].map((m) => m[1]));
+  const anchors = [...helpHtml.matchAll(/href="#([\w-]+)"/g)].map((m) => m[1]);
+  ok(anchors.length > 10, 'the contents list has lost its links');
+  eq(anchors.filter((a) => !ids.has(a)), [], 'links to sections that do not exist: ');
+
+  /* Every heading that can be linked to should be — a section missing from the
+     contents is a section nobody finds. h3s are subsections and are exempt. */
+  const body = helpHtml.replace(/<nav class="toc"[\s\S]*?<\/nav>/, '');
+  const headings = [...body.matchAll(/<h2 id="([\w-]+)"/g)].map((m) => m[1]);
+  const listed = new Set(anchors);
+  eq(headings.filter((h) => !listed.has(h)), [], 'sections missing from the contents: ');
+});
+
+check('the app links to the guide without breaking the help buttons', () => {
+  /* bindHelp() binds every .help-btn to openHelp(dataset.help), so a link
+     wearing that class would be bound too and would open an empty dialog
+     instead of navigating. It has to be a different class, and it is worth
+     asserting because the styles make the two look identical on purpose. */
+  const link = html.match(/<a class="([\w-]+)" href="(docs\/[\w.-]+)"/);
+  ok(link, 'index.html no longer links to the guide');
+  ok(!link[1].split(/\s+/).includes('help-btn'),
+    'the guide link carries help-btn, so bindHelp will hijack its click');
+  ok(fs.existsSync(path.join(ROOT, link[2])), `index.html links to a missing ${link[2]}`);
+});
+
+check('every link between the docs and the README points at something', () => {
+  /* Relative links only. The absolute ones go to the published site, and a test
+     that reached the network to check them would fail for reasons that have
+     nothing to do with the change being tested. */
+  for (const file of ['README.md', 'docs/development.md', 'docs/help.html']) {
+    const body = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    const from = path.dirname(path.join(ROOT, file));
+    const links = [...body.matchAll(/(?:\]\(|href=")([^)"#][^)"]*?)(?:#[^)"]*)?(?:\)|")/g)];
+    for (const [, target] of links) {
+      if (/^(https?:|mailto:)/.test(target)) continue;
+      ok(fs.existsSync(path.resolve(from, target)),
+        `${file} links to ${target}, which does not exist`);
+    }
+  }
+});

@@ -241,5 +241,23 @@
     "find": "    if (ontoTimeline) for (const entry of added) addClip(entry);",
     "replace": "    void ontoTimeline;",
     "expect": "puts the song in the programme"
+  },
+  {
+    "name": "a colour is changed in the app but not the docs",
+    "guards": "the guide keeps looking like the app it documents",
+    "file": "src/style.css",
+    "suite": "unit",
+    "find": "  --good: #17935a;",
+    "replace": "  --good: #17935b;",
+    "expect": "agree on the colours"
+  },
+  {
+    "name": "the app stops linking to the guide",
+    "guards": "the documentation is reachable from the app",
+    "file": "index.html",
+    "suite": "unit",
+    "find": "    <a class=\"guide-link\" href=\"docs/help.html\">Full guide &rarr;</a>\n",
+    "replace": "",
+    "expect": "no longer links to the guide"
   }
 ]

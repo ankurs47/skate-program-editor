@@ -18,7 +18,10 @@ const ROOT = path.join(__dirname, '..');
    requires the other two under Node and re-exports them, so requiring it alone
    still gets everything, which is why each test file asks for just `app`. */
 const SCRIPTS = ['src/analysis.js', 'src/formats.js', 'src/app.js'];
-const SHIPPED = ['index.html', 'src/style.css', ...SCRIPTS];
+/* The documentation pages. They are served alongside the app rather than only
+   read on GitHub, so whatever must never ship applies to them too. */
+const DOCS = ['docs/help.html', 'docs/docs.css'];
+const SHIPPED = ['index.html', 'src/style.css', ...SCRIPTS, ...DOCS];
 
 const app = require(path.join(ROOT, 'src/app.js'));
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
@@ -77,6 +80,6 @@ function reportPath(argv) {
 }
 
 module.exports = {
-  ROOT, SCRIPTS, SHIPPED, app, html, css,
+  ROOT, SCRIPTS, SHIPPED, DOCS, app, html, css,
   check, eq, near, ok, results, writeReport, reportPath,
 };
