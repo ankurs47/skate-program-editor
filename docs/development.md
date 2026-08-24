@@ -57,6 +57,7 @@ npm run lint
 npm run check        # lint + test, which is what the pre-commit hook runs
 npm run test:net     # also re-verifies the pinned CDN hash over the network
 npm run test:dom     # browser checks and render budgets — needs Chrome
+npm run screenshot   # regenerate the README picture from a real, driven app
 npm run check:sources # have the ISU or USFS published anything since we looked?
 npm run test:mutate  # break the code on purpose, check a test notices (~4 min)
                      # runs in a throwaway worktree; needs a clean tree
@@ -82,6 +83,8 @@ src/
   style.css
 docs/
   help.html           the user-facing guide, linked from the app
+  screenshot.png      the README picture — regenerate, never hand-crop
+  social-card.png     what a link to the site unfurls as
   development.md      this file
   docs.css
 test/

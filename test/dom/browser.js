@@ -26,8 +26,12 @@ const CHROMES = [
   'google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser',
 ].filter(Boolean);
 
+/* Anything the page actually asks for. Served as octet-stream, an SVG is a
+   download rather than an image — which is how the logo went unrendered in
+   every browser check until a screenshot showed a broken-image box. */
 const TYPES = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
+  '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json',
 };
 
 /**

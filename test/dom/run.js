@@ -1074,6 +1074,24 @@ async function main() {
       }
     });
 
+    await check('the logo actually loads, rather than only being referenced', async () => {
+      /* A unit check already asserts index.html points at the logo. Pointing at
+         it is not the same as it arriving: the test server served .svg as
+         octet-stream for months, so every check here ran against a broken-image
+         box and none of them minded. naturalWidth is the difference between a
+         reference and a picture. */
+      const out = await run(`
+        const img = document.querySelector('.topbar .logo');
+        if (!img) return { found: false };
+        if (!img.complete) await new Promise(r => { img.onload = r; img.onerror = r; });
+        return { found: true, src: img.getAttribute('src'),
+                 width: img.naturalWidth, height: img.naturalHeight };
+      `);
+      eq(out.found, true, 'no logo in the topbar: ');
+      ok(out.width > 0 && out.height > 0,
+        `the logo at ${out.src} did not decode: ${out.width}x${out.height}`);
+    });
+
     await check('the settings menu opens, closes, and says what is stored', async () => {
       const out = await run(`
         /* Shared page: start shut whatever anything above left behind. */

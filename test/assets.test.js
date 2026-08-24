@@ -454,3 +454,54 @@ check('every rule source is one the checker knows how to read', () => {
   ok(/^\d{4}-\d{2}-\d{2}$/.test(baseline.checked), 'no date for when a person last looked');
   ok(baseline.checked > '2020-01-01', 'the baseline date looks unset');
 });
+
+check('the site tells crawlers where to look, and points only at real pages', () => {
+  /* A sitemap listing a page that is not served, or carrying the wrong
+     namespace, is worse than none: it looks handled and is quietly ignored.
+     The namespace is sitemaps.org, plural — I typed the singular first. */
+  const robots = fs.readFileSync(path.join(ROOT, 'robots.txt'), 'utf8');
+  const sitemap = fs.readFileSync(path.join(ROOT, 'sitemap.xml'), 'utf8');
+
+  ok(/xmlns="http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9"/.test(sitemap),
+    'the sitemap namespace is not the one crawlers look for');
+
+  const declared = robots.match(/^Sitemap:\s*(\S+)$/m);
+  ok(declared, 'robots.txt does not point at the sitemap');
+
+  const urls = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
+  ok(urls.length >= 2, 'the sitemap lists fewer pages than the site has');
+
+  /* Every listed page must exist in the repo, since that is what gets served.
+     The site root is index.html; anything else is a path under it. */
+  const base = declared[1].replace(/sitemap\.xml$/, '');
+  for (const url of urls) {
+    ok(url.startsWith(base), `${url} is not on the site robots.txt names`);
+    const rel = url.slice(base.length) || 'index.html';
+    const file = rel.endsWith('/') ? `${rel}index.html` : rel;
+    ok(fs.existsSync(path.join(ROOT, file)), `the sitemap lists ${rel}, which is not in the repo`);
+  }
+
+  // The pages that are served should also be the ones listed.
+  ok(urls.some((u) => u === base), 'the sitemap does not list the app itself');
+  ok(urls.some((u) => u.endsWith('docs/help.html')), 'the sitemap does not list the guide');
+});
+
+check('both pages carry what a link preview and a search result need', () => {
+  const card = 'docs/social-card.png';
+  ok(fs.existsSync(path.join(ROOT, card)), 'the social card image is missing');
+
+  for (const [file, page] of [['index.html', html], ['docs/help.html',
+    fs.readFileSync(path.join(ROOT, 'docs/help.html'), 'utf8')]]) {
+    for (const tag of ['description', 'og:title', 'og:description', 'og:image', 'og:url',
+      'twitter:card', 'twitter:image']) {
+      const found = new RegExp(`(name|property)="${tag}"[^>]*content="[^"]{10,}"`).test(page);
+      ok(found, `${file} has no usable ${tag}`);
+    }
+    ok(/<link rel="canonical" href="https:\/\/[^"]+">/.test(page), `${file} has no canonical URL`);
+    /* Relative URLs are not resolved by most services that read these, so an
+       image that works in the browser can still show nothing in a group chat. */
+    for (const [, url] of page.matchAll(/(?:og:image|og:url|twitter:image)"[^>]*content="([^"]+)"/g)) {
+      ok(/^https:\/\//.test(url), `${file}: ${url} must be absolute to be resolved`);
+    }
+  }
+});

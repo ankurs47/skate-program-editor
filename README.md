@@ -26,6 +26,10 @@
   <a href="https://github.com/ankurs47/skate-program-editor/issues">🐛&nbsp;&nbsp;<b>Issues</b></a>
 </p>
 
+<p>
+  <a href="https://ankurs47.github.io/skate-program-editor/"><img src="docs/screenshot.png" alt="Three songs cut, ordered and blended into one program, with the timer reading 3:28.8 inside the allowed window for a Junior free skate" width="900"></a>
+</p>
+
 </div>
 
 Nothing to install and nothing to sign up for. Your music never leaves your
