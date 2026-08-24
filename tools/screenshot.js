@@ -119,10 +119,15 @@ async function main() {
     write(SHOT, shot.data, `${1440 * 2}x${height * 2}`);
     console.log(`  ${shown.total} · ${shown.verdict}`);
 
-    /* The link preview card. 1200x630 is 1.91:1, which is what Facebook,
-       LinkedIn and X crop to — at 2:1 they take the sides off. */
+    /* The link preview card, at exactly 1200x630 — 1.91:1, which is what
+       Facebook, LinkedIn and X crop to. Two earlier attempts were wrong in
+       different ways: 1280x640 is 2:1 and gets its sides cropped, and rendering
+       this one at 2x for sharpness produced 2400x1260, which validators flag
+       and platforms resize themselves. It is a thumbnail; the canonical size
+       beats a clever one. The screenshot above stays at 2x, because that one is
+       looked at large. */
     await session.page.send('Emulation.setDeviceMetricsOverride', {
-      width: 1200, height: 630, deviceScaleFactor: 2, mobile: false,
+      width: 1200, height: 630, deviceScaleFactor: 1, mobile: false,
     });
     await session.page.send('Page.navigate', { url: `${session.origin}/tools/social-card.html` });
     await session.page.evaluate(`
