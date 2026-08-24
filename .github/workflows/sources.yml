@@ -1,0 +1,77 @@
+name: Sources
+
+# Ask, once a month, whether the ISU or U.S. Figure Skating have published
+# anything since a person last looked at the program lengths this app ships.
+#
+# It cannot check the times themselves. Neither body publishes them anywhere
+# machine-readable — they are in season-specific PDFs whose addresses change —
+# so this watches for the *source* moving and asks a human to look. A job
+# claiming to have verified the durations would quietly contradict the
+# disclaimer the app and the README both carry, which is worse than no job.
+
+on:
+  schedule:
+    # 07:00 on the 1st. Seasons turn over the northern summer, so a monthly
+    # cadence catches a change well before anyone is entering competitions.
+    - cron: '0 7 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # Only to open or comment on the issue below.
+  issues: write
+
+concurrency:
+  group: sources
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: sources
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      # Exits 1 when something moved, or when a source could not be reached at
+      # all — a page that has gone is itself a change worth hearing about.
+      - name: Check the sources
+        id: sources
+        run: node tools/check-sources.js
+
+      - name: Ask someone to look
+        if: failure() && steps.sources.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # The script writes the report when it finds something. If it is not
+          # here the script itself broke, and saying "the rules changed" would
+          # be inventing news.
+          if [ ! -f sources-report.md ]; then
+            {
+              echo "The monthly source check could not run, so this says nothing"
+              echo "about whether the program lengths are still right."
+              echo
+              echo "[full run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+            } > sources-report.md
+            title="The source check could not run"
+          else
+            echo >> sources-report.md
+            echo "[full run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> sources-report.md
+            title="Check the program lengths against the rulebook"
+          fi
+
+          gh label create rules --color 0E8A16 \
+            --description "The published rules may have moved under us" \
+            2>/dev/null || true
+
+          # One open issue, commented on, rather than a fresh one every month.
+          existing=$(gh issue list --state open --label rules --limit 1 --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file sources-report.md
+          else
+            gh issue create --title "$title" --label rules --body-file sources-report.md
+          fi

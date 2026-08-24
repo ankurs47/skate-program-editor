@@ -57,6 +57,7 @@ npm run lint
 npm run check        # lint + test, which is what the pre-commit hook runs
 npm run test:net     # also re-verifies the pinned CDN hash over the network
 npm run test:dom     # browser checks and render budgets — needs Chrome
+npm run check:sources # have the ISU or USFS published anything since we looked?
 npm run test:mutate  # break the code on purpose, check a test notices (~4 min)
                      # runs in a throwaway worktree; needs a clean tree
 ```
@@ -193,6 +194,24 @@ comment on the pull request with the counts and timings, updating that same
 comment on each push rather than adding another. It runs under `always()`, so a
 failing suite still gets its summary posted. Fork pull requests skip the comment,
 because their token cannot write one.
+
+**`sources.yml`** runs monthly. It asks whether the ISU or U.S. Figure Skating
+have published anything since a person last checked the program lengths in
+`LEVELS`, and opens an issue if so.
+
+It deliberately does **not** claim to verify the times. Neither body publishes
+durations anywhere machine-readable — they live in season-specific PDFs whose
+addresses change — so a job reporting "program lengths verified" would be
+guessing, and would quietly contradict the disclaimer the app and the README
+both carry. What it watches instead is stable and meaningful when it moves: the
+list of numbered ISU Communications, and the season the USFS rules hub names.
+Whole-page hashes were the first attempt and were useless — both pages carry
+per-request tokens, so every run would have fired.
+
+When you have checked, update `tools/sources.json` with
+`npm run check:sources -- --update` and commit it. Until that baseline moves the
+job keeps asking, which is the point: merging an acknowledgement without looking
+would reset the tripwire and lose the question.
 
 **`mutation.yml`** runs on every push to `main`, weekly, and on demand. If any
 mutation survives it opens — or comments on — an issue labeled `mutation`.

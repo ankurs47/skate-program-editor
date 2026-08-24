@@ -1,0 +1,35 @@
+{
+  "note": "Where the program lengths in src/app.js come from, and what each source looked like when a person last checked it. See tools/check-sources.js — this records that a source has not moved, never that our times are right.",
+  "checked": "2026-08-24",
+  "sources": [
+    {
+      "id": "isu-communications",
+      "url": "https://www.isu.org/isu-communications/",
+      "what": "ISU Communications (rule changes arrive as numbered documents)",
+      "seen": [
+        "2801",
+        "2807",
+        "2810",
+        "2814",
+        "2815",
+        "2816",
+        "2817",
+        "2818"
+      ]
+    },
+    {
+      "id": "usfs-rules",
+      "url": "https://www.usfigureskating.org/about/rules",
+      "what": "U.S. Figure Skating rules hub (season the rulebook covers)",
+      "seen": [
+        "2020-05",
+        "2024-09",
+        "2025-06",
+        "2025-07",
+        "2025-12",
+        "2026-02",
+        "2026-27"
+      ]
+    }
+  ]
+}
