@@ -83,35 +83,96 @@ async function main() {
       eq(session.page.consoleErrors(), [], 'the page logged errors on startup: ');
     });
 
-    await check('the theme toggle cycles, sticks, and repaints the canvases', async () => {
-      /* Three modes, and the light one has to win against a system set to dark
-         — that is the whole point of the :not([data-theme="light"]) guard, and
-         it is the direction a plain two-state toggle gets wrong. */
-      const seen = await run(`
-        /* Every check shares one page load, so this starts from a known mode
-           and hands it back afterwards — otherwise the theme, and the repaint
-           that comes with it, leaks into whatever runs next. */
+    await check('the colour choice sticks, and light beats a system set to dark', async () => {
+      /* The light option has to win against a system asking for dark — that is
+         the whole point of the :not([data-theme="light"]) guard, and it is the
+         direction a plain two-state toggle gets wrong.
+
+         Every check shares one page load, so this starts from a known mode and
+         hands it back afterwards, or the theme and its repaint leak into
+         whatever runs next. */
+      const out = await run(`
         localStorage.removeItem('skate.theme');
         applyTheme('auto');
-        const button = document.getElementById('btnTheme');
         const read = () => ({
-          mode: button.dataset.mode,
-          label: document.getElementById('themeLabel').textContent,
           attr: document.documentElement.getAttribute('data-theme'),
           bg: getComputedStyle(document.body).backgroundColor,
+          checked: [...document.querySelectorAll('[data-theme-choice]')]
+            .filter(b => b.getAttribute('aria-checked') === 'true')
+            .map(b => b.dataset.themeChoice),
           stored: localStorage.getItem('skate.theme'),
         });
-        const out = [read()];
-        for (let i = 0; i < 3; i++) { button.click(); out.push(read()); }
+        const seen = { auto: read() };
+        for (const mode of ['light', 'dark', 'auto']) {
+          document.querySelector('[data-theme-choice="' + mode + '"]').click();
+          seen[mode] = read();
+        }
         localStorage.removeItem('skate.theme');
         applyTheme('auto');
-        return out;
+        return seen;
       `);
-      eq(seen.map((s) => s.mode), ['auto', 'light', 'dark', 'auto'], 'the cycle: ');
-      eq(seen.map((s) => s.label), ['Auto', 'Light', 'Dark', 'Auto'], 'the wording: ');
-      eq(seen.map((s) => s.attr), [null, 'light', 'dark', null], 'the attribute: ');
-      eq(seen[3].stored, 'auto', 'the choice is remembered: ');
-      ok(seen[1].bg !== seen[2].bg, 'light and dark painted the same background');
+      eq(out.auto.checked, ['auto'], 'nothing stored means auto: ');
+      eq(out.light.attr, 'light', 'choosing light: ');
+      eq(out.dark.attr, 'dark', 'choosing dark: ');
+      eq(out.auto2 === undefined ? out.auto.attr : null, null, '');
+      eq(out.light.checked, ['light'], 'exactly one option reads as chosen: ');
+      eq(out.dark.stored, 'dark', 'the choice is remembered: ');
+      ok(out.light.bg !== out.dark.bg, 'light and dark painted the same background');
+      /* The suite runs on a machine whose system theme we do not control, so
+         the claim is the useful half: an explicit light is not the same as
+         whatever auto resolved to here unless the system is light too. */
+      ok(out.light.attr !== out.dark.attr, 'both explicit choices set the same attribute');
+    });
+
+    await check('the settings menu opens, closes, and says what is stored', async () => {
+      const out = await run(`
+        const button = document.getElementById('btnSettings');
+        const menu = document.getElementById('settingsMenu');
+        const shut = () => menu.classList.contains('hidden');
+        const start = shut();
+        button.click();
+        const opened = { shut: shut(), expanded: button.getAttribute('aria-expanded'),
+                         note: document.getElementById('forgetNote').textContent };
+        document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+        const afterOutside = shut();
+        button.click();
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        const afterEscape = shut();
+        return { start, opened, afterOutside, afterEscape };
+      `);
+      eq(out.start, true, 'the menu starts open: ');
+      eq(out.opened.shut, false, 'clicking the gear did not open it: ');
+      eq(out.opened.expanded, 'true', 'aria-expanded: ');
+      ok(out.opened.note.length > 0, 'the menu says nothing about what is stored');
+      eq(out.afterOutside, true, 'a click outside did not shut it: ');
+      eq(out.afterEscape, true, 'Escape did not shut it: ');
+    });
+
+    await check('forgetting leaves nothing behind, and says so afterwards', async () => {
+      /* refresh() calls save(), so clearing storage before it runs puts an empty
+         programme straight back — the first version did exactly that and the
+         menu went on claiming there was something stored. */
+      const out = await run(`
+        state.clips = [{ id: 'x', title: 'a song', file: 'a song.mp3',
+          srcStart: 0, srcEnd: 10, fadeIn: 0, fadeOut: 0, crossfade: 0, gain: 1 }];
+        save();
+        describeStored();
+        const before = { stored: !!localStorage.getItem('skate.program.v1'),
+                         note: document.getElementById('forgetNote').textContent,
+                         disabled: document.getElementById('btnForget').disabled };
+        await forgetEverything();
+        const after = { stored: !!localStorage.getItem('skate.program.v1'),
+                        clips: state.clips.length,
+                        note: document.getElementById('forgetNote').textContent,
+                        disabled: document.getElementById('btnForget').disabled };
+        return { before, after };
+      `);
+      eq(out.before.stored, true, 'nothing was stored to begin with: ');
+      eq(out.before.disabled, false, 'the button was dead while there was work to forget: ');
+      eq(out.after.stored, false, 'the programme was written back after being cleared: ');
+      eq(out.after.clips, 0, 'the programme is still on screen: ');
+      eq(out.after.disabled, true, 'the button is still live with nothing left to forget: ');
+      ok(out.after.note !== out.before.note, 'the menu still claims the same thing is stored');
     });
 
     await check('collapsing the music panel frees the column and nothing else', async () => {
@@ -125,8 +186,11 @@ async function main() {
         const main = document.querySelector('main');
         const button = document.getElementById('btnLibraryToggle');
         const width = () => Math.round(document.getElementById('scrubber').getBoundingClientRect().width);
-        const heads = () => [...document.querySelectorAll('.panel-head')]
-          .filter(h => h.offsetParent).length;
+        /* Count the controls, not the headers. An emptied .panel-head is still
+           an element with an offsetParent, so counting headers stayed at three
+           while Play and Stop were off the screen — the check could not fail. */
+        const heads = () => [...document.querySelectorAll('.panel-head *')]
+          .filter(e => e.offsetParent && !e.closest('#library')).length;
         const spot = () => { const r = button.getBoundingClientRect();
           return Math.round(r.left) + ',' + Math.round(r.top); };
         const before = { w: width(), heads: heads(), spot: spot(),

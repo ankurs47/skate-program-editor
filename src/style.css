@@ -235,6 +235,54 @@ main.library-collapsed #library { padding: 14px; }
 main.library-collapsed #library > :not(.panel-head) { display: none; }
 main.library-collapsed #library .panel-head { margin-bottom: 0; }
 main.library-collapsed #library .panel-head > :not(.lib-toggle) { display: none; }
+/* ---- settings menu ---- */
+
+.menu-wrap { position: relative; }
+.menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 40;
+  width: 260px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .28);
+}
+.menu-head {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--muted);
+}
+.menu-head + * { margin-top: -2px; }
+.menu-note { font-size: 12px; }
+.menu hr { width: 100%; border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
+
+/* One control, three states, and the chosen one is obvious without reading —
+   which a cycling button never manages, because it can only ever show you where
+   you are and not what else there is. */
+.seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg > button {
+  flex: 1;
+  border: 0;
+  border-radius: 0;
+  padding: 6px 4px;
+  font-size: 13px;
+  color: var(--muted);
+  background: transparent;
+}
+.seg > button + button { border-left: 1px solid var(--line); }
+.seg > button:hover:not([aria-checked="true"]) { color: var(--ink); background: var(--bg); }
+.seg > button[aria-checked="true"] { color: #fff; background: var(--accent); }
+
 /* The panel-with-a-chevron mark, which is what editors and browsers use for
    "show or hide the side panel". A bare arrow was the first attempt and says
    nothing about what it acts on; this draws the panel itself, with the bar down
@@ -685,6 +733,13 @@ button.primary > kbd { color: #fff; border-color: rgba(255, 255, 255, .5); }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 .progress { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
 .progress > div { height: 100%; width: 0; background: var(--accent); transition: width .1s linear; }
+
+/* Both width transitions above are feedback rather than decoration, but the
+   system setting is a request to stop things moving and nothing is lost by
+   honouring it — the bars still land where they were going to. */
+@media (prefers-reduced-motion: reduce) {
+  .budget-fill, .progress > div { transition: none; }
+}
 
 .toast {
   position: fixed;

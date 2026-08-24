@@ -256,7 +256,7 @@
     "guards": "the documentation is reachable from the app",
     "file": "index.html",
     "suite": "unit",
-    "find": "    <a class=\"guide-link\" href=\"docs/help.html\">Full guide &rarr;</a>\n",
+    "find": "    <a class=\"topbar-link\" href=\"docs/help.html\">Full guide</a>\n",
     "replace": "",
     "expect": "no longer links to the guide"
   },
@@ -295,5 +295,32 @@
     "find": "main.library-collapsed { grid-template-columns: auto 1fr; }",
     "replace": "main.library-collapsed { grid-template-columns: 300px 1fr; }",
     "expect": "no room"
+  },
+  {
+    "name": "forgetting clears storage before the refresh puts it back",
+    "guards": "nothing is left behind after forgetting",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "  try { localStorage.removeItem(STORE_KEY); } catch (_) { /* private mode */ }\n  describeStored();",
+    "replace": "  describeStored();",
+    "expect": "written back after being cleared"
+  },
+  {
+    "name": "the menu counts a stored key rather than stored work",
+    "guards": "an emptied programme is not reported as work",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "  if (clips) parts.push('the programme you are working on');",
+    "replace": "  if (true) parts.push('the programme you are working on');",
+    "expect": "still live with nothing left"
+  },
+  {
+    "name": "a click outside stops closing the settings menu",
+    "guards": "the menu does not stay open over the page",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "    if (!inside) setSettingsOpen(false);",
+    "replace": "    void inside;",
+    "expect": "click outside did not shut it"
   }
 ]

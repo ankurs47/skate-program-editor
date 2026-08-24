@@ -549,26 +549,104 @@ function applyTheme(mode) {
   if (mode === 'auto') root.removeAttribute('data-theme');
   else root.setAttribute('data-theme', mode);
 
-  const button = $('btnTheme');
-  if (!button) return;
-  button.dataset.mode = mode;
-  $('themeLabel').textContent = THEME_WORDS[mode];
-  const next = THEME_MODES[(THEME_MODES.indexOf(mode) + 1) % THEME_MODES.length];
-  button.title = mode === 'auto'
-    ? `Colours follow this computer. Switch to ${THEME_WORDS[next].toLowerCase()}.`
-    : `Colours are set to ${THEME_WORDS[mode].toLowerCase()}. Switch to ${THEME_WORDS[next].toLowerCase()}.`;
-  button.setAttribute('aria-label', button.title);
+  for (const button of document.querySelectorAll('[data-theme-choice]')) {
+    button.setAttribute('aria-checked', String(button.dataset.themeChoice === mode));
+  }
+  $('themeNote').textContent = mode === 'auto'
+    ? 'Auto follows whatever this computer is set to.'
+    : `Always ${THEME_WORDS[mode].toLowerCase()}, whatever this computer is set to.`;
 }
 
-/** Step to the next mode, remember it, and repaint what the CSS cannot. */
-function cycleTheme() {
-  const mode = THEME_MODES[(THEME_MODES.indexOf(storedTheme()) + 1) % THEME_MODES.length];
+/** Take a choice from the menu, remember it, and repaint what the CSS cannot. */
+function chooseTheme(mode) {
+  if (!THEME_MODES.includes(mode)) return;
   try { localStorage.setItem(THEME_KEY, mode); } catch (_) { /* private mode */ }
   applyTheme(mode);
   /* The canvases hold colours that were resolved when they were drawn, so the
      stylesheet changing underneath them is not enough on its own. */
   repaintForTheme();
 }
+
+
+/* ------------------------------------------------------- settings menu */
+
+/** Open or shut the settings menu, and say which for anything listening. */
+function setSettingsOpen(open) {
+  $('settingsMenu').classList.toggle('hidden', !open);
+  $('btnSettings').setAttribute('aria-expanded', String(open));
+  if (open) describeStored();
+}
+
+function settingsOpen() {
+  return !$('settingsMenu').classList.contains('hidden');
+}
+
+/**
+ * Say what this browser is holding, in the plainest terms available.
+ *
+ * Worth stating rather than implying: the editor keeps the programme between
+ * visits, and on Chrome and Edge it also keeps a way back to the song files.
+ * Neither is obvious, and on a rink's shared laptop both are worth being able
+ * to get rid of.
+ */
+function describeStored() {
+  const parts = [];
+  /* An empty shell is written back on the first refresh after anything is
+     cleared, so "is there a key" is not the question — "is there any work in
+     it" is. Reporting a programme that has nothing in it would make the button
+     look broken right after it had worked. */
+  let clips = 0;
+  try {
+    const stored = localStorage.getItem(STORE_KEY);
+    if (stored) clips = (JSON.parse(stored).clips || []).length;
+  } catch (_) { /* private mode, or something we did not write */ }
+  if (clips) parts.push('the programme you are working on');
+  if (rememberedNames.size) {
+    parts.push(rememberedNames.size === 1
+      ? 'a way back to 1 song file'
+      : `a way back to ${rememberedNames.size} song files`);
+  }
+  $('forgetNote').textContent = parts.length
+    ? `This browser is keeping ${parts.join(' and ')}. Your music itself is never uploaded.`
+    : 'This browser is not keeping anything from the editor right now.';
+  $('btnForget').disabled = !parts.length;
+}
+
+/**
+ * Drop everything the editor has put in this browser.
+ *
+ * The programme on screen goes too, and it has to: `save()` writes on the next
+ * edit, so clearing storage while a programme is still loaded would simply put
+ * it back a moment later. Colours and the sidebar are left alone — they are
+ * preferences, not anything anyone needs cleared off a shared machine.
+ */
+async function forgetEverything() {
+  resetProgram();
+  library.clear();
+  rememberedNames.clear();
+  if (typeof indexedDB !== 'undefined') {
+    await new Promise((resolve) => {
+      let done = false;
+      const finish = () => { if (!done) { done = true; resolve(); } };
+      try {
+        const request = indexedDB.deleteDatabase(HANDLE_DB);
+        request.onsuccess = finish;
+        request.onerror = finish;
+        /* A delete blocks while another tab holds the database open, and it
+           never resolves until that tab lets go. Nothing here should wait on
+           another tab, so it moves on. */
+        request.onblocked = finish;
+      } catch (_) { finish(); }
+    });
+  }
+  refresh();
+  /* After the refresh, not before: refresh() runs save(), which would put an
+     empty programme straight back into the storage this just emptied. */
+  try { localStorage.removeItem(STORE_KEY); } catch (_) { /* private mode */ }
+  describeStored();
+  toast('Forgotten. Nothing from the editor is left in this browser.');
+}
+
 
 /* ------------------------------------------------------- the music sidebar */
 
@@ -2250,6 +2328,7 @@ async function renderProgram() {
 
 async function doExport() {
   const format = $('exportFormat').value;
+  try { localStorage.setItem(FORMAT_KEY, format); } catch (_) { /* private mode */ }
   const bar = $('exportBar');
   const progress = $('exportProgress');
   const go = $('btnExportGo');
@@ -2814,7 +2893,21 @@ function bind() {
   bindScrubber();
   bindHelp();
   window.addEventListener('resize', () => { renderTimeline(); drawScrubber(); drawClipEditor(); });
-  $('btnTheme').onclick = cycleTheme;
+  $('btnSettings').onclick = () => setSettingsOpen(!settingsOpen());
+  for (const button of document.querySelectorAll('[data-theme-choice]')) {
+    button.onclick = () => chooseTheme(button.dataset.themeChoice);
+  }
+  $('btnForget').onclick = forgetEverything;
+  /* Anywhere outside shuts it. The menu is not modal — it sits over a page you
+     can still use — so a click meant for the editor should land there and close
+     the menu, not be swallowed by a backdrop. */
+  document.addEventListener('pointerdown', (e) => {
+    if (!settingsOpen()) return;
+    /* Not every event target is an Element — a pointerdown can arrive on the
+       document itself, which has no closest(). */
+    const inside = e.target instanceof Element && e.target.closest('.menu-wrap');
+    if (!inside) setSettingsOpen(false);
+  });
   $('btnLibraryToggle').onclick = () =>
     setLibraryCollapsed(!document.querySelector('main').classList.contains('library-collapsed'));
   /* The colours are cached, so a change of system theme has to say so. Only
@@ -2825,6 +2918,13 @@ function bind() {
 }
 
 function onKey(e) {
+  // The menu is the shallowest thing on screen, so it goes first.
+  if (e.key === 'Escape' && settingsOpen()) {
+    setSettingsOpen(false);
+    $('btnSettings').focus();
+    return;
+  }
+
   // Escape closes whichever dialog is open, wherever focus happens to be.
   if (e.key === 'Escape' && closeTopDialog()) return;
 
@@ -2908,13 +3008,20 @@ function tryLoadLame() {
   document.head.appendChild(script);
 }
 
+/* Whichever format was used last. Not a setting anyone has to find — picking
+   WAV and being handed MP3 again next time is the app overruling a choice that
+   was already made, which is the only reason this is remembered at all. */
+const FORMAT_KEY = 'skate.exportFormat';
+
 function updateExportOptions() {
   const select = $('exportFormat');
   const mp3Option = select.querySelector('option[value=mp3]');
   mp3Option.disabled = !mp3Ready;
+  let last = null;
+  try { last = localStorage.getItem(FORMAT_KEY); } catch (_) { /* private mode */ }
   if (mp3Ready) {
     mp3Option.textContent = "MP3 — smaller, usually what's asked for";
-    select.value = 'mp3';
+    select.value = last === 'wav' ? 'wav' : 'mp3';
     $('exportNote').textContent = 'MP3 is what most competitions ask for.';
   } else {
     mp3Option.textContent = 'MP3 — could not be loaded';

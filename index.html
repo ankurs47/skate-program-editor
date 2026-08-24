@@ -60,12 +60,26 @@
     <button class="help-btn" data-help="keys">Keyboard</button>
   </nav>
   <span class="topbar-links">
-    <button class="topbar-link theme-btn" id="btnTheme" type="button" data-mode="auto">
-      <svg class="ico ico-auto" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path fill="currentColor" d="M8 1.8a6.2 6.2 0 0 1 0 12.4Z"/></svg>
-      <svg class="ico ico-light" viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="3.1"/><path d="M8 1v1.6M8 13.4V15M1 8h1.6M13.4 8H15M3.05 3.05l1.13 1.13M11.82 11.82l1.13 1.13M12.95 3.05l-1.13 1.13M4.18 11.82l-1.13 1.13"/></svg>
-      <svg class="ico ico-dark" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M13.5 10.3A6 6 0 0 1 5.7 2.5a6 6 0 1 0 7.8 7.8Z"/></svg>
-      <span id="themeLabel">Auto</span>
-    </button>
+    <span class="menu-wrap">
+      <button class="topbar-link" id="btnSettings" type="button"
+              aria-haspopup="true" aria-expanded="false" aria-controls="settingsMenu">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+        Settings
+      </button>
+      <div class="menu hidden" id="settingsMenu" role="dialog" aria-modal="false" aria-label="Settings">
+        <p class="menu-head" id="themeGroupLabel">Colours</p>
+        <div class="seg" role="radiogroup" aria-labelledby="themeGroupLabel">
+          <button type="button" role="radio" data-theme-choice="auto" aria-checked="true">Auto</button>
+          <button type="button" role="radio" data-theme-choice="light" aria-checked="false">Light</button>
+          <button type="button" role="radio" data-theme-choice="dark" aria-checked="false">Dark</button>
+        </div>
+        <p class="hint menu-note" id="themeNote">Auto follows whatever this computer is set to.</p>
+
+        <p class="menu-head">This computer</p>
+        <p class="hint menu-note" id="forgetNote"></p>
+        <button type="button" id="btnForget" class="small danger">Forget it all</button>
+      </div>
+    </span>
     <a class="topbar-link" href="docs/help.html">Full guide</a>
     <a class="topbar-link" href="https://github.com/ankurs47/skate-program-editor"
        target="_blank" rel="noopener" title="Source code on GitHub">
