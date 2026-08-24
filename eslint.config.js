@@ -68,7 +68,11 @@ module.exports = [
       sourceType: 'commonjs',
       globals: { require: 'readonly', module: 'writable', process: 'readonly',
                  __dirname: 'readonly', console: 'readonly', global: 'writable',
-                 Buffer: 'readonly' },
+                 Buffer: 'readonly',
+                 // The browser checks drive Chrome over the DevTools Protocol.
+                 // Node 22 has WebSocket globally, which is what lets them do
+                 // that without a single dependency.
+                 WebSocket: 'readonly', setTimeout: 'readonly' },
     },
     rules: { ...js.configs.recommended.rules, 'no-unused-vars': ['error', { caughtErrors: 'none' }] },
   },

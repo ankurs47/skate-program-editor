@@ -34,8 +34,9 @@ and a test asserts the flags that matter appear in both.
 npm install      # installs eslint and enables the pre-commit hook
 npm test         # unit + wiring + asset checks
 npm run lint
-npm run check    # what CI runs
+npm run check    # lint + unit tests
 npm run test:net # also re-verifies the pinned CDN hash
+npm run test:dom # browser checks — needs Chrome, not part of npm test
 ```
 
 `main` is protected: pull request required, CI must pass, applies to admins too.
@@ -97,8 +98,24 @@ handlers, and add it to the export list at the bottom of whichever file it is
 in. `eslint.config.js` derives the list of cross-file names from those export
 blocks, so an export you forget shows up as `no-undef` in app.js.
 
-The tests mirror that split — `test/analysis.test.js`, `test/formats.test.js`,
-`test/app.test.js`, plus `test/assets.test.js` for the files themselves.
+**The browser checks are where the DOM half is tested.** `test/dom/` drives real
+Chrome over the DevTools Protocol — no dependencies, because Node 22 has a
+global `WebSocket` and Chrome speaks CDP over one. They cover what the unit
+tests cannot reach: dialogs and focus, the audio graph, key handling, and flows
+that only exist as a sequence of clicks. They are opt-in for the same reason
+`--net` is, so `npm test` still works with no browser and no network.
+
+Assert on the graph and on page state, never on how long something took or on
+what came out of the speakers — nothing is audible headless. And assert on the
+graph that was *built*, not the nodes that were constructed: an earlier version
+of the audition check watched `createGain` and passed happily while the source
+was wired straight to the output and both gain nodes dangled unused. Every check
+there has been confirmed to fail when the code it covers is deliberately broken,
+which is the only evidence that a test is worth its runtime.
+
+The unit tests mirror the file split — `test/analysis.test.js`,
+`test/formats.test.js`, `test/app.test.js`, plus `test/assets.test.js` for the
+files themselves.
 `test/harness.js` holds `check`/`eq`/`near`/`ok`; `test/run.js` only loads the
 four and reports. A new test goes in the file matching the code it covers.
 Requiring `app.js` still gets everything, because it re-exports the other two.
