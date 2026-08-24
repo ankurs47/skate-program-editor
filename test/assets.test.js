@@ -11,7 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { execFileSync } = require('child_process');
-const { app, check, eq, near, ok, html, css, ROOT, SCRIPTS, SHIPPED } = require('./harness.js');
+const { app, check, eq, ok, html, css, ROOT, SCRIPTS, SHIPPED } = require('./harness.js');
 
 /* --------------------------------------------------------------- 2. wiring */
 
@@ -500,8 +500,12 @@ check('both pages carry what a link preview and a search result need', () => {
   eq(image.slice(1, 4).toString(), 'PNG', `${card} is not a PNG: `);
   const width = image.readUInt32BE(16);
   const height = image.readUInt32BE(20);
-  near(width / height, 1.91, 0.02,
-    `${card} is ${width}x${height}; platforms crop to 1.91:1: `);
+  /* Exactly 1200x630, not merely the right shape. Two attempts were wrong in
+     different ways — 1280x640 is 2:1 and gets its sides cropped, and rendering
+     at 2x for sharpness gave 2400x1260, which validators flag and platforms
+     resize themselves. It is a thumbnail; the canonical size beats a clever
+     one, and `npm run screenshot` is what regenerates it. */
+  eq([width, height], [1200, 630], `${card} should be exactly 1200x630: `);
 
   const pages = [['index.html', html],
     ['docs/help.html', fs.readFileSync(path.join(ROOT, 'docs/help.html'), 'utf8')]];
