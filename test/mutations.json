@@ -1,0 +1,191 @@
+[
+  {
+    "name": "undo snapshots only the clips again",
+    "guards": "the target length and the programme name are inside undo",
+    "file": "app.js",
+    "suite": "unit",
+    "find": "return JSON.stringify({\n    name: state.name,",
+    "replace": "return JSON.stringify({\n    name: undefined,",
+    "expect": "holds the length being worked to"
+  },
+  {
+    "name": "a new edit no longer closes the redo branch",
+    "guards": "redo means putting back what was just taken away",
+    "file": "app.js",
+    "suite": "unit",
+    "find": "never followed from this state.\n  redoStack.length = 0;",
+    "replace": "never followed from this state.\n  void 0;",
+    "expect": "closes off the branch"
+  },
+  {
+    "name": "stepping forward does not refill the undo stack",
+    "guards": "redo can itself be undone",
+    "file": "app.js",
+    "suite": "unit",
+    "find": "  const next = redoStack.pop();\n  undoStack.push(undoSnapshot());",
+    "replace": "  const next = redoStack.pop();\n  void 0;",
+    "expect": "stepped forward again"
+  },
+  {
+    "name": "reorder stops validating the index it is handed",
+    "guards": "a stray drag cannot splice at NaN",
+    "file": "app.js",
+    "suite": "unit",
+    "find": "  if (!valid(fromIndex) || !valid(toIndex) || fromIndex === toIndex) return null;",
+    "replace": "  if (fromIndex === toIndex) return null;",
+    "expect": "moves on a real pair of positions"
+  },
+  {
+    "name": "trims are no longer clamped to the file that arrives",
+    "guards": "a programme cannot claim time the audio does not have",
+    "file": "app.js",
+    "suite": "unit",
+    "find": "    if (start === clip.srcStart && end === clip.srcEnd) continue;",
+    "replace": "    continue;",
+    "expect": "brought inside the file"
+  },
+  {
+    "name": "the clock rounds after splitting the minutes off",
+    "guards": "59.98 seconds is not shown as 0:60.0",
+    "file": "app.js",
+    "suite": "unit",
+    "find": "  const tenths = Math.round(seconds * 10);\n  const m = Math.floor(tenths / 600);\n  const s = (tenths - m * 600) / 10;",
+    "replace": "  const m = Math.floor(seconds / 60);\n  const s = seconds - m * 60;",
+    "expect": "carries the minute"
+  },
+  {
+    "name": "a low sample rate stops affecting the verdict",
+    "guards": "a 320k rip of a 22 kHz source is not called good",
+    "file": "formats.js",
+    "suite": "unit",
+    "find": "  if (sampleRate !== null && kind !== 'unknown') {",
+    "replace": "  if (false) {",
+    "expect": "low sample rate pulls the verdict down"
+  },
+  {
+    "name": "the colour cache is bypassed",
+    "guards": "drawing does not force a style resolve every frame",
+    "file": "app.js",
+    "suite": "dom",
+    "find": "  if (!palette.has(name)) {",
+    "replace": "  if (true) {",
+    "expect": "re-reads no styles"
+  },
+  {
+    "name": "the timeline is rebuilt on every call",
+    "guards": "dragging a slider does not churn the DOM",
+    "file": "app.js",
+    "suite": "dom",
+    "find": "  if (signature === timelineShape && wrap.querySelectorAll('.tl-clip').length === state.clips.length) {",
+    "replace": "  if (false) {",
+    "expect": "rebuilds nothing"
+  },
+  {
+    "name": "the library is rebuilt on every refresh",
+    "guards": "an idle refresh costs nothing",
+    "file": "app.js",
+    "suite": "dom",
+    "find": "  if (signature === libraryShape) return;",
+    "replace": "  void signature;",
+    "expect": "changes nothing rebuilds nothing"
+  },
+  {
+    "name": "waveforms are drawn per event rather than per frame",
+    "guards": "drawing coalesces to one batch a frame",
+    "file": "app.js",
+    "suite": "dom",
+    "find": "  if (timelineWaveFrame) return;",
+    "replace": "  drawTimelineWaves(); return;",
+    "expect": "waveform draws"
+  },
+  {
+    "name": "the blend marker is dropped from the timeline signature",
+    "guards": "a change of structure hiding inside a change of number",
+    "file": "app.js",
+    "suite": "dom",
+    "find": "    parts[i].xf >= MIN_CROSSFADE ? 1 : 0,      // whether a blend marker is shown",
+    "replace": "    0,",
+    "expect": "rebuilds what it must"
+  },
+  {
+    "name": "a theme change trusts the stale colour cache",
+    "guards": "switching theme repaints the canvases",
+    "file": "app.js",
+    "suite": "dom",
+    "find": "function repaintForTheme() {\n  palette.clear();",
+    "replace": "function repaintForTheme() {\n  void 0;",
+    "expect": "repaints rather than trusting"
+  },
+  {
+    "name": "the audition bypasses its level and fade nodes",
+    "guards": "what you hear is the clip as it is set",
+    "file": "app.js",
+    "suite": "dom",
+    "find": "  src.connect(level).connect(fade).connect(context.destination);",
+    "replace": "  src.connect(context.destination);",
+    "expect": "auditioning a clip applies"
+  },
+  {
+    "name": "the busy state waits only on a frame",
+    "guards": "a hidden tab does not deadlock the analysis buttons",
+    "file": "app.js",
+    "suite": "dom",
+    "find": "    setTimeout(go, 50);",
+    "replace": "    void go;",
+    "expect": "frames never come"
+  },
+  {
+    "name": "the drop handler reads text/plain again",
+    "guards": "a stray drop cannot reorder the programme",
+    "file": "app.js",
+    "suite": "dom",
+    "find": "      const from = e.dataTransfer.getData(CLIP_DRAG_TYPE);",
+    "replace": "      const from = e.dataTransfer.getData('text/plain');",
+    "expect": "ignore a stray drop"
+  },
+  {
+    "name": "an open dialog stops owning the keyboard",
+    "guards": "editing keys do not reach the programme behind a dialog",
+    "file": "app.js",
+    "suite": "dom",
+    "find": "  if (dialog) { trapFocus(e, dialog.querySelector('.modal-card') || dialog); return; }",
+    "replace": "  if (dialog) { trapFocus(e, dialog.querySelector('.modal-card') || dialog); }",
+    "expect": "owns the keyboard"
+  },
+  {
+    "name": "the export clipping guard is removed",
+    "guards": "a distorted programme is caught before it is encoded",
+    "file": "app.js",
+    "suite": "dom",
+    "find": "    if (clipsOnExport(peakOf(channelsOf(rendered))) && !clippingAccepted) {",
+    "replace": "    if (false) {",
+    "expect": "would distort warns"
+  },
+  {
+    "name": "Ctrl+Y stops redoing",
+    "guards": "both redo shortcuts work",
+    "file": "app.js",
+    "suite": "dom",
+    "find": "  if (modifier && key === 'y') { e.preventDefault(); redo(); return; }",
+    "replace": "  void modifier;",
+    "expect": "by either shortcut"
+  },
+  {
+    "name": "typing a name pushes an undo step per keystroke",
+    "guards": "a typed name is one undo step",
+    "file": "app.js",
+    "suite": "dom",
+    "find": "    pushUndo('program-name');",
+    "replace": "    pushUndo();",
+    "expect": "one undo step, not one per letter"
+  },
+  {
+    "name": "a drop on the timeline no longer adds the song",
+    "guards": "dropping on the strip puts the music in the programme",
+    "file": "app.js",
+    "suite": "dom",
+    "find": "    if (ontoTimeline) for (const entry of added) addClip(entry);",
+    "replace": "    void ontoTimeline;",
+    "expect": "puts the song in the programme"
+  }
+]

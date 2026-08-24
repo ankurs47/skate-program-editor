@@ -475,8 +475,38 @@ function drawWave(canvas, peaks, duration, t0, t1, color, gain = 1) {
   }
 }
 
+/**
+ * A colour from the stylesheet.
+ *
+ * Cached, because `getComputedStyle` forces the browser to resolve style before
+ * it can answer, and the drawing code asks for four to eight colours every
+ * animation frame while something is playing. The values only change when the
+ * theme does, which is a thing we are told about.
+ */
+const palette = new Map();
+
 function css(name) {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  if (!palette.has(name)) {
+    palette.set(name, getComputedStyle(document.documentElement).getPropertyValue(name).trim());
+  }
+  return palette.get(name);
+}
+
+/**
+ * Forget the cached colours and repaint, for when the theme changes underneath.
+ *
+ * The strip and the list only rebuild when their contents change, and a theme
+ * change is invisible to that test — so the caches saying "already drawn" have
+ * to be cleared as well, or the new colours never reach the canvases.
+ */
+function repaintForTheme() {
+  palette.clear();
+  libraryShape = null;
+  timelineShape = null;
+  renderLibrary();
+  renderTimeline();
+  drawScrubber();
+  drawClipEditor();
 }
 
 
@@ -601,7 +631,30 @@ function removeFromLibrary(name) {
   renderLibrary();
 }
 
+/* Nothing about the list changes as often as it was being rebuilt. It is in
+   `refresh()` because whether a file can be removed depends on whether the
+   programme still uses it — but that answer, and everything else on show here,
+   changes far less often than `refresh()` is called. */
+let libraryShape = null;
+
+function librarySignature() {
+  return [...library.values()]
+    .map((entry) => [
+      entry.name,
+      entry.state,
+      Math.round(entry.duration),
+      entry.quality ? entry.quality.kind : '',
+      entry.peaks ? 1 : 0,
+      clipsUsing(entry.name),                  // whether Remove is available
+    ].join(':'))
+    .join('|');
+}
+
 function renderLibrary() {
+  const signature = librarySignature();
+  if (signature === libraryShape) return;
+  libraryShape = signature;
+
   const list = $('libraryList');
   list.innerHTML = '';
   for (const entry of library.values()) {
@@ -842,12 +895,97 @@ function moveClip(fromIndex, toIndex) {
 /* Private to this page, so only a drag that began on a clip block carries it. */
 const CLIP_DRAG_TYPE = 'application/x-skate-clip';
 
+/* What the strip's elements were built for. Dragging a slider changes numbers,
+   not structure — but the whole strip was being torn down and rebuilt on every
+   input event, which at pointer rate meant hundreds of elements and canvases a
+   second, each with fresh handlers attached. This is how the two are told
+   apart: anything in the signature needs new elements, anything else only needs
+   the existing ones updated. */
+let timelineShape = null;
+
+function timelineSignature(clips, parts) {
+  return clips.map((clip, i) => [
+    clip.id,
+    clip.file,
+    clip.title,
+    clip.id === state.selected ? 1 : 0,
+    library.get(clip.file)?.buffer ? 1 : 0,
+    parts[i].xf >= MIN_CROSSFADE ? 1 : 0,      // whether a blend marker is shown
+  ].join(':')).join('|');
+}
+
+/**
+ * Redraw every clip's waveform, at most once per animation frame.
+ *
+ * Drawing is the expensive half and a pointer can fire several input events
+ * inside one frame, so doing it on each of them is work nobody ever sees. The
+ * old code deferred each canvas separately, which was worse than it looked: the
+ * next event replaced the whole strip first, so those callbacks painted into
+ * canvases that had already been thrown away.
+ */
+let timelineWaveFrame = 0;
+
+function drawTimelineWaves() {
+  const blocks = $('timeline').querySelectorAll('.tl-clip');
+  state.clips.forEach((clip, i) => {
+    const canvas = blocks[i] && blocks[i].querySelector('canvas');
+    const entry = library.get(clip.file);
+    if (!canvas || !entry || !entry.peaks) return;
+    drawWave(canvas, entry.peaks, entry.duration, clip.srcStart, clip.srcEnd,
+      clip.id === state.selected ? css('--wave-sel') : css('--wave'));
+  });
+}
+
+function scheduleTimelineWaves() {
+  if (timelineWaveFrame) return;
+  timelineWaveFrame = requestAnimationFrame(() => {
+    timelineWaveFrame = 0;
+    drawTimelineWaves();
+  });
+}
+
+/**
+ * Update what the existing blocks say, without replacing any of them.
+ *
+ * Text and widths are cheap and go in straight away, so the strip never lags a
+ * frame behind the slider. The waveforms follow on the next frame.
+ */
+function syncTimelineMetrics(parts, total) {
+  const wrap = $('timeline');
+  const blocks = wrap.querySelectorAll('.tl-clip');
+  const markers = wrap.querySelectorAll('.tl-xf');
+  let marker = 0;
+
+  state.clips.forEach((clip, i) => {
+    if (parts[i].xf >= MIN_CROSSFADE && markers[marker]) {
+      const tag = markers[marker++];
+      tag.textContent = `↔ ${parts[i].xf.toFixed(1)}s`;
+      tag.title = `blends ${parts[i].xf.toFixed(1)}s into the previous clip`;
+    }
+    const el = blocks[i];
+    if (!el) return;
+    const share = total > 0 ? parts[i].dur / total : 1 / state.clips.length;
+    el.style.flex = `${share.toFixed(4)} 1 0`;
+
+    const entry = library.get(clip.file);
+    el.querySelector('.tl-dur').textContent =
+      entry && entry.buffer ? fmt(parts[i].dur) : 'file missing';
+  });
+  scheduleTimelineWaves();
+}
+
 function renderTimeline() {
   const wrap = $('timeline');
   const { parts, total } = layout(state.clips);
-  wrap.innerHTML = '';
-
   $('timelineEmpty').classList.toggle('hidden', state.clips.length > 0);
+
+  const signature = timelineSignature(state.clips, parts);
+  if (signature === timelineShape && wrap.querySelectorAll('.tl-clip').length === state.clips.length) {
+    syncTimelineMetrics(parts, total);
+    return;
+  }
+  timelineShape = signature;
+  wrap.innerHTML = '';
 
   state.clips.forEach((clip, i) => {
     if (parts[i].xf >= MIN_CROSSFADE) {
@@ -916,12 +1054,8 @@ function renderTimeline() {
     };
 
     wrap.appendChild(el);
-    if (entry && entry.peaks) {
-      requestAnimationFrame(() => drawWave(
-        canvas, entry.peaks, entry.duration, clip.srcStart, clip.srcEnd,
-        clip.id === state.selected ? css('--wave-sel') : css('--wave')));
-    }
   });
+  scheduleTimelineWaves();
 }
 
 /* ---------------------------------------------------------- program ruler */
@@ -2277,6 +2411,8 @@ function bind() {
   bindScrubber();
   bindHelp();
   window.addEventListener('resize', () => { renderTimeline(); drawScrubber(); drawClipEditor(); });
+  // The colours are cached, so switching the system theme has to say so.
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', repaintForTheme);
   document.addEventListener('keydown', onKey);
 }
 

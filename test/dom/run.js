@@ -17,12 +17,18 @@
  */
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const { open } = require('./browser.js');
 const { SETUP } = require('./fixtures.js');
 
 let passed = 0;
 const failures = [];
 let page = null;
+
+/* What the budget checks measured, so CI can report the numbers this run
+   produced rather than any written down by hand. */
+const metrics = {};
 
 async function check(name, body) {
   try {
@@ -652,6 +658,172 @@ async function main() {
       eq(result.timer, '0:30.0', 'and the timer must stop claiming time that is not there: ');
     });
 
+    /* --------------------------------------------------- the render path */
+
+    /* Budgets, not stopwatches. Wall-clock differs by machine and by what else
+       the machine is doing, so these count the things that actually cost the
+       time and are the same everywhere: elements built, forced style reads, and
+       waveforms drawn. Each number below was a real measurement before the work
+       that brought it down, and the assertion is what stops it climbing back.
+
+       Measured on four clips, sixty input events — one second of dragging. */
+
+    await check('dragging a slider rebuilds nothing and re-reads no styles', async () => {
+      const result = await run(`
+        window.__reset([
+          ['a.mp3', window.__tone(220, 200)], ['b.mp3', window.__tone(330, 200)],
+          ['c.mp3', window.__tone(440, 200)], ['d.mp3', window.__tone(550, 200)],
+        ]);
+        state.clips[1].crossfade = 2;
+        state.selected = state.clips[1].id;
+        refresh();
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+        let styleReads = 0, created = 0, timelineWaves = 0;
+        const realGCS = window.getComputedStyle;
+        const realCreate = document.createElement.bind(document);
+        const realDrawWave = window.drawWave;
+        window.getComputedStyle = function (...a) { styleReads++; return realGCS.apply(this, a); };
+        document.createElement = (tag) => { created++; return realCreate(tag); };
+        window.drawWave = (canvas, ...rest) => {
+          if (canvas && canvas.closest && canvas.closest('#timeline')) timelineWaves++;
+          return realDrawWave(canvas, ...rest);
+        };
+        try {
+          const clip = selectedClip();
+          const started = performance.now();
+          for (let i = 0; i < 60; i++) {
+            clip.crossfade = 1 + (i % 20) * 0.05;      // never crosses MIN_CROSSFADE
+            drawClipEditor(); renderTimeline(); updateBudget();
+          }
+          const blockingMs = +(performance.now() - started).toFixed(1);
+          await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+          return { styleReads, created, timelineWaves, blockingMs, clips: state.clips.length };
+        } finally {
+          window.getComputedStyle = realGCS;
+          document.createElement = realCreate;
+          window.drawWave = realDrawWave;
+        }
+      `);
+      metrics.drag = {
+        events: 60,
+        clips: result.clips,
+        elementsCreated: result.created,
+        forcedStyleReads: result.styleReads,
+        timelineWaveDraws: result.timelineWaves,
+        blockingMs: result.blockingMs,
+        wasElements: 1140, wasStyleReads: 480, wasWaveDraws: 240, wasBlockingMs: 35.9,
+      };
+      eq(result.created, 0,
+        'sixty input events built elements — the strip is being rebuilt again: ');
+      eq(result.styleReads, 0,
+        'the stylesheet was read during drawing; the colour cache is not being used: ');
+      ok(result.timelineWaves <= result.clips * 4,
+        `${result.timelineWaves} waveform draws for ${result.clips} clips over sixty events — `
+        + 'they are meant to coalesce to about one batch a frame (it was 240)');
+    });
+
+    await check('a refresh that changes nothing rebuilds nothing', async () => {
+      /* refresh() redraws the library because whether a file can be removed
+         depends on the programme using it — but that answer changes far less
+         often than refresh is called. */
+      const result = await run(`
+        window.__reset([
+          ['a.mp3', window.__tone(220, 200)], ['b.mp3', window.__tone(330, 200)],
+          ['c.mp3', window.__tone(440, 200)], ['d.mp3', window.__tone(550, 200)],
+        ]);
+        refresh();
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+        let created = 0, styleReads = 0;
+        const realGCS = window.getComputedStyle;
+        const realCreate = document.createElement.bind(document);
+        window.getComputedStyle = function (...a) { styleReads++; return realGCS.apply(this, a); };
+        document.createElement = (tag) => { created++; return realCreate(tag); };
+        try {
+          const started = performance.now();
+          for (let i = 0; i < 30; i++) refresh();
+          const blockingMs = +(performance.now() - started).toFixed(1);
+          return { created, styleReads, blockingMs };
+        } finally {
+          window.getComputedStyle = realGCS;
+          document.createElement = realCreate;
+        }
+      `);
+      metrics.refresh = {
+        calls: 30,
+        elementsCreated: result.created,
+        forcedStyleReads: result.styleReads,
+        blockingMs: result.blockingMs,
+        wasElements: 1530, wasStyleReads: 750, wasBlockingMs: 30.1,
+      };
+      eq(result.created, 0, 'thirty idle refreshes built elements (it was 1530): ');
+      eq(result.styleReads, 0, 'and read the stylesheet (it was 750): ');
+    });
+
+    await check('but a real change still rebuilds what it must', async () => {
+      // The budgets above are only worth having if the caches still notice work.
+      const result = await run(`
+        window.__reset([['a.mp3', window.__tone(220, 60)], ['b.mp3', window.__tone(330, 60)]]);
+        refresh();
+        const count = () => document.querySelectorAll('#timeline .tl-clip').length;
+        const libRows = () => document.querySelectorAll('#libraryList li').length;
+
+        const before = { blocks: count(), rows: libRows(), names: state.clips.map(c => c.title) };
+        removeClip(state.clips[1].id);
+        const afterRemove = { blocks: count(), rows: libRows() };
+
+        window.__addToLibrary('c.mp3', window.__tone(440, 60));
+        renderLibrary();
+        const afterNewFile = { rows: libRows() };
+
+        addClip(library.get('c.mp3'));
+        state.clips[0].title = 'renamed';
+        renderTimeline();
+        const afterRename = {
+          blocks: count(),
+          firstName: document.querySelector('#timeline .tl-name').textContent,
+        };
+        /* A blend crossing MIN_CROSSFADE adds or removes a marker between the
+           blocks, which is a change of structure hiding inside a change of
+           number — the one case where dragging a slider does need a rebuild. */
+        const markers = () => document.querySelectorAll('#timeline .tl-xf').length;
+        state.clips[1].crossfade = 0; renderTimeline();
+        const noBlend = markers();
+        state.clips[1].crossfade = 2; renderTimeline();
+        const blended = markers();
+        state.clips[1].crossfade = 0; renderTimeline();
+        const backToNone = markers();
+
+        return { before, afterRemove, afterNewFile, afterRename, noBlend, blended, backToNone };
+      `);
+      eq(result.before.blocks, 2, 'two clips, two blocks: ');
+      eq(result.afterRemove.blocks, 1, 'removing a clip must remove its block: ');
+      eq(result.afterNewFile.rows, 3, 'a new file must appear in the list: ');
+      eq(result.afterRename.blocks, 2);
+      eq(result.afterRename.firstName, 'renamed', 'a retitled clip must show its new name: ');
+      eq(result.noBlend, 0, 'a hard cut shows no blend marker: ');
+      eq(result.blended, 1, 'turning a blend on must add one: ');
+      eq(result.backToNone, 0, 'and turning it off again must take it away: ');
+    });
+
+    await check('changing the theme repaints rather than trusting the cache', async () => {
+      /* The colours are cached and the strip only rebuilds when its contents
+         change — neither of which notices a theme change, so it has to be told. */
+      const result = await run(`
+        window.__reset([['a.mp3', window.__tone(220, 60)]]);
+        refresh();
+        const before = css('--wave');
+        palette.set('--wave', 'rgb(1, 2, 3)');        // stand in for a theme change
+        const stale = css('--wave');
+        repaintForTheme();
+        return { before, stale, after: css('--wave'), cacheSize: palette.size };
+      `);
+      ok(result.stale === 'rgb(1, 2, 3)', 'the cache should have been consulted');
+      eq(result.after, result.before, 'repainting must go back to the stylesheet: ');
+      ok(result.cacheSize > 0, 'and fill the cache again as it draws');
+    });
+
     /* -------------------------------------------------------------- close */
 
     await check('nothing logged an error along the way', async () => {
@@ -669,6 +841,20 @@ async function main() {
 
   for (const failure of failures) console.error(`  FAIL  ${failure}`);
   console.log(`\n${passed} passed, ${failures.length} failed`);
+
+  const at = process.argv.indexOf('--report');
+  if (at >= 0 && process.argv[at + 1]) {
+    const file = process.argv[at + 1];
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, `${JSON.stringify({
+      suite: 'browser',
+      passed,
+      failed: failures.length,
+      failures: failures.map((f) => f.split('\n')[0]),
+      metrics,
+    }, null, 2)}\n`);
+  }
+
   process.exit(failures.length ? 1 : 0);
 }
 

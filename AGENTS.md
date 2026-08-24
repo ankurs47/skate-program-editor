@@ -36,7 +36,8 @@ npm test         # unit + wiring + asset checks
 npm run lint
 npm run check    # lint + unit tests
 npm run test:net # also re-verifies the pinned CDN hash
-npm run test:dom # browser checks — needs Chrome, not part of npm test
+npm run test:dom # browser checks and render budgets — needs Chrome
+npm run test:mutate  # break the code on purpose, check a test notices (~4 min)
 ```
 
 `main` is protected: pull request required, CI must pass, applies to admins too.
@@ -112,6 +113,26 @@ of the audition check watched `createGain` and passed happily while the source
 was wired straight to the output and both gain nodes dangled unused. Every check
 there has been confirmed to fail when the code it covers is deliberately broken,
 which is the only evidence that a test is worth its runtime.
+
+**A test that cannot fail is the failure mode to watch for here.** It has
+happened three times: a check that watched two gain nodes being created stayed
+green while the audio bypassed them both; a check on a frame fallback could not
+fail because headless Chrome paints; a check that "a real change still rebuilds"
+missed a stale marker left on screen. All three asserted on something *adjacent*
+to the behaviour rather than the behaviour.
+
+`test/mutations.json` is the guard against that: each entry names an invariant,
+a one-line break that violates it, and the check that should catch it.
+`npm run test:mutate` applies each in turn and reports `killed`, `SURVIVED` or
+`STALE` — stale counting as a failure, because a mutation that no longer applies
+is not evidence of anything. **When you add a check worth trusting, add the
+mutation that proves it can fail.** It runs on every push to `main`, weekly, and
+on demand; not on pull requests, where it would add minutes to every push and
+break for reasons unrelated to the change.
+
+The runner edits source in place and restores from a copy in memory, never with
+git — reverting with git is how an earlier session destroyed uncommitted work.
+For the same reason: commit before running it.
 
 The unit tests mirror the file split — `test/analysis.test.js`,
 `test/formats.test.js`, `test/app.test.js`, plus `test/assets.test.js` for the

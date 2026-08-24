@@ -163,7 +163,8 @@ npm test             # 151 checks: maths, wiring, and asset integrity
 npm run lint
 npm run check        # lint + test
 npm run test:net     # also re-verifies the pinned CDN hash
-npm run test:dom     # browser checks — needs Chrome installed
+npm run test:dom     # browser checks and render budgets — needs Chrome
+npm run test:mutate  # break the code on purpose, check a test notices
 ```
 
 `npm install` points git at `.githooks`, so **lint and tests run before every
