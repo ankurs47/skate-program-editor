@@ -488,7 +488,12 @@ async function main() {
       eq(errors, [], 'the page logged errors: ');
     });
   } finally {
-    await session.close();
+    // Shutting the browser down must never decide whether the run passed, and
+    // must never swallow the report — a cleanup failure once hid fifteen
+    // results and reported only itself.
+    try { await session.close(); } catch (err) {
+      console.error(`  (the browser did not shut down cleanly: ${err.message})`);
+    }
   }
 
   for (const failure of failures) console.error(`  FAIL  ${failure}`);

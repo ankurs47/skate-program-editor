@@ -228,14 +228,29 @@ async function open({ url = '/index.html' } = {}) {
     origin: server.origin,
     async close() {
       try { socket.close(); } catch (_) { /* already gone */ }
-      // Wait for Chrome to actually be gone before taking its profile away —
-      // it writes on the way out, and deleting underneath it fails with
-      // ENOTEMPTY rather than anything that reads like the real cause.
+
+      /* Chrome does not exit alone — it leaves a zygote and a renderer or two
+         that keep writing to the profile after the parent is gone. Waiting for
+         the parent is not enough, so it gets a moment and then SIGKILL. */
       const ended = new Promise((resolve) => chrome.once('exit', resolve));
       chrome.kill();
-      await Promise.race([ended, new Promise((r) => setTimeout(r, 5000))]);
-      await server.stop();
-      fs.rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+      const died = await Promise.race([
+        ended.then(() => true),
+        new Promise((r) => setTimeout(() => r(false), 3000)),
+      ]);
+      if (!died) {
+        try { chrome.kill('SIGKILL'); } catch (_) { /* already gone */ }
+        await Promise.race([ended, new Promise((r) => setTimeout(r, 2000))]);
+      }
+
+      try { await server.stop(); } catch (_) { /* already closed */ }
+
+      /* A temporary directory left behind is untidy; a failed run because of
+         one is a lie about the code. This is best effort, and the operating
+         system clears tmp anyway. */
+      try {
+        fs.rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+      } catch (_) { /* Chrome is still holding something; not our problem */ }
     },
   };
 }
