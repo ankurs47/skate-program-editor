@@ -147,7 +147,7 @@ check('reorder: a drop counts only when the drag began on a clip block', () => {
      reads back as the empty string — which Number() turns into 0, a perfectly
      valid clip index that the guard above cannot catch. So the payload cannot
      be what identifies the drag; a private type is. */
-  const source = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+  const source = fs.readFileSync(path.join(ROOT, 'src/app.js'), 'utf8');
   ok(!/getData\(\s*'text\/plain'\s*\)/.test(source),
     'a drop handler is reading text/plain again, which every drag supplies');
   ok(/setData\(CLIP_DRAG_TYPE/.test(source) && /getData\(CLIP_DRAG_TYPE/.test(source),

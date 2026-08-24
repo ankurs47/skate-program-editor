@@ -37,35 +37,51 @@ function suiteRow(label, report, extra = '') {
 function budgets(metrics) {
   if (!metrics || (!metrics.drag && !metrics.refresh)) return '';
   const rows = [];
+  const timings = [];
   const d = metrics.drag;
   if (d) {
     rows.push(
       `| **Dragging a slider** — ${d.events} input events, ${d.clips} clips | | | |`,
       `| elements created | ${d.wasElements} | **${d.elementsCreated}** | ${pct(d.wasElements, d.elementsCreated)} |`,
       `| forced style reads | ${d.wasStyleReads} | **${d.forcedStyleReads}** | ${pct(d.wasStyleReads, d.forcedStyleReads)} |`,
-      `| timeline waveform draws | ${d.wasWaveDraws} | **${d.timelineWaveDraws}** | ${pct(d.wasWaveDraws, d.timelineWaveDraws)} |`,
-      `| blocking the handler | ${d.wasBlockingMs} ms | **${d.blockingMs} ms** | |`);
+      `| timeline waveform draws | ${d.wasWaveDraws} | **${d.timelineWaveDraws}** | ${pct(d.wasWaveDraws, d.timelineWaveDraws)} |`);
+    timings.push(`| dragging, ${d.events} input events | ${d.blockingMs} ms |`);
   }
   const r = metrics.refresh;
   if (r) {
     rows.push(
       `| **${r.calls} idle refreshes** | | | |`,
       `| elements created | ${r.wasElements} | **${r.elementsCreated}** | ${pct(r.wasElements, r.elementsCreated)} |`,
-      `| forced style reads | ${r.wasStyleReads} | **${r.forcedStyleReads}** | ${pct(r.wasStyleReads, r.forcedStyleReads)} |`,
-      `| blocking | ${r.wasBlockingMs} ms | **${r.blockingMs} ms** | |`);
+      `| forced style reads | ${r.wasStyleReads} | **${r.forcedStyleReads}** | ${pct(r.wasStyleReads, r.forcedStyleReads)} |`);
+    timings.push(`| ${r.calls} idle refreshes | ${r.blockingMs} ms |`);
   }
   return [
     '',
     '### Render budgets',
     '',
-    'Counts, not milliseconds: wall-clock differs by machine and would be flaky,',
-    'while elements built and forced style reads are the same everywhere and are',
-    'what actually cost the time. The timings are shown for interest only — the',
-    'baselines are from the machine the work was done on, so compare the counts.',
+    'Elements built, forced style reads and waveform draws. These are what cost',
+    'the time, they are identical on every machine, and they are what the checks',
+    'assert on. The baseline is the measurement each one improved on.',
     '',
     '| | baseline | this run | |',
     '|---|---:|---:|---|',
     ...rows,
+    '',
+    '<details><summary>Timings from this run</summary>',
+    '',
+    '| | best of five |',
+    '|---|---:|',
+    ...timings,
+    '',
+    'Deliberately shown without a baseline to compare against. These come from a',
+    'shared CI machine and the numbers the work was developed against came from a',
+    'developer laptop, so the difference between them is mostly which machine ran',
+    'it — a run twice as slow as the last one usually means the runner was busy,',
+    'not that anything regressed. The counts above are the ones that mean',
+    'something. Best of five after a warm-up, so a single interruption does not',
+    'become the headline.',
+    '',
+    '</details>',
   ].join('\n');
 }
 

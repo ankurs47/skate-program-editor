@@ -12,14 +12,21 @@ parents, not by audio engineers — the language in the interface is deliberatel
 plain, and jargon is treated as a bug.
 
 ```
-index.html   structure, help topic content, dialogs
-analysis.js  beat detection, phrase detection, loudness — samples in, numbers out
-formats.js   ID3/MPEG/Ogg parsing and the Good/Fair/Low verdict
-app.js       state, decode, waveforms, editing, playback, render, export, wiring
-style.css    theming via CSS custom properties, light and dark
-test/        151 checks, no dependencies — one file per script file
-tools/       music-get.sh and .cmd — optional YouTube downloader, not the app
+index.html       the page — stays at the root, see below
+src/analysis.js  beat detection, phrase detection, loudness — samples in, numbers out
+src/formats.js   ID3/MPEG/Ogg parsing and the Good/Fair/Low verdict
+src/app.js       state, decode, waveforms, editing, playback, render, export, wiring
+src/style.css    theming via CSS custom properties, light and dark
+test/            157 checks, no dependencies — one file per script file
+test/dom/        browser checks and render budgets, driven over CDP
+tools/           music-get.sh and .cmd — optional YouTube downloader, not the app
 ```
+
+`index.html` stays at the repository root and two things keep it there. GitHub
+Pages serves this repo from `/` — moving the page would break the published
+address, which is the link in the README. And "clone it and open index.html" is
+a ground rule, which is easiest to honour when the file is the first thing you
+see. Everything it loads sits under `src/`.
 
 `tools/` sits outside the rules below. Nothing in it ships, the editor never
 calls it and does not know it exists, and it is the one place an external
@@ -191,13 +198,18 @@ and FNV-1a rather than a digest because `crypto.subtle` needs a secure context
 and this has to work over `file://`.
 
 **Remembering files is an extra and must stay one.** `canRememberFiles()` gates
-everything to browsers with the File System Access API in a secure context —
-Chrome and Edge over http(s), and nowhere at all when `index.html` is opened
-from disk, which the ground rules say has to keep working. When it is false the
-hidden `<input>` does the picking and the notice asks for the files by hand,
-exactly as before. There is a browser check that deletes `showOpenFilePicker`
-and asserts the fallbacks still fire; do not let anything above become
-load-bearing.
+everything on the File System Access API being present in a secure context. In
+practice that means Chrome and Edge — including from `file://`, which Chrome
+treats as trustworthy, so opening the page from disk keeps the feature rather
+than losing it. Firefox and Safari have no picker at all and take the fallback:
+the hidden `<input>` does the picking and the notice asks for the files by hand,
+exactly as before.
+
+Feature-detect, never sniff the protocol. An earlier version of this note
+claimed the API was absent over `file://` and that was simply wrong — checked
+against Chrome, where `showOpenFilePicker` and IndexedDB both work there. There
+is a browser check that deletes `showOpenFilePicker` and asserts the fallbacks
+still fire; do not let anything above become load-bearing.
 
 ## Traps
 

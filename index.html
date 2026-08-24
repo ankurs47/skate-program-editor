@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>Skate Program Editor</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="src/style.css">
 </head>
 <body>
 
@@ -422,8 +422,8 @@
 <!-- Order matters: app.js calls into both of these by name, and they share one
      global scope. No modules and no build step — this is still three files you
      can open from disk. -->
-<script src="analysis.js"></script>
-<script src="formats.js"></script>
-<script src="app.js"></script>
+<script src="src/analysis.js"></script>
+<script src="src/formats.js"></script>
+<script src="src/app.js"></script>
 </body>
 </html>

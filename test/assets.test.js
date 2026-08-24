@@ -149,7 +149,7 @@ check('the analysis and format files stay free of the browser', () => {
      that can be tested without a DOM, and one `document.` or one reach into
      `state` would quietly take that away — the drift would not break anything
      until someone tried to test the thing that had drifted. */
-  for (const file of ['analysis.js', 'formats.js']) {
+  for (const file of ['src/analysis.js', 'src/formats.js']) {
     const body = fs.readFileSync(path.join(ROOT, file), 'utf8');
     const code = body.split('\n')
       .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
