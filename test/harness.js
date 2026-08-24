@@ -56,7 +56,26 @@ function results() {
   return { passed, failures };
 }
 
+/**
+ * Write a run's outcome somewhere a later step can read it.
+ *
+ * CI turns these into the summary it posts on the pull request, so the numbers
+ * there are the ones the run actually produced rather than any written down by
+ * hand — the whole point of posting them.
+ */
+function writeReport(file, report) {
+  if (!file) return;
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, `${JSON.stringify(report, null, 2)}\n`);
+}
+
+/** `--report path` on a runner's command line, or null. */
+function reportPath(argv) {
+  const at = argv.indexOf('--report');
+  return at >= 0 && argv[at + 1] ? argv[at + 1] : null;
+}
+
 module.exports = {
   ROOT, SCRIPTS, SHIPPED, app, html, css,
-  check, eq, near, ok, results,
+  check, eq, near, ok, results, writeReport, reportPath,
 };

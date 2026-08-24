@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: read
+  # Only so the summary below can be posted on the pull request.
+  pull-requests: write
 
 jobs:
   check:
@@ -30,7 +32,7 @@ jobs:
       # --net also re-checks that the pinned MP3 encoder hash still matches
       # what the CDN serves. If that ever fails, the CDN changed under us.
       - name: Test
-        run: npm run test:net
+        run: npm run test:net -- --report report/unit.json
 
       # The browser checks drive real Chrome over the DevTools Protocol, which
       # is why they are not part of `npm test` — that has to keep working on a
@@ -41,4 +43,23 @@ jobs:
       # this step fails with a message naming what it looked for rather than
       # skipping quietly; set CHROME to a binary to override the search.
       - name: Browser checks
-        run: npm run test:dom
+        run: npm run test:dom -- --report report/browser.json
+
+      # Posted whatever happened above, because a run that failed is exactly
+      # when the summary is worth reading. One comment, edited in place, so a
+      # branch with ten pushes does not end up with ten of these.
+      #
+      # Skipped for pull requests from forks: those get a read-only token, and
+      # the alternative — pull_request_target — would run this workflow with
+      # write access against code from the fork, which is not a trade worth
+      # making for a comment.
+      - name: Summarise on the pull request
+        if: >
+          always() && github.event_name == 'pull_request'
+          && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node test/summary.js report/unit.json report/browser.json > comment.md
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --body-file comment.md --edit-last --create-if-none

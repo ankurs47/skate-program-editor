@@ -22,7 +22,7 @@
 
 const crypto = require('crypto');
 const { execFileSync } = require('child_process');
-const { app, check, eq, results } = require('./harness.js');
+const { app, check, eq, results, writeReport, reportPath } = require('./harness.js');
 
 require('./analysis.test.js');
 require('./formats.test.js');
@@ -46,4 +46,13 @@ if (process.argv.includes('--net')) {
 const { passed, failures } = results();
 for (const failure of failures) console.error(`  FAIL  ${failure}`);
 console.log(`\n${passed} passed, ${failures.length} failed`);
+
+writeReport(reportPath(process.argv), {
+  suite: 'unit',
+  passed,
+  failed: failures.length,
+  net: process.argv.includes('--net'),
+  failures: failures.map((f) => f.split('\n')[0]),
+});
+
 process.exit(failures.length ? 1 : 0);

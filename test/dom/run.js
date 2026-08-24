@@ -17,12 +17,18 @@
  */
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const { open } = require('./browser.js');
 const { SETUP } = require('./fixtures.js');
 
 let passed = 0;
 const failures = [];
 let page = null;
+
+/* What the budget checks measured, so CI can report the numbers this run
+   produced rather than any written down by hand. */
+const metrics = {};
 
 async function check(name, body) {
   try {
@@ -685,18 +691,29 @@ async function main() {
         };
         try {
           const clip = selectedClip();
+          const started = performance.now();
           for (let i = 0; i < 60; i++) {
             clip.crossfade = 1 + (i % 20) * 0.05;      // never crosses MIN_CROSSFADE
             drawClipEditor(); renderTimeline(); updateBudget();
           }
+          const blockingMs = +(performance.now() - started).toFixed(1);
           await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-          return { styleReads, created, timelineWaves, clips: state.clips.length };
+          return { styleReads, created, timelineWaves, blockingMs, clips: state.clips.length };
         } finally {
           window.getComputedStyle = realGCS;
           document.createElement = realCreate;
           window.drawWave = realDrawWave;
         }
       `);
+      metrics.drag = {
+        events: 60,
+        clips: result.clips,
+        elementsCreated: result.created,
+        forcedStyleReads: result.styleReads,
+        timelineWaveDraws: result.timelineWaves,
+        blockingMs: result.blockingMs,
+        wasElements: 1140, wasStyleReads: 480, wasWaveDraws: 240, wasBlockingMs: 35.9,
+      };
       eq(result.created, 0,
         'sixty input events built elements — the strip is being rebuilt again: ');
       eq(result.styleReads, 0,
@@ -724,13 +741,22 @@ async function main() {
         window.getComputedStyle = function (...a) { styleReads++; return realGCS.apply(this, a); };
         document.createElement = (tag) => { created++; return realCreate(tag); };
         try {
+          const started = performance.now();
           for (let i = 0; i < 30; i++) refresh();
-          return { created, styleReads };
+          const blockingMs = +(performance.now() - started).toFixed(1);
+          return { created, styleReads, blockingMs };
         } finally {
           window.getComputedStyle = realGCS;
           document.createElement = realCreate;
         }
       `);
+      metrics.refresh = {
+        calls: 30,
+        elementsCreated: result.created,
+        forcedStyleReads: result.styleReads,
+        blockingMs: result.blockingMs,
+        wasElements: 1530, wasStyleReads: 750, wasBlockingMs: 30.1,
+      };
       eq(result.created, 0, 'thirty idle refreshes built elements (it was 1530): ');
       eq(result.styleReads, 0, 'and read the stylesheet (it was 750): ');
     });
@@ -815,6 +841,20 @@ async function main() {
 
   for (const failure of failures) console.error(`  FAIL  ${failure}`);
   console.log(`\n${passed} passed, ${failures.length} failed`);
+
+  const at = process.argv.indexOf('--report');
+  if (at >= 0 && process.argv[at + 1]) {
+    const file = process.argv[at + 1];
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, `${JSON.stringify({
+      suite: 'browser',
+      passed,
+      failed: failures.length,
+      failures: failures.map((f) => f.split('\n')[0]),
+      metrics,
+    }, null, 2)}\n`);
+  }
+
   process.exit(failures.length ? 1 : 0);
 }
 
