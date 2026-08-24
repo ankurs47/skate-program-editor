@@ -180,6 +180,31 @@ function oggAudioStart(bytes) {
 }
 
 /**
+ * A short identity for a file's audio, so a project can tell whether the song
+ * it has been handed is the one it was built from.
+ *
+ * Files are matched by name, which is all a browser offers — it will not tell a
+ * page where a file lives, and a handle to one cannot be written into a project
+ * file. So a project cannot record a location. What it can record is what the
+ * audio looked like, and that is enough to say "this is a different song with
+ * the same name" rather than silently rebuilding the programme around it.
+ *
+ * Taken from the bytes where the audio starts, not the head of the file, so
+ * editing the title or artwork does not make a file look like a stranger. FNV-1a
+ * rather than a real digest: `crypto.subtle` needs a secure context and this has
+ * to work when index.html is opened straight off disk.
+ */
+function fingerprint(head) {
+  const bytes = new Uint8Array(head);
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < bytes.length; i++) {
+    hash ^= bytes[i];
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(36);
+}
+
+/**
  * The verdict for one source: good, caution, poor, or unknown.
  *
  * Separate from `analyseSource`, which needs a decoded buffer and a File to say
@@ -291,6 +316,6 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     QUALITY, CODEC_EFFICIENCY, codecOf,
     id3Size, oggAudioStart, readMpegFrame, parseFrameHeader,
-    qualityKind, analyseSource, qualityLabel, qualityDetail,
+    qualityKind, analyseSource, qualityLabel, qualityDetail, fingerprint,
   };
 }

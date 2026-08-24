@@ -102,7 +102,12 @@
         files and your cuts, fades and blends come straight back. Until then the
         program won&rsquo;t play, and <b>Make music file</b> stays greyed out.
       </p>
-      <div><button id="btnAddMissing" class="small">Add files</button></div>
+      <div class="missing-actions">
+        <!-- Only shown where the browser can hand a file back after a reload;
+             everywhere else Add files is the only way, as it always was. -->
+        <button id="btnReconnect" class="small primary hidden">Open the music again</button>
+        <button id="btnAddMissing" class="small">Add files</button>
+      </div>
     </div>
 
     <div id="timelineWrap">
@@ -303,6 +308,14 @@
           Use <b>Add files</b>, or drag them onto the page &mdash; anywhere will
           do. Dropping them on the row of blocks adds them to the program at the
           same time.</li>
+      <li>On some browsers the editor can remember the songs for you, and offers
+          <b>Open the music again</b> &mdash; one click for the whole program.
+          It still asks your permission, and the music still never leaves your
+          computer. If that button isn&rsquo;t there, your browser can&rsquo;t do
+          it and <b>Add files</b> is the way.</li>
+      <li>Songs are matched by name, so if you hand it a <i>different</i> song
+          with the same name it will say so rather than quietly building your
+          program around the wrong music.</li>
       <li>Songs are matched by their <b>file name</b>. As long as the names
           haven&rsquo;t changed, everything reconnects and all your cuts, fades
           and blends come back exactly as they were.</li>

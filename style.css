@@ -285,6 +285,7 @@ aside, section {
 }
 .warn-head { margin: 0; font-size: 13px; font-weight: 600; }
 .warn-row { display: flex; align-items: center; gap: 8px; font-size: 12px; word-break: break-word; }
+.missing-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .warn .hint { font-size: 12px; }
 
 .dropzone {

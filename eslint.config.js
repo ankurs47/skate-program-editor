@@ -26,6 +26,9 @@ const browser = {
   FileReader: 'readonly', Blob: 'readonly', URL: 'readonly',
   DataView: 'readonly', TextDecoder: 'readonly',
   matchMedia: 'readonly', getComputedStyle: 'readonly',
+  // Where the browser has it, file handles are kept here so a project can
+  // find its music again without being asked for every song.
+  indexedDB: 'readonly',
   // Each file ends with a block that exports its pure logic under Node; app.js
   // additionally bridges the other two onto the global object there.
   module: 'writable', require: 'readonly', global: 'writable',

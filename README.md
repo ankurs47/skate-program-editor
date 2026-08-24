@@ -132,6 +132,10 @@ music, which is why it stays a few kilobytes.
   "level": "usfs-jr",
   "targetSeconds": 210,
   "toleranceSeconds": 10,
+  "files": [
+    { "name": "chosen song.mp3", "bytes": 5216340, "seconds": 212.5,
+      "fingerprint": "1k4v9p" }
+  ],
   "clips": [
     { "file": "chosen song.mp3", "srcStart": 4.76, "srcEnd": 77.08,
       "fadeIn": 1.5, "fadeOut": 0, "crossfade": 0, "gain": 1 }
@@ -139,10 +143,32 @@ music, which is why it stays a few kilobytes.
 }
 ```
 
+`files` records what each song *was* — not where it was. A browser will not tell
+a page where a file lives, so a project cannot save a location. What it saves
+instead is enough to notice that the song it has been handed is a **different
+one with the same name**: a re-download at another quality, or `track01.mp3`
+from two different albums. Without that, the trims would still apply and the
+timer would still read correctly, and the whole program would quietly be built
+around the wrong music.
+
+Projects written before this have no `files` section and are read exactly as
+before — with nothing recorded, nothing is claimed.
+
 Because the music isn't inside it, loading a project means adding the song files
 again. They reconnect by filename, so as long as the names haven't changed every
 cut comes back exactly. Keeping the project file in the same folder as the music
 is the easy way to keep them together.
+
+**On Chrome and Edge it can usually do that for you.** Where the browser
+supports it, the editor remembers the songs you opened and offers **Open the
+music again** — one click for the whole program, instead of finding each song
+by hand. The audio still never leaves your computer; the browser is only handing
+back a file you already chose, and it asks your permission before it does.
+
+Firefox and Safari have no such thing, and neither does opening `index.html`
+straight off disk, so there it works exactly as it always did: **Add files**, and
+the cuts come back. If a remembered song has been moved, renamed or deleted, it
+says so and points you at **Add files** rather than failing quietly.
 
 ## Limits
 

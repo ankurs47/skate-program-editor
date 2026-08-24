@@ -559,6 +559,130 @@ async function main() {
       eq(result.afterRealDrag, 'abc', 'a real drag must still work: ');
     });
 
+    /* -------------------------------------------------- remembering files */
+
+    await check('a remembered file is offered back instead of a picker', async () => {
+      /* The friction this removes: a project holds the edit but not the music,
+         so opening one has always meant finding every song by hand again. */
+      const result = await run(`
+        window.__reset([]);
+        rememberedNames.clear();
+        state.clips = [
+          { id: '1', file: 'kept.mp3', title: 'kept', srcStart: 0, srcEnd: 30,
+            fadeIn: 0, fadeOut: 0, crossfade: 0, gain: 1 },
+          { id: '2', file: 'lost.mp3', title: 'lost', srcStart: 0, srcEnd: 30,
+            fadeIn: 0, fadeOut: 0, crossfade: 0, gain: 1 },
+        ];
+        refresh();
+        const noneRemembered = {
+          notice: window.__visible('missingNotice'),
+          reconnect: window.__visible('btnReconnect'),
+          missing: missingFiles(),
+        };
+
+        rememberedNames.add('kept.mp3');
+        updateMissingNotice();
+        const someRemembered = {
+          reconnect: window.__visible('btnReconnect'),
+          label: __id('btnReconnect').textContent,
+        };
+
+        rememberedNames.add('lost.mp3');
+        updateMissingNotice();
+        const allRemembered = { label: __id('btnReconnect').textContent };
+
+        rememberedNames.clear();
+        return { noneRemembered, someRemembered, allRemembered, supported: canRememberFiles() };
+      `);
+      ok(result.supported, 'Chrome should support this; the check below covers browsers that do not');
+      eq(result.noneRemembered.missing, ['kept.mp3', 'lost.mp3']);
+      eq(result.noneRemembered.notice, true, 'missing files must still be announced: ');
+      eq(result.noneRemembered.reconnect, false,
+        'nothing is remembered, so there is nothing to offer: ');
+      eq(result.someRemembered.reconnect, true);
+      eq(result.someRemembered.label, 'Open 1 of them again',
+        'when only some can come back, say so rather than promising all: ');
+      eq(result.allRemembered.label, 'Open the music again');
+    });
+
+    await check('a handle survives being put away and fetched back', async () => {
+      // The store is what makes this work at all across a reload.
+      const result = await run(`
+        const name = 'round-trip-' + Date.now() + '.mp3';
+        // A real handle cannot be made without a picker, and a picker cannot be
+        // driven from here — but what is being checked is the store, so a plain
+        // structured-cloneable stand-in exercises exactly that.
+        await rememberHandle(name, { kind: 'file', name, marker: 'stored' });
+        const all = await storedHandles();
+        const found = all && all.get(name);
+        await forgetHandle(name);
+        const after = await storedHandles();
+        return {
+          stored: found ? found.marker : null,
+          remembered: rememberedNames.has(name),
+          goneAfterForget: !(after && after.has(name)),
+        };
+      `);
+      eq(result.stored, 'stored', 'the handle did not come back out of storage: ');
+      eq(result.goneAfterForget, true, 'forgetting must actually forget: ');
+    });
+
+    await check('without the API everything falls back to the file picker', async () => {
+      /* Firefox and Safari have no picker, and it is absent over file:// too,
+         which the ground rules say has to keep working. Nothing above may
+         become load-bearing. */
+      const result = await run(`
+        window.__reset([]);
+        const realPicker = window.showOpenFilePicker;
+        delete window.showOpenFilePicker;
+        let clicked = 0;
+        const input = __id('fileInput');
+        const realClick = input.click.bind(input);
+        input.click = () => { clicked++; };
+        try {
+          const supported = canRememberFiles();
+          rememberedNames.add('anything.mp3');
+          state.clips = [{ id: '1', file: 'anything.mp3', title: 'a', srcStart: 0, srcEnd: 10,
+            fadeIn: 0, fadeOut: 0, crossfade: 0, gain: 1 }];
+          refresh();
+          const offered = window.__visible('btnReconnect');
+
+          await pickFiles();               // must fall through to the input
+          const afterPick = clicked;
+          await reconnectMissing();        // must fall through as well
+          const afterReconnect = clicked;
+
+          // And storage must stay quiet rather than throwing.
+          const stored = await storedHandles();
+          rememberedNames.clear();
+          return { supported, offered, afterPick, afterReconnect, stored };
+        } finally {
+          window.showOpenFilePicker = realPicker;
+          input.click = realClick;
+        }
+      `);
+      eq(result.supported, false, 'with no picker the feature must report itself unavailable: ');
+      eq(result.offered, false, 'and must not offer to reopen anything: ');
+      eq(result.afterPick, 1, 'Add files must still open the ordinary picker: ');
+      eq(result.afterReconnect, 2, 'and so must the missing-file button: ');
+      eq(result.stored, null, 'storage must decline quietly rather than throw: ');
+    });
+
+    await check('the picker asks for the formats the app can actually read', async () => {
+      const result = await run(`
+        const types = audioPickerTypes();
+        return { types, list: AUDIO_EXTENSION_LIST,
+                 matches: AUDIO_EXTENSION_LIST.every(e => AUDIO_EXTENSIONS.test('song' + e)) };
+      `);
+      eq(result.types.length, 1);
+      const accepted = result.types[0].accept['audio/*'];
+      for (const ext of ['.mp3', '.wav', '.webm', '.opus']) {
+        ok(accepted.includes(ext), `the picker does not offer ${ext}`);
+      }
+      ok(result.matches,
+        'the picker list and the drop filter disagree — they are built from one list');
+    });
+
     /* -------------------------------------------------------------- drops */
 
     await check('music dropped anywhere on the page is taken', async () => {
