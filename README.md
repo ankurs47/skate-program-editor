@@ -159,7 +159,7 @@ is only for checking changes.
 
 ```bash
 npm install          # installs eslint, and enables the pre-commit hook
-npm test             # 147 checks: maths, wiring, and asset integrity
+npm test             # 151 checks: maths, wiring, and asset integrity
 npm run lint
 npm run check        # lint + test
 npm run test:net     # also re-verifies the pinned CDN hash

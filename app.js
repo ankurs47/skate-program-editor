@@ -105,6 +105,7 @@ const state = {
 
 const library = new Map();   // file name -> {name, buffer, peaks, duration, state}
 const undoStack = [];
+const redoStack = [];
 
 let audio = null;            // AudioContext, created on first gesture
 let playing = null;          // {nodes, startedAt, fromTime, mode}
@@ -567,6 +568,13 @@ async function addFiles(fileList) {
       : `${shortened} songs asked for more music than their files hold, so they were shortened to fit`,
     6000);
   }
+  /* What is now playable of what was asked for, in the order it was dropped, so
+     a drop onto the timeline can add exactly those. Looked up rather than
+     collected in the loop above, which skips files that were already loaded —
+     dropping one of those again should still put it in the programme. */
+  return files
+    .map((file) => library.get(file.name))
+    .filter((entry) => entry && entry.buffer);
 }
 
 /** How many clips in the program are playing from this file. */
@@ -670,6 +678,24 @@ const UNDO_DEPTH = 60;
 const UNDO_COALESCE_MS = 700;
 let undoRun = { tag: null, at: 0 };
 
+/**
+ * Everything an undo has to put back.
+ *
+ * Not just the clips. Renaming the programme or changing the event used to be
+ * outside the stack entirely, so picking the wrong level lost the length you
+ * had been working to with no way back — the one number the whole edit is aimed
+ * at. These are the same fields the project file records, for the same reason.
+ */
+function undoSnapshot() {
+  return JSON.stringify({
+    name: state.name,
+    level: state.level,
+    targetSeconds: state.targetSeconds,
+    toleranceSeconds: state.toleranceSeconds,
+    clips: state.clips,
+  });
+}
+
 function pushUndo(tag = null) {
   const now = Date.now();
   if (tag !== null && tag === undoRun.tag && now - undoRun.at < UNDO_COALESCE_MS) {
@@ -677,8 +703,12 @@ function pushUndo(tag = null) {
     return;
   }
   undoRun = { tag, at: now };
-  undoStack.push(JSON.stringify(state.clips));
+  undoStack.push(undoSnapshot());
   if (undoStack.length > UNDO_DEPTH) undoStack.shift();
+  // A new edit is a new branch of history: whatever was undone to get here is
+  // no longer reachable, and offering to redo it would put back something that
+  // never followed from this state.
+  redoStack.length = 0;
 }
 
 /** End any run of coalesced edits, so the next one starts a fresh entry. */
@@ -686,18 +716,61 @@ function endUndoRun() {
   undoRun = { tag: null, at: 0 };
 }
 
-function undo() {
-  const prev = undoStack.pop();
-  if (!prev) { toast('Nothing to undo'); return; }
-  // Without this, nudging again straight after an undo would be folded into the
-  // run whose snapshot has just been popped, and that second edit could not be
-  // undone at all.
+/**
+ * Step back, handing over the state to apply, or null when there is nowhere to
+ * go. Separate from `undo()` because the stacks are worth testing without a DOM
+ * to apply the result to.
+ */
+function takeUndo() {
+  if (!undoStack.length) return null;
+  const previous = undoStack.pop();
+  redoStack.push(undoSnapshot());
   endUndoRun();
-  state.clips = JSON.parse(prev);
+  return previous;
+}
+
+/** The same, forwards. */
+function takeRedo() {
+  if (!redoStack.length) return null;
+  const next = redoStack.pop();
+  undoStack.push(undoSnapshot());
+  endUndoRun();
+  return next;
+}
+
+/**
+ * Put a snapshot back on screen.
+ *
+ * `takeUndo` and `takeRedo` end the coalescing run before this is reached:
+ * without that, nudging again straight after an undo would be folded into the
+ * run whose snapshot had just been popped, and that second edit could not be
+ * undone at all.
+ */
+function applySnapshot(json) {
+  const saved = JSON.parse(json);
+  state.name = saved.name;
+  state.level = saved.level;
+  state.targetSeconds = saved.targetSeconds;
+  state.toleranceSeconds = saved.toleranceSeconds;
+  state.clips = saved.clips;
   if (!state.clips.some((c) => c.id === state.selected)) {
     state.selected = state.clips.length ? state.clips[state.clips.length - 1].id : null;
   }
+  $('programName').value = state.name;
+  syncLevelPicker();
   refresh();
+}
+
+function undo() {
+  const previous = takeUndo();
+  if (previous === null) { toast('Nothing to undo'); return; }
+  applySnapshot(previous);
+}
+
+function redo() {
+  const next = takeRedo();
+  if (next === null) { toast('Nothing to redo'); return; }
+  applySnapshot(next);
 }
 
 function addClip(entry) {
@@ -1827,6 +1900,8 @@ function closeStartDialog() {
 function resetProgram() {
   stopPlayback();
   undoStack.length = 0;
+  redoStack.length = 0;
+  endUndoRun();
   state.clips = [];
   state.selected = null;
   state.cursor = 0;
@@ -1968,7 +2043,10 @@ function buildLevelPicker() {
   const select = $('targetLength');
   fillLevelOptions(select);
 
-  select.onchange = () => applyLevel(select.value);
+  /* The snapshot goes here rather than inside applyLevel, because that is also
+     how a brand new programme gets its length — and starting one should not
+     leave a step on a stack that resetProgram has just emptied. */
+  select.onchange = () => { pushUndo(); applyLevel(select.value); };
   $('customLength').onchange = () => {
     const seconds = parseClock($('customLength').value);
     if (seconds === null) {
@@ -1976,6 +2054,8 @@ function buildLevelPicker() {
       $('customLength').value = fmtShort(state.targetSeconds);
       return;
     }
+    if (seconds === state.targetSeconds) return;   // nothing to record
+    pushUndo();
     state.targetSeconds = seconds;
     updateBudget();
     save();
@@ -2005,11 +2085,63 @@ function syncLevelPicker() {
   if (isCustom) custom.value = fmtShort(state.targetSeconds);
 }
 
+/** Is this drag carrying files from outside, rather than one of our own clips? */
+function draggingFiles(e) {
+  return Array.from(e.dataTransfer?.types || []).includes('Files');
+}
+
+/**
+ * Accept music dropped anywhere on the page.
+ *
+ * It used to be the small box under the list only, and everywhere else had a
+ * blanket preventDefault so nothing happened at all — including on the timeline,
+ * which is the obvious thing to aim at. A drop on the timeline also puts the
+ * songs in the programme, because that is plainly what was meant by it.
+ *
+ * `dragenter` and `dragleave` fire for every element the pointer crosses, so
+ * the highlight is driven by a depth count rather than by the last event seen.
+ */
+function bindFileDrops() {
+  let depth = 0;
+  const show = (on) => document.body.classList.toggle('dropping', on);
+
+  document.addEventListener('dragenter', (e) => {
+    if (!draggingFiles(e)) return;
+    depth++;
+    show(true);
+  });
+  document.addEventListener('dragleave', (e) => {
+    if (!draggingFiles(e)) return;
+    depth = Math.max(0, depth - 1);
+    if (!depth) show(false);
+  });
+  // Without this the browser navigates to the file instead of handing it over.
+  document.addEventListener('dragover', (e) => e.preventDefault());
+
+  document.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    depth = 0;
+    show(false);
+    if (!draggingFiles(e)) return;      // a clip being reordered; not our business
+
+    // Read the target now: the await below outlives the event.
+    const ontoTimeline = Boolean(e.target.closest && e.target.closest('#timelineWrap'));
+    const added = await addFiles(e.dataTransfer.files);
+    if (ontoTimeline) for (const entry of added) addClip(entry);
+  });
+}
+
 function bind() {
   buildLevelPicker();
 
   $('programName').value = state.name;
-  $('programName').oninput = (e) => { state.name = e.target.value; save(); };
+  // Tagged, so a name being typed is one undo step rather than one per letter.
+  // The snapshot is taken before the assignment, so it holds the old name.
+  $('programName').oninput = (e) => {
+    pushUndo('program-name');
+    state.name = e.target.value;
+    save();
+  };
 
   $('btnAddFiles').onclick = () => $('fileInput').click();
   $('btnAddMissing').onclick = () => $('fileInput').click();
@@ -2017,16 +2149,7 @@ function bind() {
   $('btnNew').onclick = () => openStartDialog(true);
   $('fileInput').onchange = (e) => { addFiles(e.target.files); e.target.value = ''; };
 
-  const zone = $('dropzone');
-  for (const type of ['dragenter', 'dragover']) {
-    zone.addEventListener(type, (e) => { e.preventDefault(); zone.classList.add('over'); });
-  }
-  for (const type of ['dragleave', 'drop']) {
-    zone.addEventListener(type, (e) => { e.preventDefault(); zone.classList.remove('over'); });
-  }
-  zone.addEventListener('drop', (e) => addFiles(e.dataTransfer.files));
-  document.addEventListener('dragover', (e) => e.preventDefault());
-  document.addEventListener('drop', (e) => e.preventDefault());
+  bindFileDrops();
 
   $('btnPlay').onclick = () => (playing ? stopPlayback() : playFromPlayhead());
   $('btnStop').onclick = () => { stopPlayback(); seekTo(0); };
@@ -2177,7 +2300,15 @@ function onKey(e) {
     return;
   }
   if (e.key === 'Home') { e.preventDefault(); stopPlayback(); seekTo(0); return; }
-  if (e.key.toLowerCase() === 'z' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); undo(); return; }
+  const modifier = e.ctrlKey || e.metaKey;
+  const key = typeof e.key === 'string' ? e.key.toLowerCase() : '';
+  if (modifier && key === 'z') {
+    e.preventDefault();
+    // Shift+Z is the redo nearly everywhere; Ctrl+Y is the Windows one. Both.
+    if (e.shiftKey) redo(); else undo();
+    return;
+  }
+  if (modifier && key === 'y') { e.preventDefault(); redo(); return; }
   if (!clip) return;
 
   // Tagged, so holding one of these down is a single undo step rather than
@@ -2359,7 +2490,8 @@ if (typeof document !== 'undefined') {
     clipGain, MAX_GAIN,
     parseClock, exportFileName, fmt, fmtShort,
     project, readProject,
-    undoStack, pushUndo, endUndoRun, UNDO_COALESCE_MS, UNDO_DEPTH,
+    undoStack, redoStack, pushUndo, endUndoRun, UNDO_COALESCE_MS, UNDO_DEPTH,
+    undoSnapshot, takeUndo, takeRedo,
     clipsUsing,
     unsupportedReasons, LAME_URL, LAME_SRI,
   };
