@@ -161,8 +161,9 @@ is only for checking changes.
 npm install          # installs eslint, and enables the pre-commit hook
 npm test             # 147 checks: maths, wiring, and asset integrity
 npm run lint
-npm run check        # lint + test, what CI runs
+npm run check        # lint + test
 npm run test:net     # also re-verifies the pinned CDN hash
+npm run test:dom     # browser checks — needs Chrome installed
 ```
 
 `npm install` points git at `.githooks`, so **lint and tests run before every
@@ -170,6 +171,13 @@ commit**. Use `git commit --no-verify` to skip it in an emergency.
 
 `main` is protected: changes go through a pull request, and CI has to pass
 before it can merge.
+
+`npm run test:dom` drives real headless Chrome over the DevTools Protocol —
+no dependencies, since Node 22 has a global `WebSocket` and Chrome speaks CDP
+over one. It covers the half of the editor the unit tests cannot reach: dialogs
+and focus, the audio graph, key handling, and the flows that only exist as a
+sequence of clicks. It is kept out of `npm test` so that stays fast and works
+on a machine with no browser; CI runs both.
 
 The test suite covers the parts that are easy to get quietly wrong — timeline
 maths with overlapping blends, fade and crossfade envelopes summing correctly,

@@ -31,3 +31,14 @@ jobs:
       # what the CDN serves. If that ever fails, the CDN changed under us.
       - name: Test
         run: npm run test:net
+
+      # The browser checks drive real Chrome over the DevTools Protocol, which
+      # is why they are not part of `npm test` — that has to keep working on a
+      # machine with no browser and no network.
+      #
+      # ubuntu-latest is Ubuntu 24.04, whose image ships Google Chrome on PATH,
+      # so nothing has to be installed here. If a future image ever drops it,
+      # this step fails with a message naming what it looked for rather than
+      # skipping quietly; set CHROME to a binary to override the search.
+      - name: Browser checks
+        run: npm run test:dom
