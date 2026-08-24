@@ -1,0 +1,91 @@
+name: Mutation
+
+# Deliberately break the code and check a test notices. This asks whether the
+# tests *can* fail, which is not what CI's ordinary run asks — and three times
+# in this repo the answer was no.
+#
+# Not on pull requests. Each mutation costs a full suite run, so twenty of them
+# is minutes added to every push, and they are anchored to lines of source that
+# move for reasons that have nothing to do with the change under review. Here it
+# runs after something has landed, plus weekly to catch tests that rot on their
+# own, plus on demand.
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # Monday morning, so a week of drift is found before anyone builds on it.
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # Only to open the issue below when a mutation survives.
+  issues: write
+
+# A later push supersedes an earlier run; there is no value in finishing the old
+# one, and they take minutes.
+concurrency:
+  group: mutation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mutate:
+    name: mutation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # The runner refuses to go on if a suite is already failing, since every
+      # result after that would be meaningless.
+      - name: Mutate
+        id: mutate
+        run: |
+          set -o pipefail
+          npm run --silent test:mutate 2>&1 | tee mutation.log
+
+      - name: Report a surviving mutation
+        if: failure() && steps.mutate.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          {
+            echo "A mutation survived on \`${{ github.ref_name }}\`, or one has gone stale."
+            echo
+            echo "**Survived** means the code was deliberately broken and every test still"
+            echo "passed — so whatever that mutation guards is not really covered."
+            echo "**Stale** means the code it patches has moved and the mutation no longer"
+            echo "applies, which is not evidence of anything and needs its anchor updated"
+            echo "in \`test/mutations.json\`."
+            echo
+            echo "Reproduce with \`npm run test:mutate\`, or one at a time with"
+            echo "\`npm run test:mutate -- --only \"some words from its name\"\`."
+            echo
+            echo '```'
+            tail -40 mutation.log
+            echo '```'
+            echo
+            echo "[full run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+          } > issue.md
+
+          # The label exists on this repo, but a fork or a fresh clone will not
+          # have it, and losing the report over a missing label would be silly.
+          gh label create mutation --color B60205 \
+            --description "A deliberately broken build went undetected by the tests" \
+            2>/dev/null || true
+
+          # One open issue, updated, rather than a new one every Monday.
+          existing=$(gh issue list --state open --label mutation --limit 1 --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file issue.md
+          else
+            gh issue create --title "A mutation survived" --label mutation --body-file issue.md
+          fi
