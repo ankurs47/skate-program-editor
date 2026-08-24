@@ -11,7 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { execFileSync } = require('child_process');
-const { app, check, eq, ok, html, css, ROOT, SCRIPTS, SHIPPED } = require('./harness.js');
+const { app, check, eq, near, ok, html, css, ROOT, SCRIPTS, SHIPPED } = require('./harness.js');
 
 /* --------------------------------------------------------------- 2. wiring */
 
@@ -487,21 +487,65 @@ check('the site tells crawlers where to look, and points only at real pages', ()
 });
 
 check('both pages carry what a link preview and a search result need', () => {
-  const card = 'docs/social-card.png';
-  ok(fs.existsSync(path.join(ROOT, card)), 'the social card image is missing');
+  /* Lengths, not just presence. A validator caught every one of these on the
+     first attempt: a 225-character description that Google and every phone cut
+     off mid-sentence, a 20-character title wasting the space a search result
+     gives you, and a 2:1 image on platforms that crop to 1.91:1.
 
-  for (const [file, page] of [['index.html', html], ['docs/help.html',
-    fs.readFileSync(path.join(ROOT, 'docs/help.html'), 'utf8')]]) {
-    for (const tag of ['description', 'og:title', 'og:description', 'og:image', 'og:url',
-      'twitter:card', 'twitter:image']) {
-      const found = new RegExp(`(name|property)="${tag}"[^>]*content="[^"]{10,}"`).test(page);
-      ok(found, `${file} has no usable ${tag}`);
+     Search and social want different lengths — about 155 characters before
+     Google truncates, about 125 before a phone does — so the two descriptions
+     deliberately differ rather than one string serving both badly. */
+  const card = 'docs/social-card.png';
+  const image = fs.readFileSync(path.join(ROOT, card));
+  eq(image.slice(1, 4).toString(), 'PNG', `${card} is not a PNG: `);
+  const width = image.readUInt32BE(16);
+  const height = image.readUInt32BE(20);
+  near(width / height, 1.91, 0.02,
+    `${card} is ${width}x${height}; platforms crop to 1.91:1: `);
+
+  const pages = [['index.html', html],
+    ['docs/help.html', fs.readFileSync(path.join(ROOT, 'docs/help.html'), 'utf8')]];
+
+  for (const [file, page] of pages) {
+    const content = (tag) => {
+      const m = page.match(new RegExp(`(?:name|property)="${tag}"[^>]*content="([^"]*)"`));
+      return m ? m[1] : null;
+    };
+
+    const title = (page.match(/<title>([^<]*)<\/title>/) || [])[1] || '';
+    ok(title.length >= 40 && title.length <= 65,
+      `${file}: title is ${title.length} characters; aim for 40-65`);
+
+    const serp = content('description');
+    ok(serp && serp.length >= 70 && serp.length <= 160,
+      `${file}: description is ${serp ? serp.length : 0} characters; Google cuts around 160`);
+
+    for (const tag of ['og:description', 'twitter:description']) {
+      const value = content(tag);
+      ok(value && value.length >= 60 && value.length <= 125,
+        `${file}: ${tag} is ${value ? value.length : 0} characters; a phone cuts around 125`);
     }
+
+    for (const tag of ['og:title', 'og:image', 'og:url', 'twitter:card', 'twitter:image',
+      'og:image:alt', 'author']) {
+      ok(content(tag), `${file} has no ${tag}`);
+    }
+    eq(content('og:image:width'), String(width), `${file}: og:image:width should match the file: `);
+    eq(content('og:image:height'), String(height), `${file}: og:image:height should match the file: `);
+
     ok(/<link rel="canonical" href="https:\/\/[^"]+">/.test(page), `${file} has no canonical URL`);
-    /* Relative URLs are not resolved by most services that read these, so an
-       image that works in the browser can still show nothing in a group chat. */
     for (const [, url] of page.matchAll(/(?:og:image|og:url|twitter:image)"[^>]*content="([^"]+)"/g)) {
       ok(/^https:\/\//.test(url), `${file}: ${url} must be absolute to be resolved`);
     }
   }
+
+  /* Structured data on the app itself, which is what carries an author and a
+     date. It must parse — a broken blob is ignored in silence. */
+  const ld = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
+  ok(ld, 'index.html has no structured data');
+  const data = JSON.parse(ld[1]);
+  eq(data['@type'], 'WebApplication', 'structured data type: ');
+  ok(data.author && data.author.name, 'structured data names no author');
+  ok(/^\d{4}-\d{2}-\d{2}$/.test(data.datePublished || ''), 'no publication date');
+  ok(data.url && data.name, 'structured data is missing the name or url');
 });
