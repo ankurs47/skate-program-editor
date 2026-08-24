@@ -297,6 +297,18 @@ aside, section {
   border-radius: 8px;
 }
 .dropzone.over { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+/* Music can be dropped anywhere on the page, so while one is over it both
+   places that mean something light up: the list it will join, and the timeline,
+   which also puts it straight into the programme. */
+body.dropping .dropzone {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+body.dropping #timelineWrap .timeline {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
 
 /* ---- timeline ---- */
 .transport { display: flex; align-items: center; gap: 8px; }

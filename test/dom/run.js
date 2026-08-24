@@ -128,6 +128,93 @@ async function main() {
       eq(result.historyLeft, 3, 'the earlier edits must survive: ');
     });
 
+    await check('undo and redo walk the same steps, by either shortcut', async () => {
+      const result = await run(`
+        window.__reset([['a.mp3', window.__tone(220, 30)]]);
+        state.selected = state.clips[0].id;
+        refresh();
+        undoStack.length = 0; redoStack.length = 0; endUndoRun();
+
+        const ends = [];
+        for (let i = 0; i < 3; i++) {
+          pushUndo(); endUndoRun();
+          state.clips[0].srcEnd -= 5;
+          ends.push(state.clips[0].srcEnd);
+        }
+        const at = () => state.clips[0].srcEnd;
+
+        window.__key('z', { ctrlKey: true });
+        window.__key('z', { ctrlKey: true });
+        const backTwice = at();
+        window.__key('z', { ctrlKey: true, shiftKey: true });   // redo
+        const forwardShift = at();
+        window.__key('y', { ctrlKey: true });                   // redo, the Windows way
+        const forwardCtrlY = at();
+        return { ends, backTwice, forwardShift, forwardCtrlY, redoLeft: redoStack.length };
+      `);
+      eq(result.backTwice, result.ends[0], 'two undos should land two edits back: ');
+      eq(result.forwardShift, result.ends[1], 'Ctrl+Shift+Z should step forward: ');
+      eq(result.forwardCtrlY, result.ends[2], 'Ctrl+Y should too: ');
+      eq(result.redoLeft, 0, 'and there should be nothing further forward: ');
+    });
+
+    await check('undo puts back the target length, not just the clips', async () => {
+      /* Choosing the wrong event used to lose the length being worked to, with
+         nothing to get it back — and the timer is the number the edit is for. */
+      const result = await run(`
+        window.__reset([['a.mp3', window.__tone(220, 30)]]);
+        applyLevel('usfs-juv');
+        undoStack.length = 0; redoStack.length = 0; endUndoRun();
+        const before = {
+          target: state.targetSeconds,
+          picker: __id('targetLength').value,
+          timer: __id('budgetDelta').textContent,
+        };
+
+        // What the dropdown does when a different event is chosen.
+        __id('targetLength').value = 'usfs-sr';
+        __id('targetLength').dispatchEvent(new Event('change'));
+        const changed = { target: state.targetSeconds, picker: __id('targetLength').value };
+
+        undo();
+        const undone = {
+          target: state.targetSeconds,
+          picker: __id('targetLength').value,
+          timer: __id('budgetDelta').textContent,
+        };
+        redo();
+        return { before, changed, undone, redone: state.targetSeconds };
+      `);
+      eq(result.before.target, 135, 'Juvenile is 2:15: ');
+      eq(result.changed.target, 240, 'Senior is 4:00: ');
+      eq(result.undone.target, result.before.target, 'undo must restore the length: ');
+      eq(result.undone.picker, result.before.picker, 'and the dropdown must follow it: ');
+      eq(result.undone.timer, result.before.timer, 'and so must the timer: ');
+      eq(result.redone, 240, 'redo must put the new event back: ');
+    });
+
+    await check('typing a program name is one undo step, not one per letter', async () => {
+      const result = await run(`
+        window.__reset([['a.mp3', window.__tone(220, 30)]]);
+        state.name = 'start';
+        __id('programName').value = 'start';
+        undoStack.length = 0; redoStack.length = 0; endUndoRun();
+
+        const field = __id('programName');
+        for (const text of ['s', 'sk', 'ska', 'skat', 'skate']) {
+          field.value = text;
+          field.dispatchEvent(new Event('input'));
+        }
+        const afterTyping = { name: state.name, steps: undoStack.length };
+        undo();
+        return { afterTyping, afterUndo: state.name, field: __id('programName').value };
+      `);
+      eq(result.afterTyping.name, 'skate');
+      eq(result.afterTyping.steps, 1, 'five keystrokes should be one undo step: ');
+      eq(result.afterUndo, 'start', 'undo should go back to the whole earlier name: ');
+      eq(result.field, 'start', 'and the field must show it: ');
+    });
+
     /* ------------------------------------------------------------ dialogs */
 
     await check('a dialog owns the keyboard while it is open', async () => {
@@ -464,6 +551,90 @@ async function main() {
       eq(result.atFront.stillSelected, 'c', 'selection must follow the clip: ');
       eq(result.afterStrayDrops, 'cab', 'a stray drop must not reorder anything: ');
       eq(result.afterRealDrag, 'abc', 'a real drag must still work: ');
+    });
+
+    /* -------------------------------------------------------------- drops */
+
+    await check('music dropped anywhere on the page is taken', async () => {
+      /* It used to be the small box under the list only, and everywhere else
+         had a blanket preventDefault, so a drop on the timeline did nothing. */
+      const result = await run(`
+        window.__reset([]);
+        // A real DataTransfer carrying a file, as a drag from the desktop does.
+        const drop = (target) => {
+          const dt = new DataTransfer();
+          dt.items.add(new File([new Uint8Array(64)], 'dropped.mp3', { type: 'audio/mpeg' }));
+          target.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+          return dt;
+        };
+        // addFiles is what a drop reaches; stub it so nothing has to decode.
+        const realAddFiles = window.addFiles;
+        const seen = [];
+        window.addFiles = async (list) => { seen.push([...list].map(f => f.name)); return []; };
+        try {
+          drop(__id('scrubber'));
+          drop(document.querySelector('#timelineWrap'));
+          drop(document.body);
+          await new Promise(r => setTimeout(r, 0));
+          return { drops: seen.length, names: seen.flat() };
+        } finally {
+          window.addFiles = realAddFiles;
+        }
+      `);
+      eq(result.drops, 3, 'a drop on the scrubber, the timeline and the page should all count: ');
+      eq(result.names, ['dropped.mp3', 'dropped.mp3', 'dropped.mp3']);
+    });
+
+    await check('a drop on the timeline also puts the song in the programme', async () => {
+      const result = await run(`
+        window.__reset([]);
+        window.__addToLibrary('dropped.mp3', window.__tone(220, 12));
+        const realAddFiles = window.addFiles;
+        window.addFiles = async () => [library.get('dropped.mp3')];
+        try {
+          const dt = new DataTransfer();
+          dt.items.add(new File([new Uint8Array(64)], 'dropped.mp3', { type: 'audio/mpeg' }));
+          document.querySelector('#timelineWrap').dispatchEvent(
+            new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+          await new Promise(r => setTimeout(r, 0));
+          const onTimeline = state.clips.map(c => c.file);
+
+          // The same drop on the library side adds the file but not a clip.
+          state.clips = []; refresh();
+          const dt2 = new DataTransfer();
+          dt2.items.add(new File([new Uint8Array(64)], 'dropped.mp3', { type: 'audio/mpeg' }));
+          __id('dropzone').dispatchEvent(
+            new DragEvent('drop', { dataTransfer: dt2, bubbles: true, cancelable: true }));
+          await new Promise(r => setTimeout(r, 0));
+          return { onTimeline, onLibrary: state.clips.map(c => c.file) };
+        } finally {
+          window.addFiles = realAddFiles;
+        }
+      `);
+      eq(result.onTimeline, ['dropped.mp3'], 'dropping on the timeline should add it: ');
+      eq(result.onLibrary, [], 'dropping on the list should not: ');
+    });
+
+    await check('dragging a clip is not mistaken for dropping a file', async () => {
+      const result = await run(`
+        window.__reset([['a.mp3', window.__tone(220, 20)], ['b.mp3', window.__tone(330, 20)]]);
+        const realAddFiles = window.addFiles;
+        let called = 0;
+        window.addFiles = async () => { called++; return []; };
+        try {
+          const blocks = [...document.querySelectorAll('.tl-clip')];
+          const dt = new DataTransfer();
+          blocks[0].dispatchEvent(new DragEvent('dragstart', { dataTransfer: dt, bubbles: true }));
+          blocks[1].dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+          await new Promise(r => setTimeout(r, 0));
+          return { called, order: state.clips.map(c => c.file), dropping: document.body.classList.contains('dropping') };
+        } finally {
+          window.addFiles = realAddFiles;
+        }
+      `);
+      eq(result.called, 0, 'a clip reorder must not be read as a file drop: ');
+      eq(result.order, ['b.mp3', 'a.mp3'], 'and the reorder itself must still happen: ');
+      eq(result.dropping, false, 'the page must not be left highlighted: ');
     });
 
     /* ------------------------------------------------------------- clamps */

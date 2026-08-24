@@ -431,14 +431,86 @@ check('project file: every clip gets its own id, however the file was written', 
 function withClips(clips, fn) {
   const saved = app.state.clips;
   app.undoStack.length = 0;
+  app.redoStack.length = 0;
   app.endUndoRun();
   app.state.clips = clips;
   try { fn(); } finally {
     app.state.clips = saved;
     app.undoStack.length = 0;
+    app.redoStack.length = 0;
     app.endUndoRun();
   }
 }
+
+check('undo: a snapshot holds the length being worked to, not only the clips', () => {
+  /* Changing the event used to be outside the stack entirely, so picking the
+     wrong one lost the target length with no way back — the one number the
+     whole edit is aimed at. */
+  withProgram({
+    name: 'my long program', level: 'usfs-jr', targetSeconds: 210,
+    toleranceSeconds: 10, clips: [{ id: 'a', file: 'a.mp3', srcStart: 0, srcEnd: 30 }],
+  }, () => {
+    const held = JSON.parse(app.undoSnapshot());
+    eq(Object.keys(held).sort(),
+      ['clips', 'level', 'name', 'targetSeconds', 'toleranceSeconds']);
+    eq(held.name, 'my long program');
+    eq(held.level, 'usfs-jr');
+    eq(held.targetSeconds, 210);
+    eq(held.clips.length, 1);
+  });
+});
+
+check('undo: a step back can be stepped forward again', () => {
+  withProgram({
+    name: 'before', level: 'usfs-juv', targetSeconds: 135,
+    toleranceSeconds: 10, clips: [],
+  }, () => {
+    app.undoStack.length = 0;
+    app.redoStack.length = 0;
+    app.endUndoRun();
+
+    app.pushUndo();                       // snapshot "before"
+    app.state.name = 'after';
+
+    const back = app.takeUndo();
+    eq(JSON.parse(back).name, 'before', 'undo hands back the earlier state: ');
+    eq(app.redoStack.length, 1, 'and puts the current one where redo can reach it: ');
+
+    const forward = app.takeRedo();
+    eq(JSON.parse(forward).name, 'after', 'redo hands back what was undone: ');
+    eq(app.undoStack.length, 1, 'and the step back is available again: ');
+  });
+});
+
+check('undo: nothing to go back or forward to is not an error', () => {
+  withProgram({ name: 'x', level: 'usfs-juv', targetSeconds: 135,
+    toleranceSeconds: 10, clips: [] }, () => {
+    app.undoStack.length = 0;
+    app.redoStack.length = 0;
+    eq(app.takeUndo(), null, 'an empty undo stack: ');
+    eq(app.takeRedo(), null, 'an empty redo stack: ');
+    eq(app.redoStack.length, 0, 'and neither should have grown: ');
+    eq(app.undoStack.length, 0);
+  });
+});
+
+check('undo: a fresh edit closes off the branch that was undone', () => {
+  /* Redo has to mean "put back what I just took away", not "put back something
+     that never followed from here". Editing after an undo abandons that future. */
+  withProgram({ name: 'one', level: 'usfs-juv', targetSeconds: 135,
+    toleranceSeconds: 10, clips: [] }, () => {
+    app.undoStack.length = 0;
+    app.redoStack.length = 0;
+    app.endUndoRun();
+
+    app.pushUndo(); app.state.name = 'two';
+    app.takeUndo();
+    eq(app.redoStack.length, 1, 'there is a future to go back to: ');
+
+    app.pushUndo(); app.state.name = 'three';
+    eq(app.redoStack.length, 0, 'a new edit must discard it: ');
+  });
+});
 
 check('undo: a held key is one gesture, not thirty entries', () => {
   /* Key repeat fires about thirty times a second, and each repeat used to push
