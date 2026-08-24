@@ -448,21 +448,16 @@ body.dropping #timelineWrap .timeline {
 /* Logo and title travel together; without this they can be split by the wrap
    that the rest of the bar depends on at narrow widths. */
 .topbar-brand { display: flex; align-items: center; gap: 9px; flex: 0 0 auto; }
-.topbar-note {
-  margin-left: auto;
-  font-size: 12px;
-  color: var(--topbar-dim);
-}
-/* The two outbound links are grouped and set apart from the help buttons: they
-   leave the page, and the help buttons open a dialog over it. Looking alike was
-   the whole problem — same shape, two different kinds of thing. */
+/* The two outbound links sit apart from the help buttons, at the far end of the
+   bar: they leave the page, and the help buttons open a dialog over it. Looking
+   alike was the whole problem — same shape, two different kinds of thing. The
+   distance is what separates them now, so no rule is needed between. */
 .topbar-links {
   display: flex;
   align-items: center;
   gap: 4px;
   flex: 0 0 auto;
-  padding-left: 14px;
-  border-left: 1px solid rgba(255, 255, 255, .14);
+  margin-left: auto;
 }
 .topbar-link {
   display: inline-flex;
@@ -477,10 +472,6 @@ body.dropping #timelineWrap .timeline {
 }
 .topbar-link:hover { color: var(--topbar-ink); background: rgba(255, 255, 255, .11); }
 .topbar-link svg { display: block; }
-@media (max-width: 820px) {
-  .topbar-note { display: none; }
-  .topbar-links { margin-left: auto; }
-}
 .help-btn {
   border: none;
   background: transparent;
