@@ -17,9 +17,15 @@ set -euo pipefail
 root=$(git rev-parse --show-toplevel)
 cd "$root"
 
-if [ -n "$(git status --porcelain)" ]; then
-  echo "mutate-worktree: uncommitted changes — the worktree is built from HEAD," >&2
-  echo "                 so anything not committed would not be tested." >&2
+# Ignored files are already excluded by --porcelain, which is what lets CI tee
+# its log into the repo without tripping this. Anything else — a modified file
+# or an untracked new one — would be missing from a worktree built at HEAD, so
+# the run would quietly be testing something other than what is on disk.
+dirty=$(git status --porcelain)
+if [ -n "$dirty" ]; then
+  echo "mutate-worktree: the worktree is built from HEAD, so this would not be tested:" >&2
+  echo "$dirty" | sed 's/^/                 /' >&2
+  echo "                 commit it, or use: npm run test:mutate:here" >&2
   exit 1
 fi
 

@@ -57,14 +57,30 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # The runner prints a summary line only once it has actually run. Without
+          # one it never started — a broken command, a missing browser — and saying
+          # "a mutation survived" would send someone hunting for a coverage gap
+          # that does not exist. That happened, so it is worth telling apart.
+          if grep -q ' mutations,' mutation.log; then
+            title="A mutation survived"
+          else
+            title="The mutation run could not start"
+          fi
+
           {
-            echo "A mutation survived on \`${{ github.ref_name }}\`, or one has gone stale."
-            echo
-            echo "**Survived** means the code was deliberately broken and every test still"
-            echo "passed — so whatever that mutation guards is not really covered."
-            echo "**Stale** means the code it patches has moved and the mutation no longer"
-            echo "applies, which is not evidence of anything and needs its anchor updated"
-            echo "in \`test/mutations.json\`."
+            if [ "$title" = "A mutation survived" ]; then
+              echo "A mutation survived on \`${{ github.ref_name }}\`, or one has gone stale."
+              echo
+              echo "**Survived** means the code was deliberately broken and every test still"
+              echo "passed — so whatever that mutation guards is not really covered."
+              echo "**Stale** means the code it patches has moved and the mutation no longer"
+              echo "applies, which is not evidence of anything and needs its anchor updated"
+              echo "in \`test/mutations.json\`."
+            else
+              echo "The mutation runner never got as far as reporting on \`${{ github.ref_name }}\`,"
+              echo "so this says nothing either way about the tests. Something stopped it"
+              echo "before it started — the output below is what it managed to say."
+            fi
             echo
             echo "Reproduce with \`npm run test:mutate\`, or one at a time with"
             echo "\`npm run test:mutate -- --only \"some words from its name\"\`."
@@ -87,5 +103,5 @@ jobs:
           if [ -n "$existing" ]; then
             gh issue comment "$existing" --body-file issue.md
           else
-            gh issue create --title "A mutation survived" --label mutation --body-file issue.md
+            gh issue create --title "$title" --label mutation --body-file issue.md
           fi
