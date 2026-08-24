@@ -758,13 +758,27 @@ async function main() {
           blocks: count(),
           firstName: document.querySelector('#timeline .tl-name').textContent,
         };
-        return { before, afterRemove, afterNewFile, afterRename };
+        /* A blend crossing MIN_CROSSFADE adds or removes a marker between the
+           blocks, which is a change of structure hiding inside a change of
+           number — the one case where dragging a slider does need a rebuild. */
+        const markers = () => document.querySelectorAll('#timeline .tl-xf').length;
+        state.clips[1].crossfade = 0; renderTimeline();
+        const noBlend = markers();
+        state.clips[1].crossfade = 2; renderTimeline();
+        const blended = markers();
+        state.clips[1].crossfade = 0; renderTimeline();
+        const backToNone = markers();
+
+        return { before, afterRemove, afterNewFile, afterRename, noBlend, blended, backToNone };
       `);
       eq(result.before.blocks, 2, 'two clips, two blocks: ');
       eq(result.afterRemove.blocks, 1, 'removing a clip must remove its block: ');
       eq(result.afterNewFile.rows, 3, 'a new file must appear in the list: ');
       eq(result.afterRename.blocks, 2);
       eq(result.afterRename.firstName, 'renamed', 'a retitled clip must show its new name: ');
+      eq(result.noBlend, 0, 'a hard cut shows no blend marker: ');
+      eq(result.blended, 1, 'turning a blend on must add one: ');
+      eq(result.backToNone, 0, 'and turning it off again must take it away: ');
     });
 
     await check('changing the theme repaints rather than trusting the cache', async () => {
