@@ -31,6 +31,16 @@
 Nothing to install and nothing to sign up for. Your music never leaves your
 computer — the files are read straight from disk by the browser and stay there.
 
+> [!IMPORTANT]
+> **Built with AI, for my own use.** The code here was written with heavy AI
+> assistance. I needed to cut a program and did not want a digital audio
+> workstation to do it; it is public in case it saves someone else the same
+> afternoon.
+>
+> There is no team behind it, no support, and no undertaking to fix anything or
+> to keep it working. **Use it at your own risk** — and before an entry deadline,
+> play the exported file end to end rather than trusting that it came out right.
+
 ## Why
 
 Program music is a handful of cuts joined together and timed to the second, but
@@ -93,17 +103,6 @@ coach, before an entry deadline.
 
 This project is not affiliated with, endorsed by, or connected to the ISU or
 U.S. Figure Skating.
-
-## A note on what this is
-
-I built this for myself, with a lot of help from AI, because I needed to cut a
-program and did not want a digital audio workstation to do it. It is public
-because it may well save someone else the same afternoon.
-
-That is the whole of the offer. There is no team behind it, no support, and no
-undertaking to fix anything or to keep it working. **Use it at your own risk** —
-and before an entry deadline, play the exported file end to end rather than
-trusting that it came out right.
 
 ## Licence
 
