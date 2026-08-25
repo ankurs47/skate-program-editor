@@ -20,8 +20,7 @@ const docsCss = fs.readFileSync(path.join(ROOT, 'docs/docs.css'), 'utf8');
 
 /** The `--name: value` pairs a stylesheet defines, in order, as one string. */
 function tokensOf(source) {
-  return [...source.matchAll(/^\s*(--[\w-]+):\s*([^;]+);/gm)]
-    .map((m) => `${m[1]}: ${m[2].trim()}`);
+  return [...source.matchAll(/^\s*(--[\w-]+):\s*([^;]+);/gm)].map((m) => `${m[1]}: ${m[2].trim()}`);
 }
 
 check('the two stylesheets agree on the colors', () => {
@@ -40,14 +39,22 @@ check('the documentation page is well formed and its contents work', () => {
   const ids = new Set([...helpHtml.matchAll(/id="([\w-]+)"/g)].map((m) => m[1]));
   const anchors = [...helpHtml.matchAll(/href="#([\w-]+)"/g)].map((m) => m[1]);
   ok(anchors.length > 10, 'the contents list has lost its links');
-  eq(anchors.filter((a) => !ids.has(a)), [], 'links to sections that do not exist: ');
+  eq(
+    anchors.filter((a) => !ids.has(a)),
+    [],
+    'links to sections that do not exist: ',
+  );
 
   /* Every heading that can be linked to should be — a section missing from the
      contents is a section nobody finds. h3s are subsections and are exempt. */
   const body = helpHtml.replace(/<nav class="toc"[\s\S]*?<\/nav>/, '');
   const headings = [...body.matchAll(/<h2 id="([\w-]+)"/g)].map((m) => m[1]);
   const listed = new Set(anchors);
-  eq(headings.filter((h) => !listed.has(h)), [], 'sections missing from the contents: ');
+  eq(
+    headings.filter((h) => !listed.has(h)),
+    [],
+    'sections missing from the contents: ',
+  );
 });
 
 check('the app links to the guide without breaking the help buttons', () => {
@@ -57,8 +64,10 @@ check('the app links to the guide without breaking the help buttons', () => {
      asserting because the styles make the two look identical on purpose. */
   const link = html.match(/<a class="([\w-]+)" href="(docs\/[\w.-]+)"/);
   ok(link, 'index.html no longer links to the guide');
-  ok(!link[1].split(/\s+/).includes('help-btn'),
-    'the guide link carries help-btn, so bindHelp will hijack its click');
+  ok(
+    !link[1].split(/\s+/).includes('help-btn'),
+    'the guide link carries help-btn, so bindHelp will hijack its click',
+  );
   ok(fs.existsSync(path.join(ROOT, link[2])), `index.html links to a missing ${link[2]}`);
 });
 
@@ -72,8 +81,10 @@ check('every link between the docs and the README points at something', () => {
     const links = [...body.matchAll(/(?:\]\(|href=")([^)"#][^)"]*?)(?:#[^)"]*)?(?:\)|")/g)];
     for (const [, target] of links) {
       if (/^(https?:|mailto:)/.test(target)) continue;
-      ok(fs.existsSync(path.resolve(from, target)),
-        `${file} links to ${target}, which does not exist`);
+      ok(
+        fs.existsSync(path.resolve(from, target)),
+        `${file} links to ${target}, which does not exist`,
+      );
     }
   }
 });
@@ -87,13 +98,18 @@ check('the logo is used as a favicon and a mark on every page that has one', () 
   ok(!/var\(--/.test(logo), 'the logo uses a CSS variable, which a favicon cannot resolve');
   ok(/<title/.test(logo), 'the logo has no <title> for screen readers');
 
-  for (const [file, prefix] of [['index.html', 'src/'], ['docs/help.html', '../src/']]) {
+  for (const [file, prefix] of [
+    ['index.html', 'src/'],
+    ['docs/help.html', '../src/'],
+  ]) {
     const page = fs.readFileSync(path.join(ROOT, file), 'utf8');
     ok(page.includes(`<link rel="icon" href="${prefix}logo.svg"`), `${file} has no favicon`);
     ok(page.includes(`src="${prefix}logo.svg"`), `${file} does not show the logo`);
   }
-  ok(fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8').includes('src="src/logo.svg"'),
-    'the README no longer shows the logo');
+  ok(
+    fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8').includes('src="src/logo.svg"'),
+    'the README no longer shows the logo',
+  );
 });
 
 check('the README shows the state of the build', () => {
@@ -101,11 +117,15 @@ check('the README shows the state of the build', () => {
      static image, or pointing at a workflow file that has been renamed, would
      read as a passing build for as long as nobody checked. */
   const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
-  const badges = [...readme.matchAll(/actions\/workflows\/([\w.-]+)\/badge\.svg/g)].map((m) => m[1]);
+  const badges = [...readme.matchAll(/actions\/workflows\/([\w.-]+)\/badge\.svg/g)].map(
+    (m) => m[1],
+  );
   ok(badges.length > 0, 'the README shows no build status');
   for (const workflow of badges) {
-    ok(fs.existsSync(path.join(ROOT, '.github/workflows', workflow)),
-      `the README badges ${workflow}, which no longer exists`);
+    ok(
+      fs.existsSync(path.join(ROOT, '.github/workflows', workflow)),
+      `the README badges ${workflow}, which no longer exists`,
+    );
   }
   ok(badges.includes('ci.yml'), 'the README does not show whether CI passes');
 });
@@ -120,8 +140,10 @@ check('every link that opens a new tab is safe, and the source is reachable', ()
     for (const [tag] of page.matchAll(/<a\s[^>]*target="_blank"[^>]*>/g)) {
       ok(/rel="[^"]*\bnoopener\b/.test(tag), `${file}: target=_blank without rel=noopener: ${tag}`);
     }
-    ok(/href="https:\/\/github\.com\/[\w-]+\/skate-program-editor"/.test(page),
-      `${file} does not link to the source`);
+    ok(
+      /href="https:\/\/github\.com\/[\w-]+\/skate-program-editor"/.test(page),
+      `${file} does not link to the source`,
+    );
   }
 });
 
@@ -132,8 +154,10 @@ check('the site tells crawlers where to look, and points only at real pages', ()
   const robots = fs.readFileSync(path.join(ROOT, 'robots.txt'), 'utf8');
   const sitemap = fs.readFileSync(path.join(ROOT, 'sitemap.xml'), 'utf8');
 
-  ok(/xmlns="http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9"/.test(sitemap),
-    'the sitemap namespace is not the one crawlers look for');
+  ok(
+    /xmlns="http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9"/.test(sitemap),
+    'the sitemap namespace is not the one crawlers look for',
+  );
 
   const declared = robots.match(/^Sitemap:\s*(\S+)$/m);
   ok(declared, 'robots.txt does not point at the sitemap');
@@ -152,8 +176,14 @@ check('the site tells crawlers where to look, and points only at real pages', ()
   }
 
   // The pages that are served should also be the ones listed.
-  ok(urls.some((u) => u === base), 'the sitemap does not list the app itself');
-  ok(urls.some((u) => u.endsWith('docs/help.html')), 'the sitemap does not list the guide');
+  ok(
+    urls.some((u) => u === base),
+    'the sitemap does not list the app itself',
+  );
+  ok(
+    urls.some((u) => u.endsWith('docs/help.html')),
+    'the sitemap does not list the guide',
+  );
 });
 
 check('both pages carry what a link preview and a search result need', () => {
@@ -177,8 +207,10 @@ check('both pages carry what a link preview and a search result need', () => {
      one, and `npm run screenshot` is what regenerates it. */
   eq([width, height], [1200, 630], `${card} should be exactly 1200x630: `);
 
-  const pages = [['index.html', html],
-    ['docs/help.html', fs.readFileSync(path.join(ROOT, 'docs/help.html'), 'utf8')]];
+  const pages = [
+    ['index.html', html],
+    ['docs/help.html', fs.readFileSync(path.join(ROOT, 'docs/help.html'), 'utf8')],
+  ];
 
   for (const [file, page] of pages) {
     const content = (tag) => {
@@ -187,28 +219,47 @@ check('both pages carry what a link preview and a search result need', () => {
     };
 
     const title = (page.match(/<title>([^<]*)<\/title>/) || [])[1] || '';
-    ok(title.length >= 40 && title.length <= 65,
-      `${file}: title is ${title.length} characters; aim for 40-65`);
+    ok(
+      title.length >= 40 && title.length <= 65,
+      `${file}: title is ${title.length} characters; aim for 40-65`,
+    );
 
     const serp = content('description');
-    ok(serp && serp.length >= 70 && serp.length <= 160,
-      `${file}: description is ${serp ? serp.length : 0} characters; Google cuts around 160`);
+    ok(
+      serp && serp.length >= 70 && serp.length <= 160,
+      `${file}: description is ${serp ? serp.length : 0} characters; Google cuts around 160`,
+    );
 
     for (const tag of ['og:description', 'twitter:description']) {
       const value = content(tag);
-      ok(value && value.length >= 60 && value.length <= 125,
-        `${file}: ${tag} is ${value ? value.length : 0} characters; a phone cuts around 125`);
+      ok(
+        value && value.length >= 60 && value.length <= 125,
+        `${file}: ${tag} is ${value ? value.length : 0} characters; a phone cuts around 125`,
+      );
     }
 
-    for (const tag of ['og:title', 'og:image', 'og:url', 'twitter:card', 'twitter:image',
-      'og:image:alt', 'author']) {
+    for (const tag of [
+      'og:title',
+      'og:image',
+      'og:url',
+      'twitter:card',
+      'twitter:image',
+      'og:image:alt',
+      'author',
+    ]) {
       ok(content(tag), `${file} has no ${tag}`);
     }
     eq(content('og:image:width'), String(width), `${file}: og:image:width should match the file: `);
-    eq(content('og:image:height'), String(height), `${file}: og:image:height should match the file: `);
+    eq(
+      content('og:image:height'),
+      String(height),
+      `${file}: og:image:height should match the file: `,
+    );
 
     ok(/<link rel="canonical" href="https:\/\/[^"]+">/.test(page), `${file} has no canonical URL`);
-    for (const [, url] of page.matchAll(/(?:og:image|og:url|twitter:image)"[^>]*content="([^"]+)"/g)) {
+    for (const [, url] of page.matchAll(
+      /(?:og:image|og:url|twitter:image)"[^>]*content="([^"]+)"/g,
+    )) {
       ok(/^https:\/\//.test(url), `${file}: ${url} must be absolute to be resolved`);
     }
   }

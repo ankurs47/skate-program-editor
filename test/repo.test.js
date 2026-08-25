@@ -30,14 +30,11 @@ const { check, eq, ok, ROOT, SHIPPED } = require('./harness.js');
        .update("skate-private:"+process.argv[1].toLowerCase())
        .digest("hex").slice(0,16))' WORD
 */
-const PRIVATE_WORD_HASHES = new Set([
-  'db52ee1e907cd591',
-  'e87a22bb66604a0a',
-  'ca561af9108202c2',
-]);
+const PRIVATE_WORD_HASHES = new Set(['db52ee1e907cd591', 'e87a22bb66604a0a', 'ca561af9108202c2']);
 
 function privateWordHash(word) {
-  return crypto.createHash('sha256')
+  return crypto
+    .createHash('sha256')
     .update(`skate-private:${word.toLowerCase()}`)
     .digest('hex')
     .slice(0, 16);
@@ -56,8 +53,10 @@ check('no personal information in anything shipped', () => {
       const forms = [token];
       if (/s$/i.test(token) && token.length > 1) forms.push(token.slice(0, -1));
       for (const form of forms) {
-        ok(!PRIVATE_WORD_HASHES.has(privateWordHash(form)),
-          `${file} contains personal information`);
+        ok(
+          !PRIVATE_WORD_HASHES.has(privateWordHash(form)),
+          `${file} contains personal information`,
+        );
       }
     }
   }
@@ -70,11 +69,16 @@ check('the personal information guard still catches what it is for', () => {
      whole thing being avoided — so the canary is a neutral word with a known
      hash. If the hashing ever changes, this fails and the stored hashes are
      known to have stopped corresponding to the words they were made from. */
-  eq(privateWordHash('sentinel'), '392571f57b389320',
-    'the hashing changed, so the stored hashes no longer mean anything: ');
+  eq(
+    privateWordHash('sentinel'),
+    '392571f57b389320',
+    'the hashing changed, so the stored hashes no longer mean anything: ',
+  );
   eq(PRIVATE_WORD_HASHES.size, 3, 'the guard list was emptied: ');
-  ok(!PRIVATE_WORD_HASHES.has(privateWordHash('crossfade')),
-    'an ordinary word in the codebase must not be flagged');
+  ok(
+    !PRIVATE_WORD_HASHES.has(privateWordHash('crossfade')),
+    'an ordinary word in the codebase must not be flagged',
+  );
 });
 
 check('no absolute local paths leaked into the app', () => {
@@ -93,11 +97,34 @@ check('no absolute local paths leaked into the app', () => {
    This file is the one thing not scanned, because the list below would match
    itself on every entry. Nothing else is exempt. */
 const BRITISH = [
-  'colour', 'programme', 'behaviour', 'neighbour', 'honour', 'centre', 'licence',
-  'grey', 'labelled', 'analyse(?!s\\b)', 'recognis', 'organis', 'realis',
-  'summaris', 'normalis', 'optimis', 'initialis', 'utilis', 'minimis', 'maximis',
-  'apologis', 'favourite', 'defence', 'catalogue', 'practis', 'whilst',
-  'amongst', 'learnt',
+  'colour',
+  'programme',
+  'behaviour',
+  'neighbour',
+  'honour',
+  'centre',
+  'licence',
+  'grey',
+  'labelled',
+  'analyse(?!s\\b)',
+  'recognis',
+  'organis',
+  'realis',
+  'summaris',
+  'normalis',
+  'optimis',
+  'initialis',
+  'utilis',
+  'minimis',
+  'maximis',
+  'apologis',
+  'favourite',
+  'defence',
+  'catalogue',
+  'practis',
+  'whilst',
+  'amongst',
+  'learnt',
 ];
 
 check('everything is written in American English', () => {
@@ -133,8 +160,10 @@ check('every rule source is one the checker knows how to read', () => {
     ok(checker.includes(`'${source.id}':`), `no extractor for ${source.id}`);
     ok(/^https:\/\//.test(source.url), `${source.id} is not fetched over https`);
     ok(source.what && source.what.length > 10, `${source.id} does not say what it watches`);
-    ok(Array.isArray(source.seen) && source.seen.length,
-      `${source.id} has no baseline — run: npm run check:sources -- --update`);
+    ok(
+      Array.isArray(source.seen) && source.seen.length,
+      `${source.id} has no baseline — run: npm run check:sources -- --update`,
+    );
   }
   ok(/^\d{4}-\d{2}-\d{2}$/.test(baseline.checked), 'no date for when a person last looked');
   ok(baseline.checked > '2020-01-01', 'the baseline date looks unset');

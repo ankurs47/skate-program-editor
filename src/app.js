@@ -12,15 +12,26 @@
 
 const SR = 44100;
 const MIN_CROSSFADE = 0.01;
-const MIN_CLIP = 0.1;            // the shortest a clip may be trimmed to, in seconds
+const MIN_CLIP = 0.1; // the shortest a clip may be trimmed to, in seconds
 /* One list, two shapes: the file picker wants extensions with dots, and the
    drop handler wants something to test a name against. */
 const AUDIO_EXTENSION_LIST = [
-  '.mp3', '.wav', '.flac', '.m4a', '.ogg', '.opus', '.aac', '.webm', '.aif', '.aiff',
+  '.mp3',
+  '.wav',
+  '.flac',
+  '.m4a',
+  '.ogg',
+  '.opus',
+  '.aac',
+  '.webm',
+  '.aif',
+  '.aiff',
 ];
-const AUDIO_EXTENSIONS =
-  new RegExp(`(${AUDIO_EXTENSION_LIST.map((e) => `\\${e}`).join('|')})$`, 'i');
-const MAX_GAIN = 16;             // a shade over the +24 dB the level slider reaches
+const AUDIO_EXTENSIONS = new RegExp(
+  `(${AUDIO_EXTENSION_LIST.map((e) => `\\${e}`).join('|')})$`,
+  'i',
+);
+const MAX_GAIN = 16; // a shade over the +24 dB the level slider reaches
 const STORE_KEY = 'skate.program.v1';
 
 /* ---------------------------------------------------------------------------
@@ -100,25 +111,25 @@ function findLevel(id) {
 
 const state = {
   name: 'my program',
-  level: 'usfs-juv',        // id from LEVELS, or CUSTOM_LEVEL
+  level: 'usfs-juv', // id from LEVELS, or CUSTOM_LEVEL
   targetSeconds: 135,
   toleranceSeconds: 10,
-  clips: [],          // {id, file, title, srcStart, srcEnd, fadeIn, fadeOut, crossfade}
-  selected: null,     // clip id
-  cursor: 0,          // source-time position inside the selected clip's file
-  playPosition: 0,    // program-time position of the playhead, kept across stops
+  clips: [], // {id, file, title, srcStart, srcEnd, fadeIn, fadeOut, crossfade}
+  selected: null, // clip id
+  cursor: 0, // source-time position inside the selected clip's file
+  playPosition: 0, // program-time position of the playhead, kept across stops
   // name -> {bytes, seconds, fingerprint} from the project file, so a song that
   // arrives can be checked against the one the edit was built from. Empty for a
   // program built in this sitting, where the question does not arise.
   expectedFiles: new Map(),
 };
 
-const library = new Map();   // file name -> {name, buffer, peaks, duration, state}
+const library = new Map(); // file name -> {name, buffer, peaks, duration, state}
 const undoStack = [];
 const redoStack = [];
 
-let audio = null;            // AudioContext, created on first gesture
-let playing = null;          // {nodes, startedAt, fromTime, mode}
+let audio = null; // AudioContext, created on first gesture
+let playing = null; // {nodes, startedAt, fromTime, mode}
 let rafId = 0;
 let mp3Ready = false;
 
@@ -181,9 +192,7 @@ function clipGain(clip) {
   const gain = clip ? clip.gain : undefined;
   // Checked as a number before anything else: `Number(null)` is 0, so coercing
   // first would read a null in a project file as "silent" rather than "absent".
-  return typeof gain === 'number' && isFinite(gain) && gain >= 0
-    ? clamp(gain, 0, MAX_GAIN)
-    : 1;
+  return typeof gain === 'number' && isFinite(gain) && gain >= 0 ? clamp(gain, 0, MAX_GAIN) : 1;
 }
 
 /** Overlap between clip i and the one before it, clamped to fit both. */
@@ -241,7 +250,8 @@ function crossfadeEnvelope(clips, i) {
   return rampEnvelope(
     clipDuration(clips[i]),
     crossfadeOf(clips, i),
-    i + 1 < clips.length ? crossfadeOf(clips, i + 1) : 0);
+    i + 1 < clips.length ? crossfadeOf(clips, i + 1) : 0,
+  );
 }
 
 function valueAt(points, t) {
@@ -287,10 +297,10 @@ function scheduleProgram(context, destination, when, fromTime) {
     if (!entry || !entry.buffer) return;
 
     const { start, dur } = parts[i];
-    if (start + dur <= fromTime) return;          // entirely in the past
+    if (start + dur <= fromTime) return; // entirely in the past
 
     const skip = Math.max(0, fromTime - start);
-    const clipT0 = when + (start - fromTime);     // may be before `when`
+    const clipT0 = when + (start - fromTime); // may be before `when`
     const playAt = Math.max(clipT0 + skip, when);
 
     const src = context.createBufferSource();
@@ -320,13 +330,17 @@ function scheduleProgram(context, destination, when, fromTime) {
 function stopPlayback() {
   if (playing) {
     for (const node of playing.nodes) {
-      try { node.stop(); } catch (_) { /* already ended */ }
+      try {
+        node.stop();
+      } catch (_) {
+        /* already ended */
+      }
     }
     playing = null;
   }
   cancelAnimationFrame(rafId);
   $('btnPlayLabel').textContent = 'Play';
-  drawScrubber();   // the playhead stays where it is, so Space resumes there
+  drawScrubber(); // the playhead stays where it is, so Space resumes there
 }
 
 /** `until` stops playback at a point in program time, for auditioning a join. */
@@ -335,9 +349,12 @@ function playProgram(fromTime = 0, until = Infinity) {
   if (total <= 0) return;
   stopPlayback();
   const context = ctx();
-  const when = context.currentTime + 0.08;   // small lead so nothing is late
+  const when = context.currentTime + 0.08; // small lead so nothing is late
   const nodes = scheduleProgram(context, context.destination, when, fromTime);
-  if (!nodes.length) { toast('Add some music files first'); return; }
+  if (!nodes.length) {
+    toast('Add some music files first');
+    return;
+  }
   playing = { nodes, startedAt: when, fromTime, mode: 'program', total, until };
   $('btnPlayLabel').textContent = 'Pause';
   tickPlayhead();
@@ -354,7 +371,10 @@ function playProgram(fromTime = 0, until = Infinity) {
  */
 function playClipAudition(clip, fromSource) {
   const entry = library.get(clip.file);
-  if (!entry || !entry.buffer) { toast('That file is not loaded'); return; }
+  if (!entry || !entry.buffer) {
+    toast('That file is not loaded');
+    return;
+  }
   stopPlayback();
   const context = ctx();
   const src = context.createBufferSource();
@@ -382,7 +402,10 @@ function tickPlayhead() {
   const step = () => {
     if (!playing) return;
     const elapsed = ctx().currentTime - playing.startedAt;
-    if (elapsed < 0) { rafId = requestAnimationFrame(step); return; }
+    if (elapsed < 0) {
+      rafId = requestAnimationFrame(step);
+      return;
+    }
 
     if (playing.mode === 'program') {
       const at = Math.min(playing.fromTime + elapsed, playing.total);
@@ -390,18 +413,23 @@ function tickPlayhead() {
       $('playhead').textContent = fmt(at);
       drawScrubber();
       const stopAt = Math.min(playing.total, playing.until ?? Infinity);
-      if (at >= stopAt) { stopPlayback(); return; }
+      if (at >= stopAt) {
+        stopPlayback();
+        return;
+      }
     } else {
       const at = playing.fromTime + elapsed;
       state.cursor = at;
       drawClipEditor();
-      if (at >= playing.clip.srcEnd) { stopPlayback(); return; }
+      if (at >= playing.clip.srcEnd) {
+        stopPlayback();
+        return;
+      }
     }
     rafId = requestAnimationFrame(step);
   };
   rafId = requestAnimationFrame(step);
 }
-
 
 /** Sources used by the program that fall short, for the export warning. */
 function weakSources() {
@@ -409,8 +437,8 @@ function weakSources() {
   for (const clip of state.clips) {
     const entry = library.get(clip.file);
     // 'unknown' is not a complaint — only flag what we measured and found short.
-    const weak = entry && entry.quality
-      && (entry.quality.kind === 'caution' || entry.quality.kind === 'poor');
+    const weak =
+      entry && entry.quality && (entry.quality.kind === 'caution' || entry.quality.kind === 'poor');
     if (weak && !seen.has(clip.file)) {
       seen.set(clip.file, entry);
     }
@@ -431,7 +459,8 @@ function computePeaks(buffer, buckets = 5000) {
   for (let i = 0; i < count; i++) {
     const s = i * step;
     const e = Math.min(n, s + step);
-    let mn = 1, mx = -1;
+    let mn = 1,
+      mx = -1;
     for (const data of channels) {
       for (let j = s; j < e; j++) {
         const v = data[j];
@@ -473,12 +502,16 @@ function drawWave(canvas, peaks, duration, t0, t1, color, gain = 1) {
     let ib = Math.ceil((tb / duration) * count);
     ia = clamp(ia, 0, count - 1);
     ib = clamp(ib, ia + 1, count);
-    let mn = 1, mx = -1;
+    let mn = 1,
+      mx = -1;
     for (let i = ia; i < ib; i++) {
       if (peaks[i * 2] < mn) mn = peaks[i * 2];
       if (peaks[i * 2 + 1] > mx) mx = peaks[i * 2 + 1];
     }
-    if (mx < mn) { mn = 0; mx = 0; }
+    if (mx < mn) {
+      mn = 0;
+      mx = 0;
+    }
     const y0 = mid - clamp(mx * gain, -1, 1) * mid * 0.94;
     const y1 = mid - clamp(mn * gain, -1, 1) * mid * 0.94;
     g.fillRect(x, y0, 1, Math.max(1, y1 - y0));
@@ -533,7 +566,11 @@ const THEME_WORDS = { auto: 'Auto', light: 'Light', dark: 'Dark' };
 /** The stored mode, or 'auto' when nothing valid is stored. */
 function storedTheme() {
   let value = null;
-  try { value = localStorage.getItem(THEME_KEY); } catch (_) { /* private mode */ }
+  try {
+    value = localStorage.getItem(THEME_KEY);
+  } catch (_) {
+    /* private mode */
+  }
   return THEME_MODES.includes(value) ? value : 'auto';
 }
 
@@ -552,21 +589,25 @@ function applyTheme(mode) {
   for (const button of document.querySelectorAll('[data-theme-choice]')) {
     button.setAttribute('aria-checked', String(button.dataset.themeChoice === mode));
   }
-  $('themeNote').textContent = mode === 'auto'
-    ? 'Auto follows whatever this computer is set to.'
-    : `Always ${THEME_WORDS[mode].toLowerCase()}, whatever this computer is set to.`;
+  $('themeNote').textContent =
+    mode === 'auto'
+      ? 'Auto follows whatever this computer is set to.'
+      : `Always ${THEME_WORDS[mode].toLowerCase()}, whatever this computer is set to.`;
 }
 
 /** Take a choice from the menu, remember it, and repaint what the CSS cannot. */
 function chooseTheme(mode) {
   if (!THEME_MODES.includes(mode)) return;
-  try { localStorage.setItem(THEME_KEY, mode); } catch (_) { /* private mode */ }
+  try {
+    localStorage.setItem(THEME_KEY, mode);
+  } catch (_) {
+    /* private mode */
+  }
   applyTheme(mode);
   /* The canvases hold colors that were resolved when they were drawn, so the
      stylesheet changing underneath them is not enough on its own. */
   repaintForTheme();
 }
-
 
 /* ------------------------------------------------------- settings menu */
 
@@ -599,12 +640,16 @@ function describeStored() {
   try {
     const stored = localStorage.getItem(STORE_KEY);
     if (stored) clips = (JSON.parse(stored).clips || []).length;
-  } catch (_) { /* private mode, or something we did not write */ }
+  } catch (_) {
+    /* private mode, or something we did not write */
+  }
   if (clips) parts.push('the program you are working on');
   if (rememberedNames.size) {
-    parts.push(rememberedNames.size === 1
-      ? 'a way back to 1 song file'
-      : `a way back to ${rememberedNames.size} song files`);
+    parts.push(
+      rememberedNames.size === 1
+        ? 'a way back to 1 song file'
+        : `a way back to ${rememberedNames.size} song files`,
+    );
   }
   $('forgetNote').textContent = parts.length
     ? `This browser is keeping ${parts.join(' and ')}. Your music itself is never uploaded.`
@@ -627,7 +672,12 @@ async function forgetEverything() {
   if (typeof indexedDB !== 'undefined') {
     await new Promise((resolve) => {
       let done = false;
-      const finish = () => { if (!done) { done = true; resolve(); } };
+      const finish = () => {
+        if (!done) {
+          done = true;
+          resolve();
+        }
+      };
       try {
         const request = indexedDB.deleteDatabase(HANDLE_DB);
         request.onsuccess = finish;
@@ -636,17 +686,22 @@ async function forgetEverything() {
            never resolves until that tab lets go. Nothing here should wait on
            another tab, so it moves on. */
         request.onblocked = finish;
-      } catch (_) { finish(); }
+      } catch (_) {
+        finish();
+      }
     });
   }
   refresh();
   /* After the refresh, not before: refresh() runs save(), which would put an
      empty program straight back into the storage this just emptied. */
-  try { localStorage.removeItem(STORE_KEY); } catch (_) { /* private mode */ }
+  try {
+    localStorage.removeItem(STORE_KEY);
+  } catch (_) {
+    /* private mode */
+  }
   describeStored();
   toast('Forgotten. Nothing from the editor is left in this browser.');
 }
-
 
 /* ------------------------------------------------------- the music sidebar */
 
@@ -661,8 +716,11 @@ function setLibraryCollapsed(collapsed) {
   button.setAttribute('aria-expanded', String(!collapsed));
   button.title = collapsed ? 'Show the music list' : 'Hide the music list';
   button.setAttribute('aria-label', button.title);
-  try { localStorage.setItem(LIBRARY_KEY, collapsed ? 'collapsed' : 'open'); }
-  catch (_) { /* private mode */ }
+  try {
+    localStorage.setItem(LIBRARY_KEY, collapsed ? 'collapsed' : 'open');
+  } catch (_) {
+    /* private mode */
+  }
   /* Every canvas is sized from its box, and the box just changed by 300px.
      Nothing fires a resize event for a class change, so they are redrawn by
      hand — without this the waveforms stay at the old width until the window
@@ -709,14 +767,24 @@ async function addFiles(fileList) {
   // no type at all for .opus and .webm, which is why the extension is a second
   // chance rather than a formality.
   const files = Array.from(fileList).filter(
-    (f) => /^audio\//i.test(f.type) || AUDIO_EXTENSIONS.test(f.name));
-  if (!files.length) { toast('No audio files in that drop'); return; }
+    (f) => /^audio\//i.test(f.type) || AUDIO_EXTENSIONS.test(f.name),
+  );
+  if (!files.length) {
+    toast('No audio files in that drop');
+    return;
+  }
   let shortened = 0;
   const wrongFile = [];
 
   for (const file of files) {
     if (library.has(file.name)) continue;
-    library.set(file.name, { name: file.name, buffer: null, peaks: null, duration: 0, state: 'loading' });
+    library.set(file.name, {
+      name: file.name,
+      buffer: null,
+      peaks: null,
+      duration: 0,
+      state: 'loading',
+    });
   }
   renderLibrary();
 
@@ -761,24 +829,28 @@ async function addFiles(fileList) {
   /* Said before anything about trimming: if the wrong song has been handed
      over, every other number on screen is about the wrong song too. */
   if (wrongFile.length) {
-    toast(wrongFile.length === 1 ? wrongFile[0]
-      : `${wrongFile.length} songs are not the ones this program was built from — `
-        + 'check them before you use it', 7000);
+    toast(
+      wrongFile.length === 1
+        ? wrongFile[0]
+        : `${wrongFile.length} songs are not the ones this program was built from — ` +
+            'check them before you use it',
+      7000,
+    );
   }
   if (shortened) {
     save();
-    toast(shortened === 1
-      ? 'One song asked for more music than its file holds, so it was shortened to fit'
-      : `${shortened} songs asked for more music than their files hold, so they were shortened to fit`,
-    6000);
+    toast(
+      shortened === 1
+        ? 'One song asked for more music than its file holds, so it was shortened to fit'
+        : `${shortened} songs asked for more music than their files hold, so they were shortened to fit`,
+      6000,
+    );
   }
   /* What is now playable of what was asked for, in the order it was dropped, so
      a drop onto the timeline can add exactly those. Looked up rather than
      collected in the loop above, which skips files that were already loaded —
      dropping one of those again should still put it in the program. */
-  return files
-    .map((file) => library.get(file.name))
-    .filter((entry) => entry && entry.buffer);
+  return files.map((file) => library.get(file.name)).filter((entry) => entry && entry.buffer);
 }
 
 /** How many clips in the program are playing from this file. */
@@ -813,14 +885,16 @@ let libraryShape = null;
 
 function librarySignature() {
   return [...library.values()]
-    .map((entry) => [
-      entry.name,
-      entry.state,
-      Math.round(entry.duration),
-      entry.quality ? entry.quality.kind : '',
-      entry.peaks ? 1 : 0,
-      clipsUsing(entry.name),                  // whether Remove is available
-    ].join(':'))
+    .map((entry) =>
+      [
+        entry.name,
+        entry.state,
+        Math.round(entry.duration),
+        entry.quality ? entry.quality.kind : '',
+        entry.peaks ? 1 : 0,
+        clipsUsing(entry.name), // whether Remove is available
+      ].join(':'),
+    )
     .join('|');
 }
 
@@ -844,15 +918,21 @@ function renderLibrary() {
       const canvas = document.createElement('canvas');
       canvas.height = 28;
       li.appendChild(canvas);
-      requestAnimationFrame(() => drawWave(canvas, entry.peaks, entry.duration, 0, entry.duration, css('--wave')));
+      requestAnimationFrame(() =>
+        drawWave(canvas, entry.peaks, entry.duration, 0, entry.duration, css('--wave')),
+      );
     }
 
     const row = document.createElement('div');
     row.className = 'lib-row';
     const dur = document.createElement('span');
     dur.className = 'lib-dur';
-    dur.textContent = entry.state === 'loading' ? 'reading…'
-      : entry.state === 'error' ? 'unreadable' : fmtShort(entry.duration);
+    dur.textContent =
+      entry.state === 'loading'
+        ? 'reading…'
+        : entry.state === 'error'
+          ? 'unreadable'
+          : fmtShort(entry.duration);
     row.appendChild(dur);
 
     if (entry.quality) {
@@ -877,10 +957,10 @@ function renderLibrary() {
     const used = clipsUsing(entry.name);
     drop.disabled = used > 0;
     drop.title = used
-      ? `This song is in your program ${used === 1 ? 'once' : `${used} times`} — `
-        + 'take it out of the program first'
-      : 'Take this file out of the list and give back the memory it is holding. '
-        + 'Your program is untouched, and nothing is deleted from your computer.';
+      ? `This song is in your program ${used === 1 ? 'once' : `${used} times`} — ` +
+        'take it out of the program first'
+      : 'Take this file out of the list and give back the memory it is holding. ' +
+        'Your program is untouched, and nothing is deleted from your computer.';
     drop.onclick = () => removeFromLibrary(entry.name);
     row.appendChild(drop);
 
@@ -926,7 +1006,7 @@ function undoSnapshot() {
 function pushUndo(tag = null) {
   const now = Date.now();
   if (tag !== null && tag === undoRun.tag && now - undoRun.at < UNDO_COALESCE_MS) {
-    undoRun.at = now;      // the gesture continues; its opening snapshot stands
+    undoRun.at = now; // the gesture continues; its opening snapshot stands
     return;
   }
   undoRun = { tag, at: now };
@@ -990,13 +1070,19 @@ function applySnapshot(json) {
 
 function undo() {
   const previous = takeUndo();
-  if (previous === null) { toast('Nothing to undo'); return; }
+  if (previous === null) {
+    toast('Nothing to undo');
+    return;
+  }
   applySnapshot(previous);
 }
 
 function redo() {
   const next = takeRedo();
-  if (next === null) { toast('Nothing to redo'); return; }
+  if (next === null) {
+    toast('Nothing to redo');
+    return;
+  }
   applySnapshot(next);
 }
 
@@ -1032,7 +1118,7 @@ function removeClip(id) {
   } else {
     state.selected = null;
   }
-  if (state.clips.length) state.clips[0].crossfade = 0;   // nothing to blend into
+  if (state.clips.length) state.clips[0].crossfade = 0; // nothing to blend into
   refresh();
 }
 
@@ -1060,7 +1146,7 @@ function moveClip(fromIndex, toIndex) {
   if (!next) return;
   pushUndo();
   state.clips = next;
-  if (state.clips.length) state.clips[0].crossfade = 0;   // nothing to blend into
+  if (state.clips.length) state.clips[0].crossfade = 0; // nothing to blend into
   refresh();
 }
 
@@ -1078,14 +1164,18 @@ const CLIP_DRAG_TYPE = 'application/x-skate-clip';
 let timelineShape = null;
 
 function timelineSignature(clips, parts) {
-  return clips.map((clip, i) => [
-    clip.id,
-    clip.file,
-    clip.title,
-    clip.id === state.selected ? 1 : 0,
-    library.get(clip.file)?.buffer ? 1 : 0,
-    parts[i].xf >= MIN_CROSSFADE ? 1 : 0,      // whether a blend marker is shown
-  ].join(':')).join('|');
+  return clips
+    .map((clip, i) =>
+      [
+        clip.id,
+        clip.file,
+        clip.title,
+        clip.id === state.selected ? 1 : 0,
+        library.get(clip.file)?.buffer ? 1 : 0,
+        parts[i].xf >= MIN_CROSSFADE ? 1 : 0, // whether a blend marker is shown
+      ].join(':'),
+    )
+    .join('|');
 }
 
 /**
@@ -1105,8 +1195,14 @@ function drawTimelineWaves() {
     const canvas = blocks[i] && blocks[i].querySelector('canvas');
     const entry = library.get(clip.file);
     if (!canvas || !entry || !entry.peaks) return;
-    drawWave(canvas, entry.peaks, entry.duration, clip.srcStart, clip.srcEnd,
-      clip.id === state.selected ? css('--wave-sel') : css('--wave'));
+    drawWave(
+      canvas,
+      entry.peaks,
+      entry.duration,
+      clip.srcStart,
+      clip.srcEnd,
+      clip.id === state.selected ? css('--wave-sel') : css('--wave'),
+    );
   });
 }
 
@@ -1154,7 +1250,10 @@ function renderTimeline() {
   $('timelineEmpty').classList.toggle('hidden', state.clips.length > 0);
 
   const signature = timelineSignature(state.clips, parts);
-  if (signature === timelineShape && wrap.querySelectorAll('.tl-clip').length === state.clips.length) {
+  if (
+    signature === timelineShape &&
+    wrap.querySelectorAll('.tl-clip').length === state.clips.length
+  ) {
     syncTimelineMetrics(parts, total);
     return;
   }
@@ -1202,7 +1301,7 @@ function renderTimeline() {
     el.onclick = () => {
       state.selected = clip.id;
       state.cursor = clip.srcStart;
-      state.playPosition = parts[i].start;   // jump the playhead to this clip
+      state.playPosition = parts[i].start; // jump the playhead to this clip
       $('playhead').textContent = fmt(state.playPosition);
       refresh();
     };
@@ -1223,7 +1322,7 @@ function renderTimeline() {
     el.ondrop = (e) => {
       e.preventDefault();
       const from = e.dataTransfer.getData(CLIP_DRAG_TYPE);
-      if (from === '') return;              // not one of our blocks
+      if (from === '') return; // not one of our blocks
       moveClip(Number(from), i);
     };
 
@@ -1364,7 +1463,11 @@ function bindScrubber() {
   const release = (e) => {
     if (!scrubbing) return;
     scrubbing = false;
-    try { canvas.releasePointerCapture(e.pointerId); } catch (_) { /* not captured */ }
+    try {
+      canvas.releasePointerCapture(e.pointerId);
+    } catch (_) {
+      /* not captured */
+    }
     if (wasPlaying) playProgram(state.playPosition);
   };
   canvas.addEventListener('pointerup', release);
@@ -1380,12 +1483,20 @@ function drawClipEditor() {
   if (!clip) return;
 
   $('editorTitle').textContent = clip.title;
-  $('editorTitle').title = clip.title;   // the heading ellipsises when it is long
+  $('editorTitle').title = clip.title; // CSS cuts the heading short when it is long
   const entry = library.get(clip.file);
   const canvas = $('clipCanvas');
   const duration = entry && entry.buffer ? entry.duration : Math.max(clip.srcEnd, 1);
 
-  drawWave(canvas, entry ? entry.peaks : null, duration, 0, duration, css('--wave'), clipGain(clip));
+  drawWave(
+    canvas,
+    entry ? entry.peaks : null,
+    duration,
+    0,
+    duration,
+    css('--wave'),
+    clipGain(clip),
+  );
 
   const { g, w, h } = fitCanvas(canvas);
   const x = (t) => (t / duration) * w;
@@ -1413,7 +1524,8 @@ function drawClipEditor() {
     const t = (clipDuration(clip) * i) / steps;
     const px = x(clip.srcStart + t);
     const py = h - valueAt(points, t) * h * 0.5 - h * 0.02;
-    if (i === 0) g.moveTo(px, py); else g.lineTo(px, py);
+    if (i === 0) g.moveTo(px, py);
+    else g.lineTo(px, py);
   }
   g.stroke();
 
@@ -1520,7 +1632,10 @@ function previewJoin() {
 function joinRoom(clip, entry, side) {
   const keep = 0.5;
   return side === 'end'
-    ? { min: Math.min(0, keep - clipDuration(clip)), max: Math.max(0, entry.duration - clip.srcEnd) }
+    ? {
+        min: Math.min(0, keep - clipDuration(clip)),
+        max: Math.max(0, entry.duration - clip.srcEnd),
+      }
     : { min: Math.min(0, -clip.srcStart), max: Math.max(0, clipDuration(clip) - keep) };
 }
 
@@ -1533,16 +1648,16 @@ function updateAlignAvailability() {
 
   button.disabled = !ready;
   button.title = ready
-    ? 'Moves this cut and the end of the song before it by up to 2.5 seconds each, '
-      + 'so they land on a beat — or, if the music has no steady beat, where a '
-      + 'phrase ends'
+    ? 'Moves this cut and the end of the song before it by up to 2.5 seconds each, ' +
+      'so they land on a beat — or, if the music has no steady beat, where a ' +
+      'phrase ends'
     : 'Add both songs first';
 
   const play = $('btnPlayJoin');
   play.disabled = !ready;
   play.title = ready
-    ? 'Plays the few seconds either side of this join, so you can hear how the '
-      + 'two songs meet without hunting for it on the bar above'
+    ? 'Plays the few seconds either side of this join, so you can hear how the ' +
+      'two songs meet without hunting for it on the bar above'
     : 'Add both songs first';
 }
 
@@ -1559,7 +1674,10 @@ function alignSelectedJoin() {
   const prev = state.clips[i - 1];
   const prevEntry = library.get(prev.file);
   const entry = library.get(clip.file);
-  if (!prevEntry?.buffer || !entry?.buffer) { toast('Add both songs first'); return; }
+  if (!prevEntry?.buffer || !entry?.buffer) {
+    toast('Add both songs first');
+    return;
+  }
 
   const was = clip.crossfade || 0;
   const result = suggestJoinForBuffers(prevEntry.buffer, prev.srcEnd, entry.buffer, clip.srcStart, {
@@ -1570,9 +1688,11 @@ function alignSelectedJoin() {
     incRoom: joinRoom(clip, entry, 'start'),
   });
 
-  const moves = result.ok && (Math.abs(result.endShift) >= 0.005
-    || Math.abs(result.startShift) >= 0.005
-    || Math.abs(result.crossfade - was) >= 0.005);
+  const moves =
+    result.ok &&
+    (Math.abs(result.endShift) >= 0.005 ||
+      Math.abs(result.startShift) >= 0.005 ||
+      Math.abs(result.crossfade - was) >= 0.005);
   if (moves) {
     pushUndo();
     prev.srcEnd = clamp(prev.srcEnd + result.endShift, prev.srcStart + 0.1, prevEntry.duration);
@@ -1606,7 +1726,12 @@ async function withBusy(button, work) {
   // the button stuck on "Working…" with the work never run at all.
   await new Promise((done) => {
     let settled = false;
-    const go = () => { if (!settled) { settled = true; done(); } };
+    const go = () => {
+      if (!settled) {
+        settled = true;
+        done();
+      }
+    };
     requestAnimationFrame(() => requestAnimationFrame(go));
     setTimeout(go, 50);
   });
@@ -1622,12 +1747,16 @@ async function withBusy(button, work) {
 function updateEvenOutAvailability() {
   const button = $('btnEvenOut');
   const ready = state.clips.filter((c) => library.get(c.file)?.buffer).length;
-  const reason = state.clips.length < 2 ? 'Add at least two songs first'
-    : ready < 2 ? 'Some songs still need to be added'
-      : '';
+  const reason =
+    state.clips.length < 2
+      ? 'Add at least two songs first'
+      : ready < 2
+        ? 'Some songs still need to be added'
+        : '';
   button.disabled = Boolean(reason);
-  button.title = reason
-    || 'Sets each song so they all sound about equally loud, without letting any of them distort';
+  button.title =
+    reason ||
+    'Sets each song so they all sound about equally loud, without letting any of them distort';
 }
 
 /**
@@ -1651,14 +1780,19 @@ function evenOutLevels() {
 
   if (matched) {
     pushUndo();
-    state.clips.forEach((clip, i) => { if (usable[i]) clip.gain = clamp(gains[i], 0, MAX_GAIN); });
+    state.clips.forEach((clip, i) => {
+      if (usable[i]) clip.gain = clamp(gains[i], 0, MAX_GAIN);
+    });
     refresh();
   }
-  toast(describeLevels({
-    matched,
-    short: short.length,
-    unmeasured: usable.filter((u) => !u).length,
-  }), 4200);
+  toast(
+    describeLevels({
+      matched,
+      short: short.length,
+      unmeasured: usable.filter((u) => !u).length,
+    }),
+    4200,
+  );
 }
 
 function bindClipCanvas() {
@@ -1679,11 +1813,15 @@ function bindClipCanvas() {
     const t = timeAt(e);
     const entry = library.get(clip.file);
     const duration = entry && entry.buffer ? entry.duration : Math.max(clip.srcEnd, 1);
-    const grab = (duration / canvas.getBoundingClientRect().width) * 8;   // 8px in seconds
+    const grab = (duration / canvas.getBoundingClientRect().width) * 8; // 8px in seconds
 
     if (Math.abs(t - clip.srcStart) < grab) dragging = 'start';
     else if (Math.abs(t - clip.srcEnd) < grab) dragging = 'end';
-    else { state.cursor = t; drawClipEditor(); return; }
+    else {
+      state.cursor = t;
+      drawClipEditor();
+      return;
+    }
 
     pushUndo();
     canvas.setPointerCapture(e.pointerId);
@@ -1703,7 +1841,11 @@ function bindClipCanvas() {
   const end = (e) => {
     if (!dragging) return;
     dragging = null;
-    try { canvas.releasePointerCapture(e.pointerId); } catch (_) { /* never captured */ }
+    try {
+      canvas.releasePointerCapture(e.pointerId);
+    } catch (_) {
+      /* never captured */
+    }
     save();
   };
   canvas.addEventListener('pointerup', end);
@@ -1756,17 +1898,21 @@ function updateBudget() {
 /** One record per song the program uses, for the project file. */
 function usedFiles() {
   const names = [...new Set(state.clips.map((c) => c.file))];
-  return names.map((name) => {
-    const entry = library.get(name);
-    const known = entry && entry.fingerprint ? entry : state.expectedFiles.get(name);
-    return {
-      name,
-      bytes: known && known.bytes ? known.bytes : null,
-      seconds: known && known.duration ? Number(known.duration.toFixed(2))
-        : (known && known.seconds) || null,
-      fingerprint: (known && known.fingerprint) || null,
-    };
-  }).filter((f) => f.fingerprint);   // nothing useful to say about the rest
+  return names
+    .map((name) => {
+      const entry = library.get(name);
+      const known = entry && entry.fingerprint ? entry : state.expectedFiles.get(name);
+      return {
+        name,
+        bytes: known && known.bytes ? known.bytes : null,
+        seconds:
+          known && known.duration
+            ? Number(known.duration.toFixed(2))
+            : (known && known.seconds) || null,
+        fingerprint: (known && known.fingerprint) || null,
+      };
+    })
+    .filter((f) => f.fingerprint); // nothing useful to say about the rest
 }
 
 function project() {
@@ -1801,7 +1947,9 @@ function project() {
 function save() {
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify(project()));
-  } catch (_) { /* private mode, or quota — Save project still works */ }
+  } catch (_) {
+    /* private mode, or quota — Save project still works */
+  }
 }
 
 /**
@@ -1861,8 +2009,11 @@ function loadProject(data) {
   state.expectedFiles = new Map(read.files.map((f) => [f.name, f]));
   state.selected = state.clips.length ? state.clips[0].id : null;
   if (read.retargeted) {
-    toast(`This program targets ${fmtShort(state.targetSeconds)}, `
-      + `which no longer matches ${read.retargeted.label}`, 6000);
+    toast(
+      `This program targets ${fmtShort(state.targetSeconds)}, ` +
+        `which no longer matches ${read.retargeted.label}`,
+      6000,
+    );
   }
   $('programName').value = state.name;
   syncLevelPicker();
@@ -1890,14 +2041,15 @@ function download(blob, filename) {
  * is not legal in a filename, so 3:10 is written 3-10.
  */
 function exportFileName(extension) {
-  const name = (state.name || 'my program')
-    .replace(/[\\/:*?"<>|]+/g, ' ')      // rejected by Windows or POSIX
-    // eslint-disable-next-line no-control-regex -- stripping them is the point
-    .replace(/[\u0000-\u001f]+/g, ' ')   // control characters
-    .replace(/\s+/g, ' ')
-    .slice(0, 90)
-    .replace(/^[.\s]+|[.\s]+$/g, '')     // Windows rejects these at either end
-    || 'my program';
+  const name =
+    (state.name || 'my program')
+      .replace(/[\\/:*?"<>|]+/g, ' ') // rejected by Windows or POSIX
+      // eslint-disable-next-line no-control-regex -- stripping them is the point
+      .replace(/[\u0000-\u001f]+/g, ' ') // control characters
+      .replace(/\s+/g, ' ')
+      .slice(0, 90)
+      .replace(/^[.\s]+|[.\s]+$/g, '') || // Windows rejects these at either end
+    'my program';
   const t = Math.max(0, Math.round(state.targetSeconds));
   const length = `${Math.floor(t / 60)}-${String(t % 60).padStart(2, '0')}`;
   return `${name} (${length}).${extension}`;
@@ -1952,11 +2104,10 @@ function showLengthWarning(total) {
   $('lengthWarnHead').textContent =
     `${tooLong ? 'Too long' : 'Too short'} by ${off.toFixed(1)} seconds`;
   $('lengthWarnDetail').textContent =
-    `Your program is ${fmt(total)}. ${level ? `For ${level.label} the` : 'The'} `
-    + `music needs to be between ${fmt(lo)} and ${fmt(hi)}.`;
+    `Your program is ${fmt(total)}. ${level ? `For ${level.label} the` : 'The'} ` +
+    `music needs to be between ${fmt(lo)} and ${fmt(hi)}.`;
   $('lengthWarnFix').textContent = tooLong
-    ? 'Trim the start or end of a song, or blend two songs together more to '
-      + 'overlap them.'
+    ? 'Trim the start or end of a song, or blend two songs together more to ' + 'overlap them.'
     : 'Add more music, or reduce a blend so the songs overlap less.';
   return true;
 }
@@ -2013,9 +2164,11 @@ const rememberedNames = new Set();
 
 /** Can this browser give a file back after the tab has been closed? */
 function canRememberFiles() {
-  return typeof window.showOpenFilePicker === 'function'
-    && typeof indexedDB !== 'undefined'
-    && window.isSecureContext === true;
+  return (
+    typeof window.showOpenFilePicker === 'function' &&
+    typeof indexedDB !== 'undefined' &&
+    window.isSecureContext === true
+  );
 }
 
 function openHandleDb() {
@@ -2035,10 +2188,19 @@ async function withHandles(mode, work) {
     return await new Promise((resolve, reject) => {
       const tx = db.transaction(HANDLE_STORE, mode);
       let value;
-      Promise.resolve(work(tx.objectStore(HANDLE_STORE), (v) => { value = v; }))
-        .catch(reject);
-      tx.oncomplete = () => { db.close(); resolve(value); };
-      tx.onerror = () => { db.close(); reject(tx.error); };
+      Promise.resolve(
+        work(tx.objectStore(HANDLE_STORE), (v) => {
+          value = v;
+        }),
+      ).catch(reject);
+      tx.oncomplete = () => {
+        db.close();
+        resolve(value);
+      };
+      tx.onerror = () => {
+        db.close();
+        reject(tx.error);
+      };
     });
   } catch (_) {
     // Private browsing, a blocked upgrade, storage turned off — none of it is
@@ -2049,12 +2211,16 @@ async function withHandles(mode, work) {
 
 function rememberHandle(name, handle) {
   rememberedNames.add(name);
-  return withHandles('readwrite', (store) => { store.put(handle, name); });
+  return withHandles('readwrite', (store) => {
+    store.put(handle, name);
+  });
 }
 
 function forgetHandle(name) {
   rememberedNames.delete(name);
-  return withHandles('readwrite', (store) => { store.delete(name); });
+  return withHandles('readwrite', (store) => {
+    store.delete(name);
+  });
 }
 
 /** Every remembered handle, as name → handle. */
@@ -2092,19 +2258,24 @@ function audioPickerTypes() {
  * and what Firefox and Safari still get.
  */
 async function pickFiles() {
-  if (!canRememberFiles()) { $('fileInput').click(); return; }
+  if (!canRememberFiles()) {
+    $('fileInput').click();
+    return;
+  }
   let handles;
   try {
     handles = await window.showOpenFilePicker({ multiple: true, types: audioPickerTypes() });
   } catch (_) {
-    return;              // the picker was closed; not an error
+    return; // the picker was closed; not an error
   }
   const files = [];
   for (const handle of handles) {
     try {
       files.push(await handle.getFile());
       await rememberHandle(handle.name, handle);
-    } catch (_) { /* one unreadable file should not lose the rest */ }
+    } catch (_) {
+      /* one unreadable file should not lose the rest */
+    }
   }
   if (files.length) await addFiles(files);
 }
@@ -2123,7 +2294,9 @@ async function rememberDropped(transfer) {
     try {
       const handle = await item.getAsFileSystemHandle();
       if (handle && handle.kind === 'file') await rememberHandle(handle.name, handle);
-    } catch (_) { /* nothing to remember */ }
+    } catch (_) {
+      /* nothing to remember */
+    }
   }
 }
 
@@ -2145,16 +2318,16 @@ function describeWrongFile(expected, entry) {
 
   const was = Number(expected.seconds);
   const now = entry.duration;
-  const length = isFinite(was) && was > 0 && Math.abs(was - now) > 1
-    ? ` — this one is ${fmtShort(now)}, the program was built from ${fmtShort(was)}`
-    : '';
+  const length =
+    isFinite(was) && was > 0 && Math.abs(was - now) > 1
+      ? ` — this one is ${fmtShort(now)}, the program was built from ${fmtShort(was)}`
+      : '';
   return `“${entry.name}” is not the song this program was built from${length}`;
 }
 
 /** Files in the program that are not loaded, by name. */
 function missingFiles() {
-  return [...new Set(
-    state.clips.filter((c) => !library.get(c.file)?.buffer).map((c) => c.file))];
+  return [...new Set(state.clips.filter((c) => !library.get(c.file)?.buffer).map((c) => c.file))];
 }
 
 /** Missing files we could offer to fetch back without asking for a picker. */
@@ -2172,10 +2345,16 @@ function reconnectableFiles() {
  */
 async function reconnectMissing() {
   const wanted = reconnectableFiles();
-  if (!wanted.length) { $('fileInput').click(); return; }
+  if (!wanted.length) {
+    $('fileInput').click();
+    return;
+  }
 
   const handles = await storedHandles();
-  if (!handles) { $('fileInput').click(); return; }
+  if (!handles) {
+    $('fileInput').click();
+    return;
+  }
 
   const files = [];
   const gone = [];
@@ -2186,7 +2365,10 @@ async function reconnectMissing() {
     try {
       let allowed = await handle.queryPermission({ mode: 'read' });
       if (allowed !== 'granted') allowed = await handle.requestPermission({ mode: 'read' });
-      if (allowed !== 'granted') { refused.push(name); continue; }
+      if (allowed !== 'granted') {
+        refused.push(name);
+        continue;
+      }
       files.push(await handle.getFile());
     } catch (_) {
       // Moved, renamed or deleted since. Forget it rather than offering it again.
@@ -2218,14 +2400,16 @@ function describeReconnect({ files, gone, refused }) {
   const names = (list) => list.map((n) => `“${n}”`).join(', ');
   if (!files.length && gone.length && !refused.length) {
     return gone.length === 1
-      ? `${names(gone)} is not where it was — it may have been moved, renamed or deleted. `
-        + 'Use Add files to find it'
-      : `${gone.length} songs are not where they were — they may have been moved, `
-        + 'renamed or deleted. Use Add files to find them';
+      ? `${names(gone)} is not where it was — it may have been moved, renamed or deleted. ` +
+          'Use Add files to find it'
+      : `${gone.length} songs are not where they were — they may have been moved, ` +
+          'renamed or deleted. Use Add files to find them';
   }
   if (!files.length && refused.length && !gone.length) {
-    return 'Permission to read the music was not given, so nothing was opened. '
-      + 'Try again and choose Allow, or use Add files';
+    return (
+      'Permission to read the music was not given, so nothing was opened. ' +
+      'Try again and choose Allow, or use Add files'
+    );
   }
   if (!files.length) {
     return 'Could not open the music again — use Add files to find it';
@@ -2235,8 +2419,10 @@ function describeReconnect({ files, gone, refused }) {
     return `${opened}. ${gone.length} could not be found and ${refused.length} were not allowed`;
   }
   if (gone.length) {
-    return `${opened}, but ${names(gone)} could not be found — use Add files for `
-      + (gone.length === 1 ? 'it' : 'those');
+    return (
+      `${opened}, but ${names(gone)} could not be found — use Add files for ` +
+      (gone.length === 1 ? 'it' : 'those')
+    );
   }
   return `${opened}, but permission was not given for ${refused.length} of them`;
 }
@@ -2257,7 +2443,7 @@ function encodeWav(buffer) {
   ascii(8, 'WAVE');
   ascii(12, 'fmt ');
   view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);                       // PCM
+  view.setUint16(20, 1, true); // PCM
   view.setUint16(22, channels, true);
   view.setUint32(24, buffer.sampleRate, true);
   view.setUint32(28, buffer.sampleRate * channels * 2, true);
@@ -2304,7 +2490,7 @@ async function encodeMp3(buffer, onProgress) {
     if (encoded.length) chunks.push(encoded);
     if (i % (block * 200) === 0) {
       onProgress(i / buffer.length);
-      await new Promise((r2) => setTimeout(r2, 0));   // keep the UI responsive
+      await new Promise((r2) => setTimeout(r2, 0)); // keep the UI responsive
     }
   }
   const tail = encoder.flush();
@@ -2318,7 +2504,9 @@ async function renderProgram() {
   if (total <= 0) throw new Error('there is no music in the program yet');
   const missing = state.clips.filter((c) => !library.get(c.file)?.buffer);
   if (missing.length) {
-    throw new Error(`${missing.length} song${missing.length === 1 ? ' is' : 's are'} still missing`);
+    throw new Error(
+      `${missing.length} song${missing.length === 1 ? ' is' : 's are'} still missing`,
+    );
   }
 
   const offline = new OfflineAudioContext(2, Math.ceil(total * SR), SR);
@@ -2328,7 +2516,11 @@ async function renderProgram() {
 
 async function doExport() {
   const format = $('exportFormat').value;
-  try { localStorage.setItem(FORMAT_KEY, format); } catch (_) { /* private mode */ }
+  try {
+    localStorage.setItem(FORMAT_KEY, format);
+  } catch (_) {
+    /* private mode */
+  }
   const bar = $('exportBar');
   const progress = $('exportProgress');
   const go = $('btnExportGo');
@@ -2345,14 +2537,16 @@ async function doExport() {
     // the peak here means a distorted program is caught before any of that,
     // and before a file anyone might take to a competition exists.
     if (clipsOnExport(peakOf(channelsOf(rendered))) && !clippingAccepted) {
-      clippingAccepted = true;          // saying "anyway" once is enough
+      clippingAccepted = true; // saying "anyway" once is enough
       showClippingWarning();
       return;
     }
 
     let blob, ext;
     if (format === 'mp3') {
-      blob = await encodeMp3(rendered, (p) => { bar.style.width = `${40 + p * 58}%`; });
+      blob = await encodeMp3(rendered, (p) => {
+        bar.style.width = `${40 + p * 58}%`;
+      });
       ext = 'mp3';
     } else {
       blob = encodeWav(rendered);
@@ -2405,13 +2599,19 @@ const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabi
 /** Keep Tab inside the open dialog rather than letting it wander behind. */
 function trapFocus(e, dialog) {
   if (e.key !== 'Tab') return;
-  const items = [...dialog.querySelectorAll(FOCUSABLE)]
-    .filter((el) => !el.disabled && el.offsetParent !== null);
+  const items = [...dialog.querySelectorAll(FOCUSABLE)].filter(
+    (el) => !el.disabled && el.offsetParent !== null,
+  );
   if (!items.length) return;
   const first = items[0];
   const last = items[items.length - 1];
-  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
 }
 
 function closeExportDialog() {
@@ -2452,7 +2652,9 @@ function bindHelp() {
   }
   $('helpClose').onclick = closeHelp;
   // Clicking the backdrop closes; clicking inside the card does not.
-  $('helpModal').onclick = (e) => { if (e.target === $('helpModal')) closeHelp(); };
+  $('helpModal').onclick = (e) => {
+    if (e.target === $('helpModal')) closeHelp();
+  };
 }
 
 /* ------------------------------------------------------------------ wiring */
@@ -2492,7 +2694,7 @@ function openStartDialog(dismissable) {
 }
 
 function closeStartDialog() {
-  if (!startDismissable) return;   // startup: choose a route, don't slip past it
+  if (!startDismissable) return; // startup: choose a route, don't slip past it
   $('startDialog').classList.add('hidden');
 }
 
@@ -2507,7 +2709,11 @@ function resetProgram() {
   state.cursor = 0;
   state.playPosition = 0;
   $('playhead').textContent = '0:00.0';
-  try { localStorage.removeItem(STORE_KEY); } catch (_) { /* private mode */ }
+  try {
+    localStorage.removeItem(STORE_KEY);
+  } catch (_) {
+    /* private mode */
+  }
 }
 
 function startNewProgram() {
@@ -2535,11 +2741,14 @@ function startNewProgram() {
 
   $('programName').value = state.name;
   syncLevelPicker();
-  startDismissable = true;              // the choice has been made
+  startDismissable = true; // the choice has been made
   $('startDialog').classList.add('hidden');
   refresh();
-  toast(library.size ? 'Ready — add songs from the list on the left'
-                     : 'Ready — add your music on the left to begin');
+  toast(
+    library.size
+      ? 'Ready — add songs from the list on the left'
+      : 'Ready — add your music on the left to begin',
+  );
 }
 
 function bindStartDialog() {
@@ -2550,13 +2759,20 @@ function bindStartDialog() {
   $('btnStartNew').onclick = startNewProgram;
   $('btnStartCancel').onclick = closeStartDialog;
   $('btnStartLoad').onclick = () => {
-    startDismissable = true;            // loading a file is a valid way out
+    startDismissable = true; // loading a file is a valid way out
     $('startDialog').classList.add('hidden');
     $('projectInput').click();
   };
-  $('startDialog').onclick = (e) => { if (e.target === $('startDialog')) closeStartDialog(); };
+  $('startDialog').onclick = (e) => {
+    if (e.target === $('startDialog')) closeStartDialog();
+  };
   for (const id of ['startName', 'startCustom']) {
-    $(id).onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); startNewProgram(); } };
+    $(id).onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        startNewProgram();
+      }
+    };
   }
 }
 
@@ -2573,8 +2789,9 @@ function updateExportAvailability() {
   if (total <= 0) {
     reason = 'Add some music to your program first';
   } else if (missing) {
-    reason = `${missing} song${missing === 1 ? ' is' : 's are'} still missing — `
-      + `add the file${missing === 1 ? '' : 's'} first`;
+    reason =
+      `${missing} song${missing === 1 ? ' is' : 's are'} still missing — ` +
+      `add the file${missing === 1 ? '' : 's'} first`;
   }
 
   button.disabled = Boolean(reason);
@@ -2600,9 +2817,8 @@ function updateMissingNotice() {
   const back = reconnectableFiles();
   $('btnReconnect').classList.toggle('hidden', back.length === 0);
   if (back.length) {
-    $('btnReconnect').textContent = back.length === missing.length
-      ? 'Open the music again'
-      : `Open ${back.length} of them again`;
+    $('btnReconnect').textContent =
+      back.length === missing.length ? 'Open the music again' : `Open ${back.length} of them again`;
     $('btnReconnect').title = `Uses the files you opened before: ${back.join(', ')}`;
   }
 }
@@ -2624,7 +2840,9 @@ function refresh() {
 /* ------------------------------------------------------------ level picker */
 
 function parseClock(text) {
-  const m = String(text).trim().match(/^(?:(\d+):)?(\d{1,2}(?:\.\d+)?)$/);
+  const m = String(text)
+    .trim()
+    .match(/^(?:(\d+):)?(\d{1,2}(?:\.\d+)?)$/);
   if (!m) return null;
   const seconds = (m[1] ? Number(m[1]) * 60 : 0) + Number(m[2]);
   return seconds > 0 && seconds < 3600 ? seconds : null;
@@ -2658,7 +2876,10 @@ function buildLevelPicker() {
   /* The snapshot goes here rather than inside applyLevel, because that is also
      how a brand new program gets its length — and starting one should not
      leave a step on a stack that resetProgram has just emptied. */
-  select.onchange = () => { pushUndo(); applyLevel(select.value); };
+  select.onchange = () => {
+    pushUndo();
+    applyLevel(select.value);
+  };
   $('customLength').onchange = () => {
     const seconds = parseClock($('customLength').value);
     if (seconds === null) {
@@ -2666,7 +2887,7 @@ function buildLevelPicker() {
       $('customLength').value = fmtShort(state.targetSeconds);
       return;
     }
-    if (seconds === state.targetSeconds) return;   // nothing to record
+    if (seconds === state.targetSeconds) return; // nothing to record
     pushUndo();
     state.targetSeconds = seconds;
     updateBudget();
@@ -2734,7 +2955,7 @@ function bindFileDrops() {
     e.preventDefault();
     depth = 0;
     show(false);
-    if (!draggingFiles(e)) return;      // a clip being reordered; not our business
+    if (!draggingFiles(e)) return; // a clip being reordered; not our business
 
     // Read these now: the awaits below outlive the event, and dataTransfer is
     // emptied once the handler returns.
@@ -2763,17 +2984,25 @@ function bind() {
   $('btnReconnect').onclick = reconnectMissing;
 
   $('btnNew').onclick = () => openStartDialog(true);
-  $('fileInput').onchange = (e) => { addFiles(e.target.files); e.target.value = ''; };
+  $('fileInput').onchange = (e) => {
+    addFiles(e.target.files);
+    e.target.value = '';
+  };
 
   bindFileDrops();
 
   $('btnPlay').onclick = () => (playing ? stopPlayback() : playFromPlayhead());
-  $('btnStop').onclick = () => { stopPlayback(); seekTo(0); };
+  $('btnStop').onclick = () => {
+    stopPlayback();
+    seekTo(0);
+  };
   $('btnPreviewClip').onclick = () => {
     const clip = selectedClip();
     if (clip) playClipAudition(clip, state.cursor > clip.srcStart ? state.cursor : clip.srcStart);
   };
-  $('btnRemoveClip').onclick = () => { if (state.selected) removeClip(state.selected); };
+  $('btnRemoveClip').onclick = () => {
+    if (state.selected) removeClip(state.selected);
+  };
   $('btnMoveLeft').onclick = () => moveSelected(-1);
   $('btnMoveRight').onclick = () => moveSelected(1);
   $('btnPlayJoin').onclick = previewJoin;
@@ -2783,7 +3012,12 @@ function bind() {
   {
     const slider = $('level');
     let editing = false;
-    const begin = () => { if (!editing) { pushUndo(); editing = true; } };
+    const begin = () => {
+      if (!editing) {
+        pushUndo();
+        editing = true;
+      }
+    };
     slider.addEventListener('pointerdown', begin);
     slider.addEventListener('keydown', begin);
     slider.oninput = () => {
@@ -2793,7 +3027,10 @@ function bind() {
       clip.gain = clamp(dbToGain(Number(slider.value)), 0, MAX_GAIN);
       drawClipEditor();
     };
-    slider.onchange = () => { editing = false; save(); };
+    slider.onchange = () => {
+      editing = false;
+      save();
+    };
   }
 
   for (const key of ['fadeIn', 'fadeOut', 'crossfade']) {
@@ -2801,7 +3038,12 @@ function bind() {
     let editing = false;
     // Snapshot before the gesture starts, not after — pushing undo on `change`
     // would capture the already-modified value and make undo a no-op.
-    const begin = () => { if (!editing) { pushUndo(); editing = true; } };
+    const begin = () => {
+      if (!editing) {
+        pushUndo();
+        editing = true;
+      }
+    };
     slider.addEventListener('pointerdown', begin);
     slider.addEventListener('keydown', begin);
     slider.oninput = () => {
@@ -2813,12 +3055,18 @@ function bind() {
       renderTimeline();
       updateBudget();
     };
-    slider.onchange = () => { editing = false; save(); };
+    slider.onchange = () => {
+      editing = false;
+      save();
+    };
   }
 
   $('btnExport').onclick = () => {
     const { total } = layout(state.clips);
-    if (total <= 0) { toast('Add some music to your program first'); return; }
+    if (total <= 0) {
+      toast('Add some music to your program first');
+      return;
+    }
     $('exportSummary').textContent =
       `${fmt(total)} — target ${fmtShort(state.targetSeconds)} ±${state.toleranceSeconds}s`;
     // A fresh look at the program: whatever was too loud last time may have
@@ -2850,15 +3098,16 @@ function bind() {
         badge.title = qualityDetail(entry.quality);
         row.appendChild(badge);
         const name = document.createElement('span');
-        name.textContent = entry.name
-          + (entry.quality.notes.length ? ` (${entry.quality.notes.join(', ')})` : '');
+        name.textContent =
+          entry.name + (entry.quality.notes.length ? ` (${entry.quality.notes.join(', ')})` : '');
         row.appendChild(name);
         box.appendChild(row);
       }
       const tail = document.createElement('p');
       tail.className = 'hint';
-      tail.textContent = 'Saving at higher quality will not fix this — you need '
-        + 'a better copy of the song itself. You can carry on anyway.';
+      tail.textContent =
+        'Saving at higher quality will not fix this — you need ' +
+        'a better copy of the song itself. You can carry on anyway.';
       box.appendChild(tail);
     }
     rememberFocus();
@@ -2871,8 +3120,10 @@ function bind() {
   $('btnExportGo').onclick = doExport;
 
   $('btnSaveProject').onclick = () => {
-    download(new Blob([JSON.stringify(project(), null, 2) + '\n'], { type: 'application/json' }),
-      exportFileName('json'));
+    download(
+      new Blob([JSON.stringify(project(), null, 2) + '\n'], { type: 'application/json' }),
+      exportFileName('json'),
+    );
     toast('Project saved to your downloads');
   };
   $('btnLoadProject').onclick = () => $('projectInput').click();
@@ -2892,7 +3143,11 @@ function bind() {
   bindClipCanvas();
   bindScrubber();
   bindHelp();
-  window.addEventListener('resize', () => { renderTimeline(); drawScrubber(); drawClipEditor(); });
+  window.addEventListener('resize', () => {
+    renderTimeline();
+    drawScrubber();
+    drawClipEditor();
+  });
   $('btnSettings').onclick = () => setSettingsOpen(!settingsOpen());
   for (const button of document.querySelectorAll('[data-theme-choice]')) {
     button.onclick = () => chooseTheme(button.dataset.themeChoice);
@@ -2932,7 +3187,10 @@ function onKey(e) {
   // export dialog used to be left out of this, so Space, Delete and the trim
   // keys all still reached the program behind it.
   const dialog = openDialog();
-  if (dialog) { trapFocus(e, dialog.querySelector('.modal-card') || dialog); return; }
+  if (dialog) {
+    trapFocus(e, dialog.querySelector('.modal-card') || dialog);
+    return;
+  }
 
   if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
   const clip = selectedClip();
@@ -2940,19 +3198,30 @@ function onKey(e) {
 
   if (e.code === 'Space') {
     e.preventDefault();
-    if (playing) stopPlayback(); else playFromPlayhead();
+    if (playing) stopPlayback();
+    else playFromPlayhead();
     return;
   }
-  if (e.key === 'Home') { e.preventDefault(); stopPlayback(); seekTo(0); return; }
+  if (e.key === 'Home') {
+    e.preventDefault();
+    stopPlayback();
+    seekTo(0);
+    return;
+  }
   const modifier = e.ctrlKey || e.metaKey;
   const key = typeof e.key === 'string' ? e.key.toLowerCase() : '';
   if (modifier && key === 'z') {
     e.preventDefault();
     // Shift+Z is the redo nearly everywhere; Ctrl+Y is the Windows one. Both.
-    if (e.shiftKey) redo(); else undo();
+    if (e.shiftKey) redo();
+    else undo();
     return;
   }
-  if (modifier && key === 'y') { e.preventDefault(); redo(); return; }
+  if (modifier && key === 'y') {
+    e.preventDefault();
+    redo();
+    return;
+  }
   if (!clip) return;
 
   // Tagged, so holding one of these down is a single undo step rather than
@@ -2967,7 +3236,8 @@ function onKey(e) {
     clip.srcEnd = clamp(state.cursor, clip.srcStart + 0.1, entry ? entry.duration : clip.srcEnd);
     refresh();
   } else if (e.key === 'Delete' || e.key === 'Backspace') {
-    e.preventDefault(); removeClip(clip.id);
+    e.preventDefault();
+    removeClip(clip.id);
   } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
     e.preventDefault();
     const dir = e.key === 'ArrowRight' ? 1 : -1;
@@ -2977,7 +3247,11 @@ function onKey(e) {
   } else if (e.key === '[' || e.key === ']') {
     const i = state.clips.indexOf(clip);
     const next = state.clips[i + (e.key === ']' ? 1 : -1)];
-    if (next) { state.selected = next.id; state.cursor = next.srcStart; refresh(); }
+    if (next) {
+      state.selected = next.id;
+      state.cursor = next.srcStart;
+      refresh();
+    }
   }
 }
 
@@ -3018,7 +3292,11 @@ function updateExportOptions() {
   const mp3Option = select.querySelector('option[value=mp3]');
   mp3Option.disabled = !mp3Ready;
   let last = null;
-  try { last = localStorage.getItem(FORMAT_KEY); } catch (_) { /* private mode */ }
+  try {
+    last = localStorage.getItem(FORMAT_KEY);
+  } catch (_) {
+    /* private mode */
+  }
   if (mp3Ready) {
     mp3Option.textContent = "MP3 — smaller, usually what's asked for";
     select.value = last === 'wav' ? 'wav' : 'mp3';
@@ -3027,8 +3305,8 @@ function updateExportOptions() {
     mp3Option.textContent = 'MP3 — could not be loaded';
     select.value = 'wav';
     $('exportNote').textContent =
-      'The MP3 encoder could not be reached, so only WAV is available right now. '
-      + 'WAV plays anywhere, it is just a much larger file.';
+      'The MP3 encoder could not be reached, so only WAV is available right now. ' +
+      'WAV plays anywhere, it is just a much larger file.';
   }
 }
 
@@ -3075,13 +3353,21 @@ const SMALL_SCREEN_KEY = 'skate.smallScreenSeen';
 function maybeWarnSmallScreen() {
   const small = window.matchMedia('(max-width: 860px), (pointer: coarse)').matches;
   let seen = false;
-  try { seen = localStorage.getItem(SMALL_SCREEN_KEY) === '1'; } catch (_) { /* private mode */ }
+  try {
+    seen = localStorage.getItem(SMALL_SCREEN_KEY) === '1';
+  } catch (_) {
+    /* private mode */
+  }
   if (!small || seen) return;
 
   $('smallScreen').classList.remove('hidden');
   $('btnDismissSmall').onclick = () => {
     $('smallScreen').classList.add('hidden');
-    try { localStorage.setItem(SMALL_SCREEN_KEY, '1'); } catch (_) { /* private mode */ }
+    try {
+      localStorage.setItem(SMALL_SCREEN_KEY, '1');
+    } catch (_) {
+      /* private mode */
+    }
   };
 }
 
@@ -3094,7 +3380,7 @@ function init() {
     $('unsupportedWhy').textContent =
       `This browser is missing what the editor needs for ${missing.join(', ')}.`;
     $('unsupported').classList.remove('hidden');
-    return;   // nothing below would work anyway
+    return; // nothing below would work anyway
   }
   maybeWarnSmallScreen();
 
@@ -3109,11 +3395,16 @@ function init() {
       saved = JSON.parse(stored);
       loadProject(saved);
     }
-  } catch (_) { /* start empty */ }
+  } catch (_) {
+    /* start empty */
+  }
 
   let collapsed = false;
-  try { collapsed = localStorage.getItem(LIBRARY_KEY) === 'collapsed'; }
-  catch (_) { /* private mode */ }
+  try {
+    collapsed = localStorage.getItem(LIBRARY_KEY) === 'collapsed';
+  } catch (_) {
+    /* private mode */
+  }
   setLibraryCollapsed(collapsed);
 
   refresh();
@@ -3144,19 +3435,52 @@ if (typeof document !== 'undefined') {
   module.exports = {
     ...analysis,
     ...formats,
-    state, LEVELS, CUSTOM_LEVEL,
-    allLevels, findLevel,
-    clipDuration, crossfadeOf, layout, reordered, clampClipsToFile, MIN_CLIP,
-    joinPreviewRange, JOIN_PREVIEW, clipsOnExport,
-    fadeEnvelope, crossfadeEnvelope, valueAt, rampEnvelope,
+    state,
+    LEVELS,
+    CUSTOM_LEVEL,
+    allLevels,
+    findLevel,
+    clipDuration,
+    crossfadeOf,
+    layout,
+    reordered,
+    clampClipsToFile,
+    MIN_CLIP,
+    joinPreviewRange,
+    JOIN_PREVIEW,
+    clipsOnExport,
+    fadeEnvelope,
+    crossfadeEnvelope,
+    valueAt,
+    rampEnvelope,
     joinRoom,
-    clipGain, MAX_GAIN,
-    parseClock, exportFileName, fmt, fmtShort,
-    project, readProject,
-    undoStack, redoStack, pushUndo, endUndoRun, UNDO_COALESCE_MS, UNDO_DEPTH,
-    undoSnapshot, takeUndo, takeRedo,
-    clipsUsing, missingFiles, describeWrongFile, describeReconnect, usedFiles,
-    AUDIO_EXTENSION_LIST, AUDIO_EXTENSIONS, audioPickerTypes,
-    unsupportedReasons, LAME_URL, LAME_SRI,
+    clipGain,
+    MAX_GAIN,
+    parseClock,
+    exportFileName,
+    fmt,
+    fmtShort,
+    project,
+    readProject,
+    undoStack,
+    redoStack,
+    pushUndo,
+    endUndoRun,
+    UNDO_COALESCE_MS,
+    UNDO_DEPTH,
+    undoSnapshot,
+    takeUndo,
+    takeRedo,
+    clipsUsing,
+    missingFiles,
+    describeWrongFile,
+    describeReconnect,
+    usedFiles,
+    AUDIO_EXTENSION_LIST,
+    AUDIO_EXTENSIONS,
+    audioPickerTypes,
+    unsupportedReasons,
+    LAME_URL,
+    LAME_SRI,
   };
 }

@@ -111,6 +111,11 @@ limit=
 status=0
 for url do
   before=$(count)
+  # $playlist and $limit are deliberately unquoted: limit is either empty or
+  # the two words '--playlist-items 1', and quoting would pass that as a single
+  # argument and an empty one as a stray "". This is /bin/sh, which has no
+  # arrays to express it properly with.
+  # shellcheck disable=SC2086
   yt-dlp \
     --format bestaudio \
     --no-overwrites \

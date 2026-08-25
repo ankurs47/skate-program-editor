@@ -99,7 +99,10 @@ async function main() {
     /* A real desktop viewport at 2x, so the text survives being shown at about
        880px wide on GitHub. Left to the window, this comes out illegible. */
     await session.page.send('Emulation.setDeviceMetricsOverride', {
-      width: 1440, height: 900, deviceScaleFactor: 2, mobile: false,
+      width: 1440,
+      height: 900,
+      deviceScaleFactor: 2,
+      mobile: false,
     });
 
     const shown = await session.page.evaluate(SETUP);
@@ -127,7 +130,10 @@ async function main() {
        beats a clever one. The screenshot above stays at 2x, because that one is
        looked at large. */
     await session.page.send('Emulation.setDeviceMetricsOverride', {
-      width: 1200, height: 630, deviceScaleFactor: 1, mobile: false,
+      width: 1200,
+      height: 630,
+      deviceScaleFactor: 1,
+      mobile: false,
     });
     await session.page.send('Page.navigate', { url: `${session.origin}/tools/social-card.html` });
     await session.page.evaluate(`
@@ -138,7 +144,8 @@ async function main() {
       return true;
     `);
     const card = await session.page.send('Page.captureScreenshot', {
-      format: 'png', clip: { x: 0, y: 0, width: 1200, height: 630, scale: 1 },
+      format: 'png',
+      clip: { x: 0, y: 0, width: 1200, height: 630, scale: 1 },
     });
     write(CARD, card.data, '1200x630');
     console.log('');

@@ -12,24 +12,45 @@ const { app, check, eq, ok } = require('./harness.js');
 check('qualityDetail: the tooltip says the numbers the badge refuses to', () => {
   // The badge is a word on purpose; this is where the figures live.
   const detail = app.qualityDetail({
-    kind: 'good', bitrate: 256, sampleRate: 44100, channels: 2,
-    lossless: false, codec: 'mp3', estimated: false, vbr: false, notes: [],
+    kind: 'good',
+    bitrate: 256,
+    sampleRate: 44100,
+    channels: 2,
+    lossless: false,
+    codec: 'mp3',
+    estimated: false,
+    vbr: false,
+    notes: [],
   });
   for (const part of ['256 kbps', 'mp3', '44.1 kHz', 'stereo']) {
     ok(detail.includes(part), `"${detail}" is missing ${part}`);
   }
 
   const lossless = app.qualityDetail({
-    kind: 'good', bitrate: null, sampleRate: null, channels: 1,
-    lossless: true, codec: 'wav', estimated: false, vbr: false, notes: [],
+    kind: 'good',
+    bitrate: null,
+    sampleRate: null,
+    channels: 1,
+    lossless: true,
+    codec: 'wav',
+    estimated: false,
+    vbr: false,
+    notes: [],
   });
   ok(lossless.startsWith('Lossless source'), `"${lossless}" should lead with that`);
   ok(lossless.includes('mono'), 'channel count is always worth saying');
   ok(!/kbps/.test(lossless), 'a lossless file has no bitrate worth quoting');
 
   const guessed = app.qualityDetail({
-    kind: 'caution', bitrate: 130, sampleRate: null, channels: 2,
-    lossless: false, codec: 'opus', estimated: true, vbr: false, notes: [],
+    kind: 'caution',
+    bitrate: 130,
+    sampleRate: null,
+    channels: 2,
+    lossless: false,
+    codec: 'opus',
+    estimated: true,
+    vbr: false,
+    notes: [],
   });
   ok(guessed.includes('estimated'), 'a measured-by-file-size figure must say so');
 });
@@ -50,20 +71,32 @@ check('quality: judged per codec, not on the raw number', () => {
 
 check('quality: a file we could not measure says so rather than passing', () => {
   eq(app.qualityKind({ bitrate: null, codec: 'm4a' }), 'unknown');
-  eq(app.qualityKind({ bitrate: null, lossless: true }), 'good',
-    'wav and flac need no bitrate to be trusted: ');
-  eq(app.qualityKind({ bitrate: 64, lossless: true }), 'good',
-    'a lossless file is not judged on a bitrate at all: ');
+  eq(
+    app.qualityKind({ bitrate: null, lossless: true }),
+    'good',
+    'wav and flac need no bitrate to be trusted: ',
+  );
+  eq(
+    app.qualityKind({ bitrate: 64, lossless: true }),
+    'good',
+    'a lossless file is not judged on a bitrate at all: ',
+  );
 });
 
 check('quality: a low sample rate pulls the verdict down on its own', () => {
   // A 320k rip of a 22 kHz source is a bad file the bitrate alone calls good.
   eq(app.qualityKind({ bitrate: 320, sampleRate: 22050, codec: 'mp3' }), 'poor');
-  eq(app.qualityKind({ bitrate: 320, sampleRate: 32000, codec: 'mp3' }), 'caution',
-    'below CD rate but not hopeless: ');
+  eq(
+    app.qualityKind({ bitrate: 320, sampleRate: 32000, codec: 'mp3' }),
+    'caution',
+    'below CD rate but not hopeless: ',
+  );
   eq(app.qualityKind({ bitrate: 320, sampleRate: 44100, codec: 'mp3' }), 'good');
-  eq(app.qualityKind({ bitrate: 96, sampleRate: 44100, codec: 'mp3' }), 'poor',
-    'a good sample rate cannot rescue a bad bitrate: ');
+  eq(
+    app.qualityKind({ bitrate: 96, sampleRate: 44100, codec: 'mp3' }),
+    'poor',
+    'a good sample rate cannot rescue a bad bitrate: ',
+  );
 });
 
 check('quality: badges are short words, never bitrates', () => {
@@ -109,10 +142,16 @@ check('parseFrameHeader: refuses the reserved and impossible encodings', () => {
   eq(header(0xfb, 0x9c), null, 'sample rate index 3 is reserved: ');
   eq(header(0xff, 0x90), null, 'layer bits 3 is Layer I, not III: ');
   eq(header(0xeb, 0x90), null, 'version bits 1 is reserved: ');
-  eq(app.parseFrameHeader(new DataView(new Uint8Array([0x00, 0x00, 0x00, 0x00]).buffer), 0), null,
-    'no sync word at all: ');
-  eq(app.parseFrameHeader(new DataView(new Uint8Array([0xff, 0xfb]).buffer), 0), null,
-    'a header cut short by the end of the window: ');
+  eq(
+    app.parseFrameHeader(new DataView(new Uint8Array([0x00, 0x00, 0x00, 0x00]).buffer), 0),
+    null,
+    'no sync word at all: ',
+  );
+  eq(
+    app.parseFrameHeader(new DataView(new Uint8Array([0xff, 0xfb]).buffer), 0),
+    null,
+    'a header cut short by the end of the window: ',
+  );
 });
 
 check('fingerprint: the same audio matches, different audio does not', () => {
@@ -134,15 +173,17 @@ check('fingerprint: the same audio matches, different audio does not', () => {
 check('fingerprint: order matters, so a reshuffle is not the same song', () => {
   // A sum or an xor would call these equal, which would defeat the point.
   const bytes = (values) => new Uint8Array(values).buffer;
-  ok(app.fingerprint(bytes([1, 2, 3])) !== app.fingerprint(bytes([3, 2, 1])),
-    'a hash that ignores order cannot tell two files apart');
+  ok(
+    app.fingerprint(bytes([1, 2, 3])) !== app.fingerprint(bytes([3, 2, 1])),
+    'a hash that ignores order cannot tell two files apart',
+  );
 });
 
 check('id3Size: reads the syncsafe length, tolerates untagged files', () => {
   const tagged = Buffer.alloc(20);
   tagged.write('ID3');
   [tagged[6], tagged[7], tagged[8], tagged[9]] = [0, 0, 2, 1];
-  eq(app.id3Size(tagged.buffer.slice(0)), (2 << 7 | 1) + 10);
+  eq(app.id3Size(tagged.buffer.slice(0)), ((2 << 7) | 1) + 10);
   eq(app.id3Size(Buffer.alloc(20).buffer.slice(0)), 0, 'no tag: ');
   eq(app.id3Size(Buffer.alloc(4).buffer.slice(0)), 0, 'too short to have one: ');
 });
@@ -174,8 +215,8 @@ check('oggAudioStart: skips the two headers to where the audio really begins', (
   /* This is what stops a yt-dlp download reading ~40% too high: Ogg Opus keeps
      its cover art in the OpusTags comment header, and measuring the bitrate
      from file size without skipping it counts the artwork as audio. */
-  const head = oggPage([19]);                 // OpusHead: 27 + 1 + 19 = 47
-  const tags = oggPage([100]);                // OpusTags: 27 + 1 + 100 = 128
+  const head = oggPage([19]); // OpusHead: 27 + 1 + 19 = 47
+  const tags = oggPage([100]); // OpusTags: 27 + 1 + 100 = 128
   const audio = Buffer.alloc(4096, 0x5a);
   const file = Buffer.concat([head, tags, audio]);
   eq(app.oggAudioStart(bytesOf(file)), 47 + 128, 'audio starts after both headers: ');
@@ -186,16 +227,21 @@ check('oggAudioStart: a comment header big enough for cover art spans segments',
   // the final short one ends it. Artwork makes this the normal case, not an
   // edge one — 255 + 255 + 100 is a 610-byte tags packet.
   const head = oggPage([19]);
-  const tags = oggPage([255, 255, 100]);      // 27 + 3 + 610 = 640
+  const tags = oggPage([255, 255, 100]); // 27 + 3 + 610 = 640
   const file = Buffer.concat([head, tags, Buffer.alloc(2048, 0x5a)]);
-  eq(app.oggAudioStart(bytesOf(file)), 47 + 640,
-    'the multi-segment comment header was not fully skipped: ');
+  eq(
+    app.oggAudioStart(bytesOf(file)),
+    47 + 640,
+    'the multi-segment comment header was not fully skipped: ',
+  );
 });
 
 check('oggAudioStart: says nothing rather than guessing on other containers', () => {
   eq(app.oggAudioStart(bytesOf(Buffer.alloc(4096, 0x41))), 0, 'not an Ogg stream: ');
   eq(app.oggAudioStart(bytesOf(Buffer.alloc(10))), 0, 'too short to hold a page: ');
-  eq(app.oggAudioStart(bytesOf(oggPage([19]))), 0,
-    'one header alone is not enough to locate the audio: ');
+  eq(
+    app.oggAudioStart(bytesOf(oggPage([19]))),
+    0,
+    'one header alone is not enough to locate the audio: ',
+  );
 });
-

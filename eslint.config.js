@@ -14,18 +14,31 @@ const js = require('@eslint/js');
    export under Node is exactly what app.js may refer to. Anything app.js uses
    that they do not export is still a genuine no-undef error. */
 const shared = Object.fromEntries(
-  [...Object.keys(require('./src/analysis.js')), ...Object.keys(require('./src/formats.js'))]
-    .map((name) => [name, 'readonly']));
+  [...Object.keys(require('./src/analysis.js')), ...Object.keys(require('./src/formats.js'))].map(
+    (name) => [name, 'readonly'],
+  ),
+);
 
 const browser = {
-  window: 'readonly', document: 'readonly', navigator: 'readonly',
-  localStorage: 'readonly', location: 'readonly', console: 'readonly',
-  setTimeout: 'readonly', clearTimeout: 'readonly',
-  requestAnimationFrame: 'readonly', cancelAnimationFrame: 'readonly',
-  AudioContext: 'readonly', OfflineAudioContext: 'readonly',
-  FileReader: 'readonly', Blob: 'readonly', URL: 'readonly',
-  DataView: 'readonly', TextDecoder: 'readonly',
-  matchMedia: 'readonly', getComputedStyle: 'readonly',
+  window: 'readonly',
+  document: 'readonly',
+  navigator: 'readonly',
+  localStorage: 'readonly',
+  location: 'readonly',
+  console: 'readonly',
+  setTimeout: 'readonly',
+  clearTimeout: 'readonly',
+  requestAnimationFrame: 'readonly',
+  cancelAnimationFrame: 'readonly',
+  AudioContext: 'readonly',
+  OfflineAudioContext: 'readonly',
+  FileReader: 'readonly',
+  Blob: 'readonly',
+  URL: 'readonly',
+  DataView: 'readonly',
+  TextDecoder: 'readonly',
+  matchMedia: 'readonly',
+  getComputedStyle: 'readonly',
   // Used to tell an Element apart from the document, which also receives
   // events but has no closest().
   Element: 'readonly',
@@ -34,7 +47,9 @@ const browser = {
   indexedDB: 'readonly',
   // Each file ends with a block that exports its pure logic under Node; app.js
   // additionally bridges the other two onto the global object there.
-  module: 'writable', require: 'readonly', global: 'writable',
+  module: 'writable',
+  require: 'readonly',
+  global: 'writable',
 };
 
 const rules = {
@@ -72,14 +87,24 @@ module.exports = [
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'commonjs',
-      globals: { require: 'readonly', module: 'writable', process: 'readonly',
-                 __dirname: 'readonly', console: 'readonly', global: 'writable',
-                 Buffer: 'readonly',
-                 // The browser checks drive Chrome over the DevTools Protocol.
-                 // Node 22 has WebSocket globally, which is what lets them do
-                 // that without a single dependency.
-                 WebSocket: 'readonly', setTimeout: 'readonly' },
+      globals: {
+        require: 'readonly',
+        module: 'writable',
+        process: 'readonly',
+        __dirname: 'readonly',
+        console: 'readonly',
+        global: 'writable',
+        Buffer: 'readonly',
+        // The browser checks drive Chrome over the DevTools Protocol.
+        // Node 22 has WebSocket globally, which is what lets them do
+        // that without a single dependency.
+        WebSocket: 'readonly',
+        setTimeout: 'readonly',
+      },
     },
-    rules: { ...js.configs.recommended.rules, 'no-unused-vars': ['error', { caughtErrors: 'none' }] },
+    rules: {
+      ...js.configs.recommended.rules,
+      'no-unused-vars': ['error', { caughtErrors: 'none' }],
+    },
   },
 ];

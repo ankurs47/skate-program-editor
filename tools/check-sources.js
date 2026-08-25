@@ -34,15 +34,13 @@ const UA = 'skate-program-editor source check (+https://github.com/ankurs47/skat
 const EXTRACTORS = {
   /* Every ISU rule change arrives as a numbered Communication. A new number is
      the signal; whether it touches program durations is the human's call. */
-  'isu-communications': (html) => [...new Set(
-    [...html.matchAll(/communication[^<>"]{0,8}(\d{4})/gi)].map((m) => m[1]),
-  )].sort(),
+  'isu-communications': (html) =>
+    [...new Set([...html.matchAll(/communication[^<>"]{0,8}(\d{4})/gi)].map((m) => m[1]))].sort(),
 
   /* The rules hub does not link the PDFs directly, but it does carry the season
      it is describing. A new season is when the rulebook gets reissued. */
-  'usfs-rules': (html) => [...new Set(
-    [...html.matchAll(/\b(20\d{2}-\d{2})\b/g)].map((m) => m[1]),
-  )].sort(),
+  'usfs-rules': (html) =>
+    [...new Set([...html.matchAll(/\b(20\d{2}-\d{2})\b/g)].map((m) => m[1]))].sort(),
 };
 
 async function fetchText(url) {
@@ -55,10 +53,12 @@ async function fetchText(url) {
 function shippedLengths() {
   const { LEVELS } = require(path.join(ROOT, 'src/app.js'));
   const clock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-  return LEVELS.map((group) => [
-    `**${group.group}**`,
-    ...group.items.map((i) => `  - ${i.label} — ${clock(i.seconds)} ±${i.tol}s`),
-  ].join('\n')).join('\n\n');
+  return LEVELS.map((group) =>
+    [
+      `**${group.group}**`,
+      ...group.items.map((i) => `  - ${i.label} — ${clock(i.seconds)} ±${i.tol}s`),
+    ].join('\n'),
+  ).join('\n\n');
 }
 
 async function main() {
@@ -69,7 +69,10 @@ async function main() {
 
   for (const source of baseline.sources) {
     const extract = EXTRACTORS[source.id];
-    if (!extract) { failures.push(`${source.id}: no extractor`); continue; }
+    if (!extract) {
+      failures.push(`${source.id}: no extractor`);
+      continue;
+    }
 
     let seen;
     try {
@@ -80,7 +83,10 @@ async function main() {
       failures.push(`${source.id}: ${source.url} — ${err.message}`);
       continue;
     }
-    if (!seen.length) { failures.push(`${source.id}: nothing matched; the page layout changed`); continue; }
+    if (!seen.length) {
+      failures.push(`${source.id}: nothing matched; the page layout changed`);
+      continue;
+    }
 
     const before = source.seen || [];
     const added = seen.filter((v) => !before.includes(v));
@@ -89,9 +95,11 @@ async function main() {
       changes.push({ source, added, gone });
       if (update) source.seen = seen;
     }
-    console.log(`  ${source.id.padEnd(20)} ${seen.length} found` +
-      `${added.length ? `, ${added.length} new: ${added.join(', ')}` : ''}` +
-      `${gone.length ? `, ${gone.length} gone: ${gone.join(', ')}` : ''}`);
+    console.log(
+      `  ${source.id.padEnd(20)} ${seen.length} found` +
+        `${added.length ? `, ${added.length} new: ${added.join(', ')}` : ''}` +
+        `${gone.length ? `, ${gone.length} gone: ${gone.join(', ')}` : ''}`,
+    );
   }
 
   if (update) {
@@ -131,7 +139,9 @@ async function main() {
   return 1;
 }
 
-main().then((code) => process.exit(code)).catch((err) => {
-  console.error(`\n  the source check could not run: ${err.message}\n`);
-  process.exit(1);
-});
+main()
+  .then((code) => process.exit(code))
+  .catch((err) => {
+    console.error(`\n  the source check could not run: ${err.message}\n`);
+    process.exit(1);
+  });

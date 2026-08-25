@@ -24,6 +24,9 @@ cd "$root"
 dirty=$(git status --porcelain)
 if [ -n "$dirty" ]; then
   echo "mutate-worktree: the worktree is built from HEAD, so this would not be tested:" >&2
+  # sed, not ${var//}: this indents every line of a multi-line value, which
+  # parameter expansion cannot do — and bash's would not anchor to ^ per line.
+  # shellcheck disable=SC2001
   echo "$dirty" | sed 's/^/                 /' >&2
   echo "                 commit it, or use: npm run test:mutate:here" >&2
   exit 1

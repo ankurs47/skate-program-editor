@@ -42,8 +42,54 @@ cd skate-program-editor
 npm install
 ```
 
-`npm install` also points git at `.githooks`, so **lint and tests run before
-every commit**. `git commit --no-verify` skips it in an emergency.
+`npm install` turns on a pre-commit hook, so **checks run before every commit**.
+`git commit --no-verify` skips it in an emergency.
+
+Which checks depends on what you have. With [pre-commit](https://pre-commit.com)
+installed — `pip install pre-commit` — it owns the hook and you get the whole set
+in `.pre-commit-config.yaml`: whitespace and end-of-file fixes, YAML and JSON
+parsing, shellcheck over the three shell scripts, codespell, prettier,
+stylelint, then eslint and the unit suite.
+
+Prettier formats the JavaScript, JSON, YAML and Markdown, and is deliberately
+kept away from CSS and HTML — `.prettierignore` says so and why. The numbers
+behind that: it rewrote 816 of 1,040 CSS lines by expanding every one-line rule,
+and turned 1,138 lines of HTML into 2,376 by re-indenting markup whose structure
+and comments are deliberate. stylelint covers the CSS instead, and the HTML has
+structural checks in `assets.test.js` and `site.test.js`.
+
+The settings match what was already here rather than being taken as defaults:
+`singleQuote` and `printWidth: 100` between them halved the JavaScript diff, and
+`proseWrap: preserve` stops it rewrapping prose wrapped by hand. Three things no
+option controls are simply accepted — one space before a trailing comment, which
+loses the column alignment; expanded one-line CSS rules, which is why CSS is
+excluded; and `*emphasis*` normalized to `_emphasis_`.
+
+`.stylelintrc.json` names its rules outright instead of extending
+`stylelint-config-standard`. Two reasons: stylelint looks for an extended config
+next to the config file, and here that package lives in pre-commit's own
+environment where it would never be found — and the rules chosen are all
+"this is wrong" rather than "I prefer this", which is the same line drawn when
+Prettier was considered and declined. It would have rewritten 1,978 of app.js's
+3,162 lines, flattening the aligned comments that are most of what makes this
+code readable.
+
+stylelint and its environment belong to pre-commit, not to `package.json`, so
+the one-devDependency rule still holds and a contributor with only Node is
+unaffected. With only Node you fall back to `.githooks/pre-commit`, which runs
+lint and the unit suite — what this repo had before, and the part that is never
+optional. `tools/install-hooks.js` picks between them; the two cannot coexist,
+because git ignores `.git/hooks` once `core.hooksPath` is set and pre-commit
+refuses to install while it is.
+
+CI runs the same hooks, so a contributor without the framework still cannot land
+trailing whitespace, a shell bug or a typo.
+
+Two shellcheck findings are suppressed in place with the reason written down
+rather than fixed, because both are deliberate: `music-get.sh` splits `$limit`
+into two words on purpose and is `/bin/sh` with no arrays to do it otherwise,
+and `mutate-worktree.sh` indents a multi-line value, which parameter expansion
+cannot do.
 
 Node 22 or later, for the global `WebSocket` the browser tests need. Chrome or
 Chromium on `PATH` for `npm run test:dom`; without one, that suite is the only
@@ -157,7 +203,7 @@ flows that only exist as a sequence of clicks.
 
 It also holds **render budgets**: assertions that dragging a slider resolves no
 styles, creates no elements and coalesces its waveform drawing to one batch a
-frame. Those are *counts*, and counts are assertable. Wall-clock timings are
+frame. Those are _counts_, and counts are assertable. Wall-clock timings are
 collected and reported but never asserted, because they are not comparable
 between a laptop and a CI runner — a number that moves for reasons unrelated to
 the change is not evidence.
@@ -172,13 +218,13 @@ mutation the tests do not notice is reported as `SURVIVED`, and it means a test
 that cannot fail — which is worse than no test, because it reads like coverage.
 
 This found two real ones. The audition check asserted that gain nodes were
-*created*, which stayed true when the audition bypassed them; it now walks the
+_created_, which stayed true when the audition bypassed them; it now walks the
 actual graph. And a check on the busy state could not fail because headless
 Chrome always paints; it now stubs `requestAnimationFrame` to never fire.
 
 Each mutation carries a `guards` line saying what property it defends and an
 `expect` string naming the failure it should produce. If the mutation applies but
-the *expected* failure does not appear, it is reported `STALE` — the code moved
+the _expected_ failure does not appear, it is reported `STALE` — the code moved
 and the mutation is now testing something else. Stale counts as a failure.
 
 **It runs in a throwaway git worktree**, built from HEAD by
@@ -244,7 +290,7 @@ These are the ones that will get a change rejected, and they are the same list
   repository in plain text. Placeholders use generic examples like
   `my 2026 junior long program`.
 - **Plain language in the interface.** "Make music file", not "Export". A word
-  like *bitrate*, *codec* or *render* appearing in visible text is a defect;
+  like _bitrate_, _codec_ or _render_ appearing in visible text is a defect;
   technical detail belongs in a tooltip.
 - **Feature-detect, never sniff the protocol.** An earlier version of the
   documentation asserted the File System Access API was unavailable from

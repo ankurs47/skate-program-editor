@@ -19,7 +19,10 @@ check('layout: clips run back to back when nothing is blended', () => {
     { srcStart: 0, srcEnd: 40, crossfade: 0 },
   ];
   const { parts, total } = app.layout(clips);
-  eq(parts.map((p) => p.start), [0, 60]);
+  eq(
+    parts.map((p) => p.start),
+    [0, 60],
+  );
   eq(total, 100);
 });
 
@@ -30,8 +33,11 @@ check('layout: blending shortens the program by the overlap', () => {
     { srcStart: 10, srcEnd: 85, crossfade: 3 },
   ];
   const { parts, total } = app.layout(clips);
-  eq(parts.map((p) => p.start), [0, 57.5, 114.5]);
-  eq(total, 189.5);              // 60 + 60 + 75 − 2.5 − 3
+  eq(
+    parts.map((p) => p.start),
+    [0, 57.5, 114.5],
+  );
+  eq(total, 189.5); // 60 + 60 + 75 − 2.5 − 3
 });
 
 check('layout: a blend cannot exceed either neighbor', () => {
@@ -55,12 +61,15 @@ check('clips: trims are brought inside the file that actually arrives', () => {
      past the end rather than failing, so an overrun used to show a clip
      duration that was a lie and export a program of the wrong length. */
   const clips = [
-    { file: 'a.mp3', srcStart: 0, srcEnd: 200 },    // the file is only 120s long
-    { file: 'a.mp3', srcStart: 10, srcEnd: 60 },    // already fits
-    { file: 'b.mp3', srcStart: 0, srcEnd: 900 },    // a different file entirely
+    { file: 'a.mp3', srcStart: 0, srcEnd: 200 }, // the file is only 120s long
+    { file: 'a.mp3', srcStart: 10, srcEnd: 60 }, // already fits
+    { file: 'b.mp3', srcStart: 0, srcEnd: 900 }, // a different file entirely
   ];
-  eq(app.clampClipsToFile(clips, { name: 'a.mp3', duration: 120 }), 1,
-    'only the clip that overran should be counted: ');
+  eq(
+    app.clampClipsToFile(clips, { name: 'a.mp3', duration: 120 }),
+    1,
+    'only the clip that overran should be counted: ',
+  );
   eq(clips[0].srcEnd, 120, 'the end is pulled back to the end of the file: ');
   eq([clips[1].srcStart, clips[1].srcEnd], [10, 60], 'a clip that fits is untouched: ');
   eq(clips[2].srcEnd, 900, 'another file is not this file: ');
@@ -105,11 +114,18 @@ check('join preview: stays inside the program, and declines when there is no joi
   // With room either side the defaults are what decide the window, and they
   // have to be long enough to judge a join by and short enough not to be a wait.
   const roomy = app.joinPreviewRange(
-    [{ srcStart: 0, srcEnd: 60, crossfade: 0 }, { srcStart: 0, srcEnd: 60, crossfade: 0 }], 1);
+    [
+      { srcStart: 0, srcEnd: 60, crossfade: 0 },
+      { srcStart: 0, srcEnd: 60, crossfade: 0 },
+    ],
+    1,
+  );
   eq(roomy.from, 60 - app.JOIN_PREVIEW.lead, 'the lead comes from the defaults: ');
   eq(roomy.until, 60 + app.JOIN_PREVIEW.tail, 'and so does the tail: ');
-  ok(roomy.until - roomy.from >= 4 && roomy.until - roomy.from <= 20,
-    `a ${(roomy.until - roomy.from).toFixed(0)}s preview is not a preview`);
+  ok(
+    roomy.until - roomy.from >= 4 && roomy.until - roomy.from <= 20,
+    `a ${(roomy.until - roomy.from).toFixed(0)}s preview is not a preview`,
+  );
 });
 
 check('export: too loud is caught before anything is encoded', () => {
@@ -118,8 +134,10 @@ check('export: too loud is caught before anything is encoded', () => {
   ok(app.clipsOnExport(1.2), 'a boosted program clips');
   ok(app.clipsOnExport(1.01), 'a little over is still flat-topped');
   ok(!app.clipsOnExport(1), 'exactly full scale is not clipping');
-  ok(!app.clipsOnExport(Math.pow(10, app.LOUDNESS.ceiling / 20)),
-    'the ceiling solveGains aims at must never trip this: ');
+  ok(
+    !app.clipsOnExport(Math.pow(10, app.LOUDNESS.ceiling / 20)),
+    'the ceiling solveGains aims at must never trip this: ',
+  );
   ok(!app.clipsOnExport(0), 'silence does not clip');
 });
 
@@ -148,20 +166,40 @@ check('reorder: a drop counts only when the drag began on a clip block', () => {
      valid clip index that the guard above cannot catch. So the payload cannot
      be what identifies the drag; a private type is. */
   const source = fs.readFileSync(path.join(ROOT, 'src/app.js'), 'utf8');
-  ok(!/getData\(\s*'text\/plain'\s*\)/.test(source),
-    'a drop handler is reading text/plain again, which every drag supplies');
-  ok(/setData\(CLIP_DRAG_TYPE/.test(source) && /getData\(CLIP_DRAG_TYPE/.test(source),
-    'the private drag type has to be both published and required');
+  ok(
+    !/getData\(\s*'text\/plain'\s*\)/.test(source),
+    'a drop handler is reading text/plain again, which every drag supplies',
+  );
+  ok(
+    /setData\(CLIP_DRAG_TYPE/.test(source) && /getData\(CLIP_DRAG_TYPE/.test(source),
+    'the private drag type has to be both published and required',
+  );
 });
 
-check('rampEnvelope: one shape behind both of a clip\'s envelopes', () => {
+check("rampEnvelope: one shape behind both of a clip's envelopes", () => {
   // The fades and the blend were written out separately and drifted apart is
   // exactly the risk; this is the shared shape they now both come from.
   const plain = app.rampEnvelope(10, 0, 0);
-  eq(plain, [[0, 1], [10, 1]], 'no rise and no fall is a flat line at full: ');
+  eq(
+    plain,
+    [
+      [0, 1],
+      [10, 1],
+    ],
+    'no rise and no fall is a flat line at full: ',
+  );
 
   const both = app.rampEnvelope(10, 2, 3);
-  eq(both, [[0, 0], [2, 1], [7, 1], [10, 0]], 'up, hold, down: ');
+  eq(
+    both,
+    [
+      [0, 0],
+      [2, 1],
+      [7, 1],
+      [10, 0],
+    ],
+    'up, hold, down: ',
+  );
   eq(app.valueAt(both, 1), 0.5, 'half way up the rise: ');
   eq(app.valueAt(both, 8.5), 0.5, 'half way down the fall: ');
 });
@@ -171,7 +209,11 @@ check('rampEnvelope: a rise and fall that would overlap meet instead of crossing
   // level above 1 would clip on export.
   const squeezed = app.rampEnvelope(4, 3, 3);
   const times = squeezed.map((p) => p[0]);
-  eq(times, times.slice().sort((a, b) => a - b), 'breakpoints stay in order: ');
+  eq(
+    times,
+    times.slice().sort((a, b) => a - b),
+    'breakpoints stay in order: ',
+  );
   for (const [, v] of squeezed) ok(v >= 0 && v <= 1, `level ${v} is out of range`);
 
   // Longer than the clip is clamped to the clip, not left to run past its end.
@@ -224,7 +266,11 @@ check('fades: overlong fades are clamped, never inverted', () => {
   const clip = { srcStart: 0, srcEnd: 10, fadeIn: 30, fadeOut: 30 };
   const env = app.fadeEnvelope(clip);
   const times = env.map((p) => p[0]);
-  eq(times, times.slice().sort((a, b) => a - b), 'breakpoints stay in order: ');
+  eq(
+    times,
+    times.slice().sort((a, b) => a - b),
+    'breakpoints stay in order: ',
+  );
   env.forEach(([, v]) => ok(v >= 0 && v <= 1, `gain ${v} out of range`));
 });
 
@@ -316,60 +362,121 @@ function withProgram(fields, fn) {
   const saved = {};
   for (const k of keys) saved[k] = app.state[k];
   Object.assign(app.state, fields);
-  try { fn(); } finally { Object.assign(app.state, saved); }
+  try {
+    fn();
+  } finally {
+    Object.assign(app.state, saved);
+  }
 }
 
 check('project file: an edit survives being saved and opened again', () => {
-  withProgram({
-    name: 'my 2026 junior long program',
-    level: 'usfs-jr',
-    targetSeconds: 210,
-    toleranceSeconds: 10,
-    clips: [
-      { id: 'a', file: 'one.mp3', title: 'opening', srcStart: 4.7615, srcEnd: 77.0824,
-        fadeIn: 1.5, fadeOut: 0, crossfade: 0, gain: 1 },
-      { id: 'b', file: 'two.mp3', title: 'finale', srcStart: 0, srcEnd: 60.5,
-        fadeIn: 0, fadeOut: 2.5, crossfade: 1.5, gain: 0.5012 },
-    ],
-  }, () => {
-    // Through JSON, because that is what actually happens to it on the way out
-    // and back — a value that does not survive stringify is not really saved.
-    const read = app.readProject(JSON.parse(JSON.stringify(app.project())));
+  withProgram(
+    {
+      name: 'my 2026 junior long program',
+      level: 'usfs-jr',
+      targetSeconds: 210,
+      toleranceSeconds: 10,
+      clips: [
+        {
+          id: 'a',
+          file: 'one.mp3',
+          title: 'opening',
+          srcStart: 4.7615,
+          srcEnd: 77.0824,
+          fadeIn: 1.5,
+          fadeOut: 0,
+          crossfade: 0,
+          gain: 1,
+        },
+        {
+          id: 'b',
+          file: 'two.mp3',
+          title: 'finale',
+          srcStart: 0,
+          srcEnd: 60.5,
+          fadeIn: 0,
+          fadeOut: 2.5,
+          crossfade: 1.5,
+          gain: 0.5012,
+        },
+      ],
+    },
+    () => {
+      // Through JSON, because that is what actually happens to it on the way out
+      // and back — a value that does not survive stringify is not really saved.
+      const read = app.readProject(JSON.parse(JSON.stringify(app.project())));
 
-    eq(read.name, 'my 2026 junior long program');
-    eq(read.level, 'usfs-jr', 'a level whose time still matches is kept: ');
-    eq(read.targetSeconds, 210);
-    eq(read.toleranceSeconds, 10);
-    eq(read.retargeted, null, 'nothing to report about the level: ');
-    eq(read.clips.length, 2);
+      eq(read.name, 'my 2026 junior long program');
+      eq(read.level, 'usfs-jr', 'a level whose time still matches is kept: ');
+      eq(read.targetSeconds, 210);
+      eq(read.toleranceSeconds, 10);
+      eq(read.retargeted, null, 'nothing to report about the level: ');
+      eq(read.clips.length, 2);
 
-    for (const key of ['file', 'title', 'fadeIn', 'fadeOut', 'crossfade']) {
-      eq(read.clips.map((c) => c[key]), app.state.clips.map((c) => c[key]), `${key}: `);
-    }
-    // Trims are stored to the millisecond and levels to a thousandth, so the
-    // round trip is lossy by exactly that much and no more.
-    near(read.clips[0].srcStart, 4.7615, 0.001, 'srcStart: ');
-    near(read.clips[0].srcEnd, 77.0824, 0.001, 'srcEnd: ');
-    near(read.clips[1].srcEnd, 60.5, 1e-9, 'a round number stays exact: ');
-    near(read.clips[1].gain, 0.5012, 0.001, 'gain: ');
-  });
+      for (const key of ['file', 'title', 'fadeIn', 'fadeOut', 'crossfade']) {
+        eq(
+          read.clips.map((c) => c[key]),
+          app.state.clips.map((c) => c[key]),
+          `${key}: `,
+        );
+      }
+      // Trims are stored to the millisecond and levels to a thousandth, so the
+      // round trip is lossy by exactly that much and no more.
+      near(read.clips[0].srcStart, 4.7615, 0.001, 'srcStart: ');
+      near(read.clips[0].srcEnd, 77.0824, 0.001, 'srcEnd: ');
+      near(read.clips[1].srcEnd, 60.5, 1e-9, 'a round number stays exact: ');
+      near(read.clips[1].gain, 0.5012, 0.001, 'gain: ');
+    },
+  );
 });
 
 check('project file: the document holds exactly the fields it is documented to', () => {
   // Adding or dropping a field changes what older versions of the app can read,
   // so it should be a deliberate act rather than a side effect.
-  withProgram({
-    name: 'x', level: 'usfs-juv', targetSeconds: 135, toleranceSeconds: 10,
-    clips: [{ id: 'a', file: 'a.mp3', title: 'a', srcStart: 0, srcEnd: 1,
-      fadeIn: 0, fadeOut: 0, crossfade: 0, gain: 1 }],
-  }, () => {
-    const doc = app.project();
-    eq(Object.keys(doc).sort(),
-      ['clips', 'files', 'level', 'levelLabel', 'name', 'targetSeconds', 'toleranceSeconds']);
-    eq(Object.keys(doc.clips[0]).sort(),
-      ['crossfade', 'fadeIn', 'fadeOut', 'file', 'gain', 'srcEnd', 'srcStart', 'title']);
-    eq(doc.levelLabel, 'Juvenile', 'the label is denormalized so an old file still reads: ');
-  });
+  withProgram(
+    {
+      name: 'x',
+      level: 'usfs-juv',
+      targetSeconds: 135,
+      toleranceSeconds: 10,
+      clips: [
+        {
+          id: 'a',
+          file: 'a.mp3',
+          title: 'a',
+          srcStart: 0,
+          srcEnd: 1,
+          fadeIn: 0,
+          fadeOut: 0,
+          crossfade: 0,
+          gain: 1,
+        },
+      ],
+    },
+    () => {
+      const doc = app.project();
+      eq(Object.keys(doc).sort(), [
+        'clips',
+        'files',
+        'level',
+        'levelLabel',
+        'name',
+        'targetSeconds',
+        'toleranceSeconds',
+      ]);
+      eq(Object.keys(doc.clips[0]).sort(), [
+        'crossfade',
+        'fadeIn',
+        'fadeOut',
+        'file',
+        'gain',
+        'srcEnd',
+        'srcStart',
+        'title',
+      ]);
+      eq(doc.levelLabel, 'Juvenile', 'the label is denormalized so an old file still reads: ');
+    },
+  );
 });
 
 check('project file: records what each song was, since it cannot record where', () => {
@@ -389,34 +496,56 @@ check('project file: records what each song was, since it cannot record where', 
   // anything about the songs.
   eq(app.readProject({ clips: [] }).files, [], 'a project written before this: ');
   eq(app.readProject({ clips: [], files: 'nonsense' }).files, [], 'a damaged one: ');
-  eq(app.readProject({ clips: [], files: [{ bytes: 1 }] }).files, [],
-    'an entry with no name identifies nothing: ');
+  eq(
+    app.readProject({ clips: [], files: [{ bytes: 1 }] }).files,
+    [],
+    'an entry with no name identifies nothing: ',
+  );
 });
 
 check('project file: a song that is not the one it was built from is called out', () => {
   const expected = { name: 'song.mp3', bytes: 5000, seconds: 200, fingerprint: 'aaa' };
 
-  eq(app.describeWrongFile(expected, { name: 'song.mp3', fingerprint: 'aaa', duration: 200 }), null,
-    'the same file must pass without comment: ');
+  eq(
+    app.describeWrongFile(expected, { name: 'song.mp3', fingerprint: 'aaa', duration: 200 }),
+    null,
+    'the same file must pass without comment: ',
+  );
 
-  const swapped = app.describeWrongFile(expected,
-    { name: 'song.mp3', fingerprint: 'bbb', duration: 95 });
+  const swapped = app.describeWrongFile(expected, {
+    name: 'song.mp3',
+    fingerprint: 'bbb',
+    duration: 95,
+  });
   ok(swapped && swapped.includes('song.mp3'), `"${swapped}" should name the file`);
-  ok(swapped.includes('1:35') && swapped.includes('3:20'),
-    `"${swapped}" should contrast the two lengths, so the mistake is obvious`);
+  ok(
+    swapped.includes('1:35') && swapped.includes('3:20'),
+    `"${swapped}" should contrast the two lengths, so the mistake is obvious`,
+  );
 
   // A different file of the same length is still the wrong file.
-  const sameLength = app.describeWrongFile(expected,
-    { name: 'song.mp3', fingerprint: 'bbb', duration: 200 });
-  ok(sameLength && !sameLength.includes('3:20'),
-    'with nothing to contrast, do not pad the sentence with numbers');
+  const sameLength = app.describeWrongFile(expected, {
+    name: 'song.mp3',
+    fingerprint: 'bbb',
+    duration: 200,
+  });
+  ok(
+    sameLength && !sameLength.includes('3:20'),
+    'with nothing to contrast, do not pad the sentence with numbers',
+  );
 
   // Nothing recorded, nothing claimed.
   eq(app.describeWrongFile(null, { name: 'x', fingerprint: 'a', duration: 1 }), null);
-  eq(app.describeWrongFile({ name: 'x' }, { name: 'x', fingerprint: 'a', duration: 1 }), null,
-    'a project with no fingerprint recorded cannot judge: ');
-  eq(app.describeWrongFile(expected, { name: 'song.mp3', duration: 200 }), null,
-    'and nor can one where the file could not be fingerprinted: ');
+  eq(
+    app.describeWrongFile({ name: 'x' }, { name: 'x', fingerprint: 'a', duration: 1 }),
+    null,
+    'a project with no fingerprint recorded cannot judge: ',
+  );
+  eq(
+    app.describeWrongFile(expected, { name: 'song.mp3', duration: 200 }),
+    null,
+    'and nor can one where the file could not be fingerprinted: ',
+  );
 });
 
 check('reconnect: each way of failing says what to do about it', () => {
@@ -431,8 +560,10 @@ check('reconnect: each way of failing says what to do about it', () => {
   ok(/2 songs/.test(many), `"${many}" should count them rather than listing forever`);
 
   const refused = app.describeReconnect({ files: [], gone: [], refused: ['a.mp3'] });
-  ok(/[Pp]ermission/.test(refused) && /Allow/.test(refused),
-    `"${refused}" should point at the prompt that was declined`);
+  ok(
+    /[Pp]ermission/.test(refused) && /Allow/.test(refused),
+    `"${refused}" should point at the prompt that was declined`,
+  );
   ok(!/moved|deleted/.test(refused), 'a refusal is not a missing file');
 
   const partly = app.describeReconnect({ files: [{}, {}], gone: ['c.mp3'], refused: [] });
@@ -440,8 +571,10 @@ check('reconnect: each way of failing says what to do about it', () => {
   ok(partly.includes('c.mp3'), 'and name what did not');
 
   const both = app.describeReconnect({ files: [{}], gone: ['a'], refused: ['b'] });
-  ok(/Opened one song/.test(both) && /could not be found/.test(both) && /not allowed/.test(both),
-    `"${both}" should cover all three outcomes`);
+  ok(
+    /Opened one song/.test(both) && /could not be found/.test(both) && /not allowed/.test(both),
+    `"${both}" should cover all three outcomes`,
+  );
 });
 
 check('reconnect: the messages stay in plain language', () => {
@@ -467,13 +600,18 @@ check('project file: a level whose length has changed reopens as custom', () => 
      level — never quietly retarget the program to the new number. */
   const level = app.allLevels()[0];
   const read = app.readProject({
-    name: 'last season', level: level.id,
-    targetSeconds: level.seconds + 25, toleranceSeconds: 10, clips: [],
+    name: 'last season',
+    level: level.id,
+    targetSeconds: level.seconds + 25,
+    toleranceSeconds: 10,
+    clips: [],
   });
   eq(read.targetSeconds, level.seconds + 25, 'the stored time wins: ');
   eq(read.level, app.CUSTOM_LEVEL, 'and the level falls back to custom: ');
-  ok(read.retargeted && read.retargeted.id === level.id,
-    'the caller has to be able to say which level it no longer matches');
+  ok(
+    read.retargeted && read.retargeted.id === level.id,
+    'the caller has to be able to say which level it no longer matches',
+  );
 });
 
 check('project file: an older or damaged file opens with usable defaults', () => {
@@ -498,8 +636,11 @@ check('project file: hand-edited nonsense cannot blow the speakers', () => {
       { file: 'd.mp3', gain: 0 },
     ],
   });
-  eq(read.clips.map((c) => c.gain), [app.MAX_GAIN, 1, 1, 0],
-    'clamped, defaulted, defaulted, and a deliberate zero kept: ');
+  eq(
+    read.clips.map((c) => c.gain),
+    [app.MAX_GAIN, 1, 1, 0],
+    'clamped, defaulted, defaulted, and a deliberate zero kept: ',
+  );
   for (const clip of read.clips) {
     ok(Number.isFinite(clip.srcStart) && Number.isFinite(clip.srcEnd), 'trims went non-numeric');
   }
@@ -508,7 +649,9 @@ check('project file: hand-edited nonsense cannot blow the speakers', () => {
 check('project file: every clip gets its own id, however the file was written', () => {
   // Selection and removal are by id, so two clips sharing one would take each
   // other out. The file does not carry ids at all — they are made on load.
-  const read = app.readProject({ clips: [{ file: 'a.mp3' }, { file: 'a.mp3' }, { file: 'a.mp3' }] });
+  const read = app.readProject({
+    clips: [{ file: 'a.mp3' }, { file: 'a.mp3' }, { file: 'a.mp3' }],
+  });
   const ids = read.clips.map((c) => c.id);
   eq(new Set(ids).size, ids.length, 'duplicate clip ids: ');
   for (const id of ids) ok(id && typeof id === 'string', `unusable id ${JSON.stringify(id)}`);
@@ -523,7 +666,9 @@ function withClips(clips, fn) {
   app.redoStack.length = 0;
   app.endUndoRun();
   app.state.clips = clips;
-  try { fn(); } finally {
+  try {
+    fn();
+  } finally {
     app.state.clips = saved;
     app.undoStack.length = 0;
     app.redoStack.length = 0;
@@ -535,70 +680,87 @@ check('undo: a snapshot holds the length being worked to, not only the clips', (
   /* Changing the event used to be outside the stack entirely, so picking the
      wrong one lost the target length with no way back — the one number the
      whole edit is aimed at. */
-  withProgram({
-    name: 'my long program', level: 'usfs-jr', targetSeconds: 210,
-    toleranceSeconds: 10, clips: [{ id: 'a', file: 'a.mp3', srcStart: 0, srcEnd: 30 }],
-  }, () => {
-    const held = JSON.parse(app.undoSnapshot());
-    eq(Object.keys(held).sort(),
-      ['clips', 'level', 'name', 'targetSeconds', 'toleranceSeconds']);
-    eq(held.name, 'my long program');
-    eq(held.level, 'usfs-jr');
-    eq(held.targetSeconds, 210);
-    eq(held.clips.length, 1);
-  });
+  withProgram(
+    {
+      name: 'my long program',
+      level: 'usfs-jr',
+      targetSeconds: 210,
+      toleranceSeconds: 10,
+      clips: [{ id: 'a', file: 'a.mp3', srcStart: 0, srcEnd: 30 }],
+    },
+    () => {
+      const held = JSON.parse(app.undoSnapshot());
+      eq(Object.keys(held).sort(), ['clips', 'level', 'name', 'targetSeconds', 'toleranceSeconds']);
+      eq(held.name, 'my long program');
+      eq(held.level, 'usfs-jr');
+      eq(held.targetSeconds, 210);
+      eq(held.clips.length, 1);
+    },
+  );
 });
 
 check('undo: a step back can be stepped forward again', () => {
-  withProgram({
-    name: 'before', level: 'usfs-juv', targetSeconds: 135,
-    toleranceSeconds: 10, clips: [],
-  }, () => {
-    app.undoStack.length = 0;
-    app.redoStack.length = 0;
-    app.endUndoRun();
+  withProgram(
+    {
+      name: 'before',
+      level: 'usfs-juv',
+      targetSeconds: 135,
+      toleranceSeconds: 10,
+      clips: [],
+    },
+    () => {
+      app.undoStack.length = 0;
+      app.redoStack.length = 0;
+      app.endUndoRun();
 
-    app.pushUndo();                       // snapshot "before"
-    app.state.name = 'after';
+      app.pushUndo(); // snapshot "before"
+      app.state.name = 'after';
 
-    const back = app.takeUndo();
-    eq(JSON.parse(back).name, 'before', 'undo hands back the earlier state: ');
-    eq(app.redoStack.length, 1, 'and puts the current one where redo can reach it: ');
+      const back = app.takeUndo();
+      eq(JSON.parse(back).name, 'before', 'undo hands back the earlier state: ');
+      eq(app.redoStack.length, 1, 'and puts the current one where redo can reach it: ');
 
-    const forward = app.takeRedo();
-    eq(JSON.parse(forward).name, 'after', 'redo hands back what was undone: ');
-    eq(app.undoStack.length, 1, 'and the step back is available again: ');
-  });
+      const forward = app.takeRedo();
+      eq(JSON.parse(forward).name, 'after', 'redo hands back what was undone: ');
+      eq(app.undoStack.length, 1, 'and the step back is available again: ');
+    },
+  );
 });
 
 check('undo: nothing to go back or forward to is not an error', () => {
-  withProgram({ name: 'x', level: 'usfs-juv', targetSeconds: 135,
-    toleranceSeconds: 10, clips: [] }, () => {
-    app.undoStack.length = 0;
-    app.redoStack.length = 0;
-    eq(app.takeUndo(), null, 'an empty undo stack: ');
-    eq(app.takeRedo(), null, 'an empty redo stack: ');
-    eq(app.redoStack.length, 0, 'and neither should have grown: ');
-    eq(app.undoStack.length, 0);
-  });
+  withProgram(
+    { name: 'x', level: 'usfs-juv', targetSeconds: 135, toleranceSeconds: 10, clips: [] },
+    () => {
+      app.undoStack.length = 0;
+      app.redoStack.length = 0;
+      eq(app.takeUndo(), null, 'an empty undo stack: ');
+      eq(app.takeRedo(), null, 'an empty redo stack: ');
+      eq(app.redoStack.length, 0, 'and neither should have grown: ');
+      eq(app.undoStack.length, 0);
+    },
+  );
 });
 
 check('undo: a fresh edit closes off the branch that was undone', () => {
   /* Redo has to mean "put back what I just took away", not "put back something
      that never followed from here". Editing after an undo abandons that future. */
-  withProgram({ name: 'one', level: 'usfs-juv', targetSeconds: 135,
-    toleranceSeconds: 10, clips: [] }, () => {
-    app.undoStack.length = 0;
-    app.redoStack.length = 0;
-    app.endUndoRun();
+  withProgram(
+    { name: 'one', level: 'usfs-juv', targetSeconds: 135, toleranceSeconds: 10, clips: [] },
+    () => {
+      app.undoStack.length = 0;
+      app.redoStack.length = 0;
+      app.endUndoRun();
 
-    app.pushUndo(); app.state.name = 'two';
-    app.takeUndo();
-    eq(app.redoStack.length, 1, 'there is a future to go back to: ');
+      app.pushUndo();
+      app.state.name = 'two';
+      app.takeUndo();
+      eq(app.redoStack.length, 1, 'there is a future to go back to: ');
 
-    app.pushUndo(); app.state.name = 'three';
-    eq(app.redoStack.length, 0, 'a new edit must discard it: ');
-  });
+      app.pushUndo();
+      app.state.name = 'three';
+      eq(app.redoStack.length, 0, 'a new edit must discard it: ');
+    },
+  );
 });
 
 check('undo: a held key is one gesture, not thirty entries', () => {
@@ -608,7 +770,7 @@ check('undo: a held key is one gesture, not thirty entries', () => {
      the coalescing window by virtue of running synchronously, which is exactly
      the situation a held key produces. */
   withClips([{ id: 'a', srcStart: 0, srcEnd: 10 }], () => {
-    app.pushUndo();                                     // an ordinary edit
+    app.pushUndo(); // an ordinary edit
     for (let i = 0; i < 40; i++) app.pushUndo('nudge-end:a');
     eq(app.undoStack.length, 2, 'the whole run should be a single entry: ');
 
@@ -623,10 +785,14 @@ check('undo: the coalescing window covers a key repeat without merging real edit
   /* Too short and a held key still floods the stack; too long and two separate
      deliberate nudges become one undo step. Key repeat runs at roughly 30 a
      second, so anything from a repeat interval up to about a second works. */
-  ok(app.UNDO_COALESCE_MS >= 200,
-    `${app.UNDO_COALESCE_MS}ms is shorter than the gap between key repeats`);
-  ok(app.UNDO_COALESCE_MS <= 1500,
-    `${app.UNDO_COALESCE_MS}ms would swallow edits a second apart into one step`);
+  ok(
+    app.UNDO_COALESCE_MS >= 200,
+    `${app.UNDO_COALESCE_MS}ms is shorter than the gap between key repeats`,
+  );
+  ok(
+    app.UNDO_COALESCE_MS <= 1500,
+    `${app.UNDO_COALESCE_MS}ms would swallow edits a second apart into one step`,
+  );
 });
 
 check('undo: untagged callers never coalesce, and end the run before them', () => {
@@ -648,8 +814,8 @@ check('undo: an edit made straight after undoing is still undoable', () => {
   withClips([{ id: 'a', srcStart: 0, srcEnd: 10 }], () => {
     app.pushUndo('nudge-end:a');
     eq(app.undoStack.length, 1);
-    app.undoStack.pop();          // what undo() does to the stack
-    app.endUndoRun();             // and what it must do to the run
+    app.undoStack.pop(); // what undo() does to the stack
+    app.endUndoRun(); // and what it must do to the run
     app.pushUndo('nudge-end:a');
     eq(app.undoStack.length, 1, 'the edit after an undo left nothing to undo: ');
   });
@@ -665,15 +831,18 @@ check('undo: the stack stays bounded however many gestures there are', () => {
 /* ---------------------------------------------------------- 1f. library */
 
 check('library: a file is removable only once the program has stopped using it', () => {
-  withClips([
-    { id: '1', file: 'a.mp3' },
-    { id: '2', file: 'b.mp3' },
-    { id: '3', file: 'a.mp3' },
-  ], () => {
-    eq(app.clipsUsing('a.mp3'), 2, 'the same song can be in a program twice: ');
-    eq(app.clipsUsing('b.mp3'), 1);
-    eq(app.clipsUsing('c.mp3'), 0, 'a file nothing is using can go: ');
-  });
+  withClips(
+    [
+      { id: '1', file: 'a.mp3' },
+      { id: '2', file: 'b.mp3' },
+      { id: '3', file: 'a.mp3' },
+    ],
+    () => {
+      eq(app.clipsUsing('a.mp3'), 2, 'the same song can be in a program twice: ');
+      eq(app.clipsUsing('b.mp3'), 1);
+      eq(app.clipsUsing('c.mp3'), 0, 'a file nothing is using can go: ');
+    },
+  );
   withClips([], () => {
     eq(app.clipsUsing('a.mp3'), 0, 'an empty program holds nothing: ');
   });
@@ -698,16 +867,26 @@ check('levels: findLevel returns null rather than throwing', () => {
 });
 
 check('support check: passes a modern browser, blocks a hopeless one', () => {
-  const saved = { AudioContext: global.AudioContext, OfflineAudioContext: global.OfflineAudioContext };
+  const saved = {
+    AudioContext: global.AudioContext,
+    OfflineAudioContext: global.OfflineAudioContext,
+  };
   global.window = {
-    AudioContext: function () {}, OfflineAudioContext: function () {},
-    File: function () {}, FileList: function () {}, FileReader: function () {},
+    AudioContext: function () {},
+    OfflineAudioContext: function () {},
+    File: function () {},
+    FileList: function () {},
+    FileReader: function () {},
     URL: { createObjectURL() {} },
   };
   global.Blob = { prototype: { arrayBuffer() {} } };
   eq(app.unsupportedReasons(), [], 'modern browser should pass: ');
-  global.window = { File: function () {}, FileList: function () {}, FileReader: function () {}, URL: { createObjectURL() {} } };
+  global.window = {
+    File: function () {},
+    FileList: function () {},
+    FileReader: function () {},
+    URL: { createObjectURL() {} },
+  };
   ok(app.unsupportedReasons().length >= 2, 'a browser with no Web Audio should be blocked');
   Object.assign(global, saved);
 });
-

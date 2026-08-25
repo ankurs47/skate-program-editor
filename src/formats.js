@@ -21,8 +21,8 @@
  * defaults rather than a rule — check the specific competition's announcement.
  * Lossless sources (wav/flac) skip the bitrate test entirely. */
 const QUALITY = {
-  goodBitrate: 192,      // kbps: comfortable for a rink PA
-  minBitrate: 128,       // kbps: below this, flag it loudly
+  goodBitrate: 192, // kbps: comfortable for a rink PA
+  minBitrate: 128, // kbps: below this, flag it loudly
   goodSampleRate: 44100, // Hz: CD rate
   minSampleRate: 32000,
 };
@@ -36,7 +36,7 @@ const CODEC_EFFICIENCY = { mp3: 1, aac: 1.3, m4a: 1.3, opus: 1.5, ogg: 1.2, vorb
 function codecOf(name) {
   const match = String(name).match(/\.([a-z0-9]+)$/i);
   const ext = match ? match[1].toLowerCase() : '';
-  if (ext === 'webm') return 'opus';   // YouTube's WebM audio is Opus
+  if (ext === 'webm') return 'opus'; // YouTube's WebM audio is Opus
   return ext;
 }
 
@@ -53,8 +53,11 @@ function id3Size(bytes) {
   const view = new DataView(bytes, 0, 10);
   if (view.getUint8(0) !== 0x49 || view.getUint8(1) !== 0x44 || view.getUint8(2) !== 0x33) return 0;
   // syncsafe integer: 7 bits per byte
-  const size = (view.getUint8(6) << 21) | (view.getUint8(7) << 14)
-             | (view.getUint8(8) << 7) | view.getUint8(9);
+  const size =
+    (view.getUint8(6) << 21) |
+    (view.getUint8(7) << 14) |
+    (view.getUint8(8) << 7) |
+    view.getUint8(9);
   return size + 10;
 }
 
@@ -63,10 +66,10 @@ function parseFrameHeader(view, i) {
   if (i + 4 > view.byteLength) return null;
   if (view.getUint8(i) !== 0xff) return null;
   const b1 = view.getUint8(i + 1);
-  if ((b1 & 0xe0) !== 0xe0) return null;              // 11-bit frame sync
+  if ((b1 & 0xe0) !== 0xe0) return null; // 11-bit frame sync
 
-  const versionBits = (b1 >> 3) & 0x03;               // 3=MPEG1, 2=MPEG2, 0=MPEG2.5
-  const layerBits = (b1 >> 1) & 0x03;                 // 1 = Layer III
+  const versionBits = (b1 >> 3) & 0x03; // 3=MPEG1, 2=MPEG2, 0=MPEG2.5
+  const layerBits = (b1 >> 1) & 0x03; // 1 = Layer III
   if (versionBits === 1 || layerBits !== 1) return null;
 
   const b2 = view.getUint8(i + 2);
@@ -79,7 +82,7 @@ function parseFrameHeader(view, i) {
   const padding = (b2 >> 1) & 0x01;
   const channels = ((view.getUint8(i + 3) >> 6) & 0x03) === 3 ? 1 : 2;
   const samplesPerFrame = versionBits === 3 ? 1152 : 576;
-  const frameLength = Math.floor((samplesPerFrame / 8) * bitrate * 1000 / sampleRate) + padding;
+  const frameLength = Math.floor(((samplesPerFrame / 8) * bitrate * 1000) / sampleRate) + padding;
   if (frameLength < 8) return null;
 
   return { versionBits, bitrate, sampleRate, channels, samplesPerFrame, frameLength };
@@ -111,33 +114,39 @@ function readMpegFrame(bytes, start) {
     let confirmed = 0;
     for (let n = 0; n < 4; n++) {
       const frame = parseFrameHeader(view, pos);
-      if (!frame
-          || frame.versionBits !== first.versionBits
-          || frame.sampleRate !== first.sampleRate) break;
+      if (
+        !frame ||
+        frame.versionBits !== first.versionBits ||
+        frame.sampleRate !== first.sampleRate
+      )
+        break;
       confirmed++;
       pos += frame.frameLength;
-      if (pos + 4 > view.byteLength) break;   // ran out of file, not a failure
+      if (pos + 4 > view.byteLength) break; // ran out of file, not a failure
     }
     if (confirmed < 3) continue;
 
     const { bitrate, sampleRate, channels, samplesPerFrame, versionBits } = first;
 
     // Xing/Info sits after the side information block
-    const sideInfo = versionBits === 3 ? (channels === 1 ? 17 : 32) : (channels === 1 ? 9 : 17);
+    const sideInfo = versionBits === 3 ? (channels === 1 ? 17 : 32) : channels === 1 ? 9 : 17;
     let vbr = false;
     let average = bitrate;
     const tagAt = i + 4 + sideInfo;
     if (tagAt + 16 < view.byteLength) {
       const tag = String.fromCharCode(
-        view.getUint8(tagAt), view.getUint8(tagAt + 1),
-        view.getUint8(tagAt + 2), view.getUint8(tagAt + 3));
+        view.getUint8(tagAt),
+        view.getUint8(tagAt + 1),
+        view.getUint8(tagAt + 2),
+        view.getUint8(tagAt + 3),
+      );
       if (tag === 'Xing' || tag === 'Info') {
         vbr = tag === 'Xing';
         const flags = view.getUint32(tagAt + 4);
         let p = tagAt + 8;
-        const frames = (flags & 1) ? view.getUint32(p) : 0;
+        const frames = flags & 1 ? view.getUint32(p) : 0;
         if (flags & 1) p += 4;
-        const streamBytes = (flags & 2) ? view.getUint32(p) : 0;
+        const streamBytes = flags & 2 ? view.getUint32(p) : 0;
         if (frames > 0 && streamBytes > 0) {
           const seconds = (frames * samplesPerFrame) / sampleRate;
           average = Math.round((streamBytes * 8) / seconds / 1000);
@@ -160,8 +169,11 @@ function readMpegFrame(bytes, start) {
 function oggAudioStart(bytes) {
   const view = new DataView(bytes);
   if (view.byteLength < 27) return 0;
-  const magic = (at) => view.getUint8(at) === 0x4f && view.getUint8(at + 1) === 0x67
-    && view.getUint8(at + 2) === 0x67 && view.getUint8(at + 3) === 0x53;   // "OggS"
+  const magic = (at) =>
+    view.getUint8(at) === 0x4f &&
+    view.getUint8(at + 1) === 0x67 &&
+    view.getUint8(at + 2) === 0x67 &&
+    view.getUint8(at + 3) === 0x53; // "OggS"
   if (!magic(0)) return 0;
 
   let pos = 0;
@@ -172,7 +184,7 @@ function oggAudioStart(bytes) {
     for (let i = 0; i < segments; i++) {
       const len = view.getUint8(pos + 27 + i);
       payload += len;
-      if (len < 255) packets++;    // a segment under 255 ends a packet
+      if (len < 255) packets++; // a segment under 255 ends a packet
     }
     pos += 27 + segments + payload;
   }
@@ -220,7 +232,7 @@ function fingerprint(head) {
 function qualityKind({ bitrate = null, sampleRate = null, codec = '', lossless = false }) {
   // Nothing measurable and not a known lossless format — say so rather than
   // implying it's fine.
-  let kind = (!lossless && bitrate === null) ? 'unknown' : 'good';
+  let kind = !lossless && bitrate === null ? 'unknown' : 'good';
   if (!lossless && bitrate !== null) {
     // Judge on the MP3-equivalent figure; display the real one.
     const effective = bitrate * (CODEC_EFFICIENCY[codec] || 1);
@@ -248,7 +260,11 @@ function analyzeSource(head, tagEnd, file, buffer) {
   let info = null;
 
   if (!lossless && maybeMpeg) {
-    try { info = readMpegFrame(head, 0); } catch (_) { info = null; }
+    try {
+      info = readMpegFrame(head, 0);
+    } catch (_) {
+      info = null;
+    }
   }
 
   // buffer.sampleRate is the AudioContext's rate, not the file's — everything
@@ -279,8 +295,15 @@ function analyzeSource(head, tagEnd, file, buffer) {
   }
 
   return {
-    bitrate, sampleRate, channels, lossless, kind, codec, notes,
-    estimated, vbr: Boolean(info && info.vbr),
+    bitrate,
+    sampleRate,
+    channels,
+    lossless,
+    kind,
+    codec,
+    notes,
+    estimated,
+    vbr: Boolean(info && info.vbr),
   };
 }
 
@@ -291,16 +314,20 @@ const QUALITY_LABEL = { good: 'Good', caution: 'Fair', poor: 'Low', unknown: 'Un
 
 /** Compact badge text — must stay narrow enough to sit beside the Add button. */
 function qualityLabel(q) {
-  return q ? (QUALITY_LABEL[q.kind] || 'Unknown') : '';
+  return q ? QUALITY_LABEL[q.kind] || 'Unknown' : '';
 }
 
 /** Everything worth saying, for the tooltip and the export warning. */
 function qualityDetail(q) {
-  const head = q.lossless ? 'Lossless source'
-    : q.kind === 'unknown' ? 'Could not measure this file'
-    : q.kind === 'good' ? 'Good quality'
-    : q.kind === 'poor' ? 'Low quality — may sound rough on a rink system'
-    : 'Below CD quality, but probably fine';
+  const head = q.lossless
+    ? 'Lossless source'
+    : q.kind === 'unknown'
+      ? 'Could not measure this file'
+      : q.kind === 'good'
+        ? 'Good quality'
+        : q.kind === 'poor'
+          ? 'Low quality — may sound rough on a rink system'
+          : 'Below CD quality, but probably fine';
   const parts = [];
   if (q.bitrate && !q.lossless) parts.push(`${q.bitrate} kbps${q.estimated ? ' (estimated)' : ''}`);
   if (q.codec) parts.push(q.codec);
@@ -314,8 +341,17 @@ function qualityDetail(q) {
    already global and this block does nothing. */
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    QUALITY, CODEC_EFFICIENCY, codecOf,
-    id3Size, oggAudioStart, readMpegFrame, parseFrameHeader,
-    qualityKind, analyzeSource, qualityLabel, qualityDetail, fingerprint,
+    QUALITY,
+    CODEC_EFFICIENCY,
+    codecOf,
+    id3Size,
+    oggAudioStart,
+    readMpegFrame,
+    parseFrameHeader,
+    qualityKind,
+    analyzeSource,
+    qualityLabel,
+    qualityDetail,
+    fingerprint,
   };
 }

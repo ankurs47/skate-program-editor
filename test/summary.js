@@ -44,7 +44,8 @@ function budgets(metrics) {
       `| **Dragging a slider** — ${d.events} input events, ${d.clips} clips | | | |`,
       `| elements created | ${d.wasElements} | **${d.elementsCreated}** | ${pct(d.wasElements, d.elementsCreated)} |`,
       `| forced style reads | ${d.wasStyleReads} | **${d.forcedStyleReads}** | ${pct(d.wasStyleReads, d.forcedStyleReads)} |`,
-      `| timeline waveform draws | ${d.wasWaveDraws} | **${d.timelineWaveDraws}** | ${pct(d.wasWaveDraws, d.timelineWaveDraws)} |`);
+      `| timeline waveform draws | ${d.wasWaveDraws} | **${d.timelineWaveDraws}** | ${pct(d.wasWaveDraws, d.timelineWaveDraws)} |`,
+    );
     timings.push(`| dragging, ${d.events} input events | ${d.blockingMs} ms |`);
   }
   const r = metrics.refresh;
@@ -52,7 +53,8 @@ function budgets(metrics) {
     rows.push(
       `| **${r.calls} idle refreshes** | | | |`,
       `| elements created | ${r.wasElements} | **${r.elementsCreated}** | ${pct(r.wasElements, r.elementsCreated)} |`,
-      `| forced style reads | ${r.wasStyleReads} | **${r.forcedStyleReads}** | ${pct(r.wasStyleReads, r.forcedStyleReads)} |`);
+      `| forced style reads | ${r.wasStyleReads} | **${r.forcedStyleReads}** | ${pct(r.wasStyleReads, r.forcedStyleReads)} |`,
+    );
     timings.push(`| ${r.calls} idle refreshes | ${r.blockingMs} ms |`);
   }
   return [
@@ -106,6 +108,8 @@ const out = [
   failureList(unit, browser),
   '',
   '<sub>Posted by CI from the reports this run produced.</sub>',
-].filter((part) => part !== '').join('\n');
+]
+  .filter((part) => part !== '')
+  .join('\n');
 
 process.stdout.write(`${out}\n`);

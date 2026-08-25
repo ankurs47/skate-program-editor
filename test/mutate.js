@@ -59,13 +59,20 @@ function hold(file) {
 
 function restoreAll() {
   for (const [full, original] of held) {
-    try { fs.writeFileSync(full, original); } catch (_) { /* nothing better to do */ }
+    try {
+      fs.writeFileSync(full, original);
+    } catch (_) {
+      /* nothing better to do */
+    }
   }
   held.clear();
 }
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
-  process.on(signal, () => { restoreAll(); process.exit(130); });
+  process.on(signal, () => {
+    restoreAll();
+    process.exit(130);
+  });
 }
 process.on('uncaughtException', (err) => {
   restoreAll();
@@ -90,7 +97,9 @@ function warnIfDirty() {
       for (const line of dirty) console.log(`        ${line}`);
       console.log('        they are restored from memory, but git cannot rescue them.\n');
     }
-  } catch (_) { /* not a git checkout; carry on */ }
+  } catch (_) {
+    /* not a git checkout; carry on */
+  }
 }
 
 function main() {

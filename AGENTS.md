@@ -53,6 +53,11 @@ npm run test:mutate  # break the code on purpose, check a test notices (~4 min)
 `main` is protected: pull request required, CI must pass, applies to admins too.
 The pre-commit hook runs lint and tests; `--no-verify` skips it.
 
+With [pre-commit](https://pre-commit.com) installed it owns the hook and adds
+shellcheck, codespell and file hygiene on top — see `.pre-commit-config.yaml`.
+Without it, `.githooks/pre-commit` still gives you lint and tests.
+`npm install` picks whichever this machine can run.
+
 ## Ground rules
 
 - **No build step and no runtime dependencies.** Anyone must be able to clone
@@ -63,7 +68,7 @@ The pre-commit hook runs lint and tests; `--no-verify` skips it.
 - **No personal information in shipped files.** There is a test asserting this.
   Placeholders use generic examples like "my 2026 junior long program".
 - **Plain language in the interface.** "Make music file", not "Export". A word
-  like *bitrate*, *codec* or *render* appearing in visible text is a defect.
+  like _bitrate_, _codec_ or _render_ appearing in visible text is a defect.
   Technical detail belongs in tooltips.
 - `app.js` is a plain browser script, so its functions are global by design.
   `no-implicit-globals` is deliberately disabled — satisfying it would mean
@@ -77,15 +82,15 @@ timeline, waveforms, playback, export — is derived from it. `layout()` is the
 single place that turns clips into timeline positions; nothing should compute
 positions independently.
 
-**`crossfade` is an overlap with the *previous* clip**, so blending makes the
-program *shorter*. Clip durations therefore sum to more than the total length.
+**`crossfade` is an overlap with the _previous_ clip**, so blending makes the
+program _shorter_. Clip durations therefore sum to more than the total length.
 This trips people up constantly.
 
 **Preview and export share one code path.** `scheduleProgram()` builds the Web
 Audio graph for both live playback and the `OfflineAudioContext` render, so what
 you hear is what you get. Do not add an export-only path.
 
-**Two views, different jobs.** The clip strip is a *list* — click to select,
+**Two views, different jobs.** The clip strip is a _list_ — click to select,
 drag to reorder, widths only roughly proportional. The scrubber below it is real
 program time, where overlapping blocks are blends. Seeking uses the scrubber.
 
@@ -96,7 +101,7 @@ module system. Order matters, and a test asserts it.
 
 The line between them is the browser: `analysis.js` and `formats.js` take
 samples, bytes and buffers and return numbers and descriptions, and never touch
-the DOM or program state. A test asserts *that* too, because the split is only
+the DOM or program state. A test asserts _that_ too, because the split is only
 worth anything while it holds, and drift would not break anything until someone
 tried to test the thing that had drifted. Anything needing `$()`, `state` or
 `library` belongs in app.js.
@@ -118,7 +123,7 @@ that only exist as a sequence of clicks. They are opt-in for the same reason
 
 Assert on the graph and on page state, never on how long something took or on
 what came out of the speakers — nothing is audible headless. And assert on the
-graph that was *built*, not the nodes that were constructed: an earlier version
+graph that was _built_, not the nodes that were constructed: an earlier version
 of the audition check watched `createGain` and passed happily while the source
 was wired straight to the output and both gain nodes dangled unused. Every check
 there has been confirmed to fail when the code it covers is deliberately broken,
@@ -128,7 +133,7 @@ which is the only evidence that a test is worth its runtime.
 happened three times: a check that watched two gain nodes being created stayed
 green while the audio bypassed them both; a check on a frame fallback could not
 fail because headless Chrome paints; a check that "a real change still rebuilds"
-missed a stale marker left on screen. All three asserted on something *adjacent*
+missed a stale marker left on screen. All three asserted on something _adjacent_
 to the behavior rather than the behavior.
 
 `test/mutations.json` is the guard against that: each entry names an invariant,
@@ -165,11 +170,11 @@ Requiring `app.js` still gets everything, because it re-exports the other two.
 `analyzeBeats()` finds a tempo and a beat grid in a window of samples;
 `suggestJoin()` uses two of those to nudge a pair of cut points onto the beat.
 Both are pure, and beat times are relative to the window they were measured in,
-never to the song. The grid is *always* found — on applause, on a held chord, on
+never to the song. The grid is _always_ found — on applause, on a held chord, on
 silence — so `confidence` below `BEAT.minConfidence` means leave the edit alone.
 Snapping a rubato piece to an invented grid is the worst outcome available here,
 worse than doing nothing. `alignSelectedJoin()` is the only caller: it takes the
-snapshot for undo *after* deciding to act, so a declined suggestion doesn't leave
+snapshot for undo _after_ deciding to act, so a declined suggestion doesn't leave
 a no-op on the undo stack.
 
 **The join button has two strategies, and beats is only the first.** Much
@@ -195,7 +200,7 @@ before the fade and blend nodes in `scheduleProgram()` rather than being folded
 into either, so the fade still runs 0 to 1 and the two sides of a crossfade
 still sum to 1 whatever the levels are. Preview and export therefore get it for
 free. The slider works in decibels, because that is what tracks how loud a
-change *sounds*, but stores and shows the multiplier — `LEVEL_SLIDER` and the
+change _sounds_, but stores and shows the multiplier — `LEVEL_SLIDER` and the
 `min`/`max` on the HTML input have to agree, and a test says so.
 
 **A project cannot record where a file is, only what it was.** A browser will
@@ -231,7 +236,7 @@ still fire; do not let anything above become load-bearing.
   immediately and report a confident, wrong bitrate. `readMpegFrame()` requires
   three consecutive frames exactly `frameLength` apart. Do not relax this.
 - **ID3 tags are not small.** With embedded artwork they run to 400 KB+, so any
-  window into a file must start *after* the tag, and any size-based bitrate
+  window into a file must start _after_ the tag, and any size-based bitrate
   estimate must subtract it. Ogg hides cover art in the comment header instead —
   `oggAudioStart()` skips it.
 - **`buffer.sampleRate` is the AudioContext's rate, not the file's.** Everything
@@ -239,7 +244,7 @@ still fire; do not let anything above become load-bearing.
   otherwise leave it unknown rather than reporting a number you invented.
 - **Quality thresholds are in MP3-equivalent terms.** Opus at 128 kbps sounds
   roughly like MP3 at 190, so `CODEC_EFFICIENCY` scales the measured bitrate
-  before comparison. Badges show a verdict (*Good / Fair / Low*) and never a
+  before comparison. Badges show a verdict (_Good / Fair / Low_) and never a
   number, because raw bitrates invite exactly the wrong comparison.
 - **Fade curves must stay linear.** `afade`/`acrossfade` in ffmpeg default to
   `tri`, which matches Web Audio's `linearRampToValueAtTime`. The two sides of a
@@ -250,7 +255,7 @@ still fire; do not let anything above become load-bearing.
   frames, so each beat straddles the frame boundary differently and alternate
   beats measure weaker — a period-two pattern the autocorrelation reports as
   half speed. The fix is the one-frame blur at the top of `flattenEnvelope()`.
-  Searching fractional lags instead is *not* a fix: interpolating the envelope
+  Searching fractional lags instead is _not_ a fix: interpolating the envelope
   flattens the very peaks being correlated, by an amount that depends on the
   fractional part, so the scan then prefers round lags for a different reason.
   Integer lags find the neighborhood; `refinePeriod()` finds the value.
@@ -308,7 +313,7 @@ still fire; do not let anything above become load-bearing.
   beats are actually played — damps it, and cut the affected windows of the test
   fixture from 33 of 55 to 12. It is not a cure. Finishing this needs real piano
   recordings to calibrate against, not more work against synthetic fixtures,
-  which is why the tests assert that coverage *separates* the two cases rather
+  which is why the tests assert that coverage _separates_ the two cases rather
   than that every sparse window is rejected. Until then some free-tempo music
   gets the beat strategy when it should get phrasing.
 - **Round to the precision you display, then split the minutes off.** Both
@@ -317,7 +322,7 @@ still fire; do not let anything above become load-bearing.
   program read `0:60.0` on the timer, and a 119.6 second song was listed as
   `1:60`. Neither was noticed for the length of the project, because the level
   times that dominate the interface are all whole minutes. This is what writing
-  a test for an untested export is *for*.
+  a test for an untested export is _for_.
 - **A project's trims are unchecked until the audio turns up.** The file is not
   in the project, so nothing has compared `srcEnd` against a real duration until
   `addFiles` decodes one. Web Audio does not complain when a source is asked to
@@ -336,7 +341,7 @@ still fire; do not let anything above become load-bearing.
   timeline read `text/plain` off the drag and passed it to `moveClip`, checking
   only the destination index. A dragged text selection parses to NaN, every
   comparison against NaN is false, and `splice(NaN, 1)` coerces to
-  `splice(0, 1)` — so a stray drop silently moved the *first* song. Tightening
+  `splice(0, 1)` — so a stray drop silently moved the _first_ song. Tightening
   the guard is not enough on its own: a dropped **file** leaves `text/plain`
   empty, and `Number('')` is 0, a perfectly valid index. The drag is identified
   by a private type (`CLIP_DRAG_TYPE`) that only these blocks publish, and
@@ -364,7 +369,7 @@ still fire; do not let anything above become load-bearing.
   clips with `flex-grow`, not computed pixels — computing widths from the
   program length overflowed, because of the overlap point above.
 - **`decodeAudioData` detaches its ArrayBuffer.** Copy any bytes you need for
-  header inspection *before* decoding.
+  header inspection _before_ decoding.
 - **Decoded audio is uncompressed** — roughly 90 MB per four minutes of stereo.
   This is why tablets get a warning and why files are decoded on demand.
 
@@ -383,7 +388,7 @@ it.
 
 ## Conventions
 
-- Comments explain *why*, not *what*. Several above exist only because the
+- Comments explain _why_, not _what_. Several above exist only because the
   obvious implementation was wrong.
 - Errors say what happened and what would fix it, in the user's terms.
 - Destructive actions confirm first, name what will be lost, and put the safe

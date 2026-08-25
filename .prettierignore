@@ -1,0 +1,19 @@
+# Option A: Prettier formats the JavaScript, JSON, YAML and Markdown. CSS and
+# HTML are left alone deliberately — measured before deciding, Prettier rewrote
+# 816 of 1,040 CSS lines by expanding every one-line rule, and turned 1,138
+# lines of HTML into 2,376 by re-indenting markup whose structure and comments
+# were written on purpose. stylelint covers the CSS, and the HTML has its own
+# structural checks in test/assets.test.js and test/site.test.js.
+*.css
+*.html
+
+# Editor and tool settings that happen to sit in the working tree. Untracked,
+# so reformatting them would only churn someone's local file.
+.claude/
+
+# Generated, vendored, or not ours to reformat.
+package-lock.json
+LICENSE
+src/logo.svg
+docs/screenshot.png
+docs/social-card.png
