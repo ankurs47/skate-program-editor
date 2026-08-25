@@ -56,6 +56,25 @@ function ok(cond, message) {
   if (!cond) throw new Error(message);
 }
 
+/** Walks tags and returns the names left open, so both pages can be checked. */
+function unclosedTags(source) {
+  const voids = new Set(['br', 'img', 'input', 'meta', 'link', 'hr', 'source', 'track']);
+  const stack = [];
+  for (const m of source.matchAll(/<(\/?)([a-zA-Z0-9]+)([^>]*?)(\/?)>/g)) {
+    const [, closing, tag, , selfClose] = m;
+    const name = tag.toLowerCase();
+    if (voids.has(name) || selfClose || name === '!doctype') continue;
+    if (closing) {
+      ok(stack.length, `stray </${name}>`);
+      const open = stack.pop();
+      eq(open, name, `</${name}> closes <${open}>: `);
+    } else {
+      stack.push(name);
+    }
+  }
+  return stack;
+}
+
 /** Totals so far. The runner prints these once every file has been loaded. */
 function results() {
   return { passed, failures };
@@ -82,5 +101,5 @@ function reportPath(argv) {
 
 module.exports = {
   ROOT, SCRIPTS, SHIPPED, DOCS, ASSETS, app, html, css,
-  check, eq, near, ok, results, writeReport, reportPath,
+  check, eq, near, ok, unclosedTags, results, writeReport, reportPath,
 };

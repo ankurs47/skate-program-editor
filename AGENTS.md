@@ -154,10 +154,11 @@ The runner restores from a copy in memory, never with git — reverting with git
 is how an earlier session destroyed uncommitted work.
 
 The unit tests mirror the file split — `test/analysis.test.js`,
-`test/formats.test.js`, `test/app.test.js`, plus `test/assets.test.js` for the
-files themselves.
-`test/harness.js` holds `check`/`eq`/`near`/`ok`; `test/run.js` only loads the
-four and reports. A new test goes in the file matching the code it covers.
+`test/formats.test.js`, `test/app.test.js` — plus three that are not about any
+one source file: `assets.test.js` for the app's own wiring, `site.test.js` for
+what gets published, `repo.test.js` for rules that hold everywhere.
+`test/harness.js` holds `check`/`eq`/`near`/`ok`; `test/run.js` only loads them
+and reports. A new test goes in the file matching the code it covers.
 Requiring `app.js` still gets everything, because it re-exports the other two.
 
 **Beat detection answers with a confidence, and callers must honor it.**
