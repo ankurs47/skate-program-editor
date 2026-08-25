@@ -13,7 +13,9 @@
  *   analysis.test.js    beats, phrases, loudness
  *   formats.test.js     ID3/MPEG/Ogg parsing, the quality verdict
  *   app.test.js         layout, envelopes, undo, the project file
- *   assets.test.js      wiring, and the shipped files themselves
+ *   assets.test.js      wiring, and the app's own files
+ *   site.test.js        the guide, the logo, and how a link to this looks
+ *   repo.test.js        what must never ship, and how everything is spelled
  *
  * Loading a test file runs its checks — `check` records rather than throws, so
  * one failure never hides the rest. This file only collects the totals.
@@ -28,6 +30,8 @@ require('./analysis.test.js');
 require('./formats.test.js');
 require('./app.test.js');
 require('./assets.test.js');
+require('./site.test.js');
+require('./repo.test.js');
 
 /* Off by default: it reaches the network, and a test suite that fails when the
    wifi does is a test suite people stop trusting. CI runs it. */

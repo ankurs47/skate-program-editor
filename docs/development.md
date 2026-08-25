@@ -89,8 +89,13 @@ docs/
   docs.css
 test/
   harness.js          check/eq/near/ok, and where the shipped files are
-  run.js              runs the four unit files
-  *.test.js           one per source file, plus assets.test.js for wiring
+  run.js              loads the test files and reports the totals
+  analysis.test.js    beats, phrases, loudness
+  formats.test.js     container and codec parsing, the quality verdict
+  app.test.js         layout, envelopes, undo, the project file
+  assets.test.js      wiring, and the app's own files
+  site.test.js        the guide, the logo, and how a link to this looks
+  repo.test.js        what must never ship, and how everything is spelled
   dom/                headless-Chrome checks over CDP
   mutate.js           the mutation runner
   mutations.json      the mutations themselves
@@ -124,11 +129,17 @@ refusing to match non-MPEG data, beat detection reading the right tempo off a
 known one while declining to claim a beat in material that has none, and loudness
 measurement agreeing with an independent meter.
 
-`assets.test.js` covers the wiring rather than the logic: that a saved project
-survives a round trip through the file format, that every element id the code
-reaches for exists in the HTML, that every help button has content, that both
-color themes define the same variables, and that no personal information or
-local path ever ships.
+Three more cover things that are not logic at all. `assets.test.js` is the
+wiring: every element id the code reaches for exists in the HTML, every help
+button has content, both color themes define the same variables. `site.test.js`
+is what gets served: the guide, the logo, the README badges, and the tags that
+decide how a link to this looks in a search result. `repo.test.js` is the rules
+that apply everywhere: no personal information, no path off this machine, and
+American spellings including in comments.
+
+They were one file until it had grown to twenty-seven checks across three
+unrelated subjects, which is how a test file stops being somewhere anyone
+thinks to look.
 
 The harness catches, so one failure does not hide the rest. A run reports
 everything that is wrong at once, which is what makes it worth running after a
@@ -243,8 +254,9 @@ These are the ones that will get a change rejected, and they are the same list
 ## Adding a test
 
 Put it in the file matching the source file it covers — `analysis.test.js`,
-`formats.test.js`, `app.test.js` — or in `assets.test.js` if it is about wiring
-or the shipped files rather than logic.
+`formats.test.js`, `app.test.js`. If it is not about logic, ask what it is
+about: the app's own wiring goes in `assets.test.js`, anything published in
+`site.test.js`, and a rule that holds repository-wide in `repo.test.js`.
 
 ```js
 check('what should be true, in a sentence', () => {
