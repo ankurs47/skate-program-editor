@@ -251,6 +251,63 @@ async function main() {
       ok(out.withClip.scrubHelp, 'the scrubber lost its explanation');
     });
 
+    await check('a note is saved with the program and comes back with it', async () => {
+      /* The one field here nothing else reads. It still has to survive a save,
+         restore on reload, sit inside undo the way the program name does, and
+         go away with the program it belonged to. */
+      const out = await run(`
+        window.__reset([['a.mp3', window.__tone(220, 30)]]);
+        const box = document.getElementById('notesBox');
+        const area = document.getElementById('programNotes');
+
+        const closedToStart = { open: box.open, value: area.value };
+
+        // Typed, not assigned: the input event is what the app listens for.
+        area.value = 'coach wants the slow part longer';
+        area.dispatchEvent(new Event('input', { bubbles: true }));
+        const typed = { state: state.notes, stored: JSON.parse(localStorage.getItem('skate.program.v1')).notes };
+
+        // Reopening the saved project brings it back, and shows it.
+        box.open = false;
+        loadProject(JSON.parse(localStorage.getItem('skate.program.v1')));
+        const reopened = { open: box.open, value: area.value, state: state.notes };
+
+        // A second burst of typing, then undo, restores the first.
+        area.value = 'and a cleaner cut into the finish';
+        area.dispatchEvent(new Event('input', { bubbles: true }));
+        endUndoRun();
+        undo();
+        const undone = { state: state.notes, value: area.value };
+
+        startNewProgram();
+        const fresh = { state: state.notes, value: area.value, open: box.open };
+
+        return { closedToStart, typed, reopened, undone, fresh };
+      `);
+
+      eq(
+        out.closedToStart,
+        { open: false, value: '' },
+        'a program with no note should say nothing: ',
+      );
+      eq(out.typed.state, 'coach wants the slow part longer', 'typing did not reach the program: ');
+      eq(out.typed.stored, 'coach wants the slow part longer', 'the note was not saved: ');
+      eq(
+        out.reopened.state,
+        'coach wants the slow part longer',
+        'the note did not survive a reload: ',
+      );
+      eq(
+        out.reopened.value,
+        'coach wants the slow part longer',
+        'the note did not reach the box: ',
+      );
+      ok(out.reopened.open, 'a project carrying a note opened with it hidden');
+      eq(out.undone.state, 'coach wants the slow part longer', 'undo did not put the note back: ');
+      eq(out.undone.value, 'coach wants the slow part longer', 'undo did not reach the box: ');
+      eq(out.fresh, { state: '', value: '', open: false }, 'a new program kept the old note: ');
+    });
+
     /* --------------------------------------------------------------- undo */
 
     await check('a held key is one undo step, and spares the history', async () => {

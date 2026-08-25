@@ -403,5 +403,32 @@
     "find": "    $schema: SCHEMA_URL,",
     "replace": "    $schema: 'https://example.invalid/schema.json',",
     "expect": "schema that is published"
+  },
+  {
+    "name": "a note is typed but never saved",
+    "guards": "a note survives being written",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "  $('programNotes').oninput = (e) => {\n    pushUndo('program-notes');\n    state.notes = e.target.value;\n    save();\n  };",
+    "replace": "  $('programNotes').oninput = (e) => {\n    void e;\n  };",
+    "expect": "note is saved with the program"
+  },
+  {
+    "name": "a project opens with its note hidden",
+    "guards": "a note that was written is read",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "  if (state.notes) $('notesBox').open = true;",
+    "replace": "  void 0;",
+    "expect": "note is saved with the program"
+  },
+  {
+    "name": "a project load folds into the gesture before it",
+    "guards": "undo never lands in a program that was never on screen",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "  endUndoRun();\n  state.name = read.name;",
+    "replace": "  state.name = read.name;",
+    "expect": "note is saved with the program"
   }
 ]

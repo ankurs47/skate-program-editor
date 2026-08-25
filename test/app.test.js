@@ -784,14 +784,20 @@ check('project file: the $schema it writes is the schema that is published', () 
   const schema = JSON.parse(
     fs.readFileSync(path.join(ROOT, 'docs/program.skate.schema.json'), 'utf8'),
   );
-  eq(app.SCHEMA_URL, schema.$id, 'the written $schema and the schema $id disagree: ');
-  const site = 'https://ankurs47.github.io/skate-program-editor/';
-  ok(app.SCHEMA_URL.startsWith(site), `the schema URL is not on this site: ${app.SCHEMA_URL}`);
-  eq(
-    app.SCHEMA_URL.slice(site.length),
-    'docs/program.skate.schema.json',
-    'the URL does not point at where the file is published: ',
-  );
+  /* Read out of a document the app actually produced, not out of the constant.
+     Asserting the constant leaves the writing of it untested — the mutation
+     that pointed a saved file somewhere else survived exactly that way. */
+  withProgram({ name: 'x', level: 'usfs-juv', targetSeconds: 135, clips: [] }, () => {
+    const written = app.project().$schema;
+    eq(written, schema.$id, 'the written $schema and the schema $id disagree: ');
+    const site = 'https://ankurs47.github.io/skate-program-editor/';
+    ok(written.startsWith(site), `the schema URL is not on this site: ${written}`);
+    eq(
+      written.slice(site.length),
+      'docs/program.skate.schema.json',
+      'the URL does not point at where the file is published: ',
+    );
+  });
 });
 
 check('project file: a field this app has never heard of survives a save', () => {
@@ -1020,7 +1026,14 @@ check('undo: a snapshot holds the length being worked to, not only the clips', (
     },
     () => {
       const held = JSON.parse(app.undoSnapshot());
-      eq(Object.keys(held).sort(), ['clips', 'level', 'name', 'targetSeconds', 'toleranceSeconds']);
+      eq(Object.keys(held).sort(), [
+        'clips',
+        'level',
+        'name',
+        'notes',
+        'targetSeconds',
+        'toleranceSeconds',
+      ]);
       eq(held.name, 'my long program');
       eq(held.level, 'usfs-jr');
       eq(held.targetSeconds, 210);

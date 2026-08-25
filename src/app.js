@@ -266,6 +266,7 @@ let undoRun = { tag: null, at: 0 };
 function undoSnapshot() {
   return JSON.stringify({
     name: state.name,
+    notes: state.notes,
     level: state.level,
     targetSeconds: state.targetSeconds,
     toleranceSeconds: state.toleranceSeconds,
@@ -326,6 +327,7 @@ function takeRedo() {
 function applySnapshot(json) {
   const saved = JSON.parse(json);
   state.name = saved.name;
+  state.notes = saved.notes || '';
   state.level = saved.level;
   state.targetSeconds = saved.targetSeconds;
   state.toleranceSeconds = saved.toleranceSeconds;
@@ -334,6 +336,7 @@ function applySnapshot(json) {
     state.selected = state.clips.length ? state.clips[state.clips.length - 1].id : null;
   }
   $('programName').value = state.name;
+  syncNotes();
   syncLevelPicker();
   refresh();
 }
@@ -549,6 +552,11 @@ function loadProject(data) {
     );
     return false;
   }
+  /* Whatever gesture was in progress is over: a different program is being
+     opened. Without this, typing before a load and typing after it fold into
+     one undo step that spans two programs, and undoing lands somewhere that
+     was never on screen. */
+  endUndoRun();
   state.name = read.name;
   state.level = read.level;
   state.targetSeconds = read.targetSeconds;
@@ -568,6 +576,7 @@ function loadProject(data) {
     );
   }
   $('programName').value = state.name;
+  syncNotes();
   syncLevelPicker();
   refresh();
 
@@ -622,6 +631,8 @@ function resetProgram() {
   state.exportSettings = null;
   state.notes = '';
   state.mediaDir = '';
+  $('programNotes').value = '';
+  $('notesBox').open = false;
   $('playhead').textContent = '0:00.0';
   try {
     localStorage.removeItem(STORE_KEY);
@@ -654,6 +665,7 @@ function startNewProgram() {
   }
 
   $('programName').value = state.name;
+  syncNotes();
   syncLevelPicker();
   allowStartDismissal(); // the choice has been made
   $('startDialog').classList.add('hidden');
@@ -769,6 +781,17 @@ function applyLevel(id) {
 
 /* ----------------------------------------------------------------- wiring */
 
+/**
+ * Put the note on screen, and open the disclosure when there is one to read.
+ *
+ * Only ever opens. Closing here would shut the box under someone who had opened
+ * it to write, since every keystroke saves and comes back through this.
+ */
+function syncNotes() {
+  $('programNotes').value = state.notes;
+  if (state.notes) $('notesBox').open = true;
+}
+
 function syncLevelPicker() {
   const select = $('targetLength');
   const custom = $('customLength');
@@ -782,11 +805,19 @@ function bind() {
   buildLevelPicker();
 
   $('programName').value = state.name;
+  syncNotes();
   // Tagged, so a name being typed is one undo step rather than one per letter.
   // The snapshot is taken before the assignment, so it holds the old name.
   $('programName').oninput = (e) => {
     pushUndo('program-name');
     state.name = e.target.value;
+    save();
+  };
+
+  // The same shape as the name above, for the same reason.
+  $('programNotes').oninput = (e) => {
+    pushUndo('program-notes');
+    state.notes = e.target.value;
     save();
   };
 

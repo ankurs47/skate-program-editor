@@ -300,6 +300,20 @@
           </div>
         </div>
 
+        <!-- A plain <details>, so the disclosure is the browser's own: it opens
+         with a click or Enter, announces its state, and needs no script. Opened
+         on load when the project has a note, so one that was written is read. -->
+        <details id="notesBox" class="notes">
+          <summary>Notes</summary>
+          <textarea
+            id="programNotes"
+            rows="3"
+            spellcheck="true"
+            placeholder="Anything worth remembering &mdash; what your coach asked for, what to try next."
+          ></textarea>
+          <p class="hint">Saved with the project. Nothing else reads it.</p>
+        </details>
+
         <div id="missingNotice" class="warn hidden">
           <p class="warn-head">Some songs still need to be added</p>
           <p class="hint" id="missingList"></p>
