@@ -335,49 +335,114 @@ function joinRoom(clip, entry, side) {
     : { min: Math.min(0, -clip.srcStart), max: Math.max(0, clipDuration(clip) - keep) };
 }
 
+/* What a project file is called and which shape of it this app understands.
+   The marker is checked before anything else is read, so a stray .json is
+   recognized as not one of these rather than half-loaded as an empty program.
+   The version is bumped only for a change an older reader would get wrong. */
+const FORMAT = 'skate-program';
+const FORMAT_VERSION = 1;
+
+/* The keys this reader knows. Anything else in a file — written by a desktop
+   shell, or by a version after this one — is carried through untouched rather
+   than dropped, so saving in one app never silently erases what another
+   recorded. `readProject` collects them and `project` puts them back. */
+const KNOWN_KEYS = ['format', 'version', 'name', 'event', 'songs', 'clips', 'export'];
+
+/** The keys of `from` that `known` does not list. */
+function unknownKeys(from, known) {
+  const rest = {};
+  for (const key of Object.keys(from || {})) {
+    if (!known.includes(key)) rest[key] = from[key];
+  }
+  return rest;
+}
+
+/**
+ * A clip's level, read from the decibels the file carries.
+ *
+ * Absent or unreadable means "as recorded" — 0 dB, never silent. A number is
+ * clamped to what the slider can reach before being converted, so a hand-typed
+ * 9999 comes back as the loudest the interface offers rather than as infinity,
+ * which `clipGain` will not accept and which would quietly become 1.
+ *
+ * The floor is 6% of the recording, not silence. `gainToDb` maps a gain of zero
+ * onto that same floor, so the two cannot be told apart in a file — and the
+ * slider cannot reach silence either. Reading the floor as silence would mean
+ * dragging a clip all the way down, saving, and finding it gone on reopening.
+ * A clip nobody wants to hear is one to delete, not to silence.
+ */
+function gainFromDb(db) {
+  if (typeof db !== 'number' || !isFinite(db)) return 1;
+  return clipGain({ gain: dbToGain(clamp(db, LEVEL_SLIDER.min, LEVEL_SLIDER.max)) });
+}
+
 /**
  * Read a saved project document into the state it describes.
  *
  * Pure — no DOM, nothing global touched — because this is the contract with
- * every project anyone has already saved, and `loadProject` could not be
- * checked at all while the parsing and the wiring were the same function.
+ * every project anyone saves, and `loadProject` could not be checked at all
+ * while the parsing and the wiring were the same function.
+ *
  * Anything absent or nonsense falls back to something usable rather than
- * throwing: a project file is a plain text document people do edit by hand.
+ * throwing: a project file is a plain text document people do edit by hand, and
+ * refusing one over a number that can be clamped would be no help to anybody.
+ *
+ * A version from the future is the exception, and the only thing here that is
+ * refused. Falling back would mean reading a file whose fields have meanings
+ * this app does not know — coming up with a program that looks plausible and is
+ * wrong. `unsupported` says so and the caller leaves the current program alone.
+ *
+ * The file speaks the language the interface speaks: song, start, end, blend,
+ * decibels. Clips are held in memory with the names the drawing and audio code
+ * has always used, and this function is the only place the two meet.
  *
  * `retargeted` names the level whose length no longer matches the stored time,
  * for the caller to mention. It is not an error — the stored time is the one
  * that wins.
  */
 function readProject(data) {
+  const doc = data && typeof data === 'object' ? data : {};
+  const version = Math.floor(Number(doc.version)) || 1;
+  if (version > FORMAT_VERSION) {
+    return { unsupported: { version, understands: FORMAT_VERSION } };
+  }
+
+  const event = doc.event && typeof doc.event === 'object' ? doc.event : {};
   // The stored time wins over the level's current table value, so reopening an
   // old program never silently retargets it because a rulebook number changed.
-  const targetSeconds = data.targetSeconds || 135;
-  let levelId = data.level || CUSTOM_LEVEL;
+  const targetSeconds = event.targetSeconds || 135;
+  let levelId = event.level || CUSTOM_LEVEL;
   const level = findLevel(levelId);
   const retargeted = level && level.seconds !== targetSeconds ? level : null;
   if (retargeted) levelId = CUSTOM_LEVEL;
 
+  const songs = Array.isArray(doc.songs) ? doc.songs.filter((s) => s && s.name) : [];
+
   return {
-    name: data.name || 'my program',
+    unsupported: null,
+    name: doc.name || 'my program',
     level: levelId,
     targetSeconds,
-    toleranceSeconds: data.toleranceSeconds || 10,
+    toleranceSeconds: event.toleranceSeconds || 10,
     retargeted,
-    // Absent in projects written before this existed, which is fine: without a
-    // record of what the songs were, nothing is claimed about them.
-    files: Array.isArray(data.files) ? data.files.filter((f) => f && f.name) : [],
-    clips: (data.clips || []).map((c) => ({
+    /* What each song was, kept whole. Without a record of them nothing is
+       claimed about the songs, which is a fine state for a hand-written file. */
+    songs,
+    exportSettings: doc.export && typeof doc.export === 'object' ? doc.export : null,
+    /* Top-level keys this reader does not know, handed back so `project` can
+       put them where it found them. Per-song ones need no such list: the song
+       records go into `state.expectedFiles` whole and are written back whole. */
+    carried: unknownKeys(doc, KNOWN_KEYS),
+    clips: (Array.isArray(doc.clips) ? doc.clips : []).map((c) => ({
       id: uid(),
-      file: c.file,
-      title: c.title || String(c.file).replace(/\.[^.]+$/, ''),
-      srcStart: c.srcStart || 0,
-      srcEnd: c.srcEnd || 0,
+      file: c.song,
+      title: c.title || String(c.song).replace(/\.[^.]+$/, ''),
+      srcStart: c.start || 0,
+      srcEnd: c.end || 0,
       fadeIn: c.fadeIn || 0,
       fadeOut: c.fadeOut || 0,
-      crossfade: c.crossfade || 0,
-      // Older project files predate levels and have no gain at all; missing
-      // means "as recorded", not silent.
-      gain: clipGain(c),
+      crossfade: c.blend || 0,
+      gain: gainFromDb(c.gainDb),
     })),
   };
 }
@@ -482,6 +547,10 @@ function parseClock(text) {
    them back into the single scope the script tags give them in a browser. */
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
+    FORMAT,
+    FORMAT_VERSION,
+    unknownKeys,
+    gainFromDb,
     SR,
     MIN_CROSSFADE,
     MIN_CLIP,

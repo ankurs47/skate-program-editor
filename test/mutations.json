@@ -76,8 +76,8 @@
     "guards": "a project can tell whether it has the right music",
     "file": "src/program.js",
     "suite": "unit",
-    "find": "    files: Array.isArray(data.files) ? data.files.filter((f) => f && f.name) : [],",
-    "replace": "    files: [],",
+    "find": "  const songs = Array.isArray(doc.songs) ? doc.songs.filter((s) => s && s.name) : [];",
+    "replace": "  const songs = [];",
     "expect": "records what each song was"
   },
   {
@@ -349,5 +349,32 @@
     "find": "#timelineWrap[data-mode=\"start\"] [data-when=\"pick\"],\n#timelineWrap:not([data-mode=\"start\"]) [data-when=\"start\"] {\n  display: none;\n}",
     "replace": "#timelineWrap[data-mode=\"start\"] [data-when=\"pick\"] {\n  display: none;\n}",
     "expect": "says the step that can actually be taken"
+  },
+  {
+    "name": "a field another tool wrote is erased on save",
+    "guards": "a save in one app does not delete what another recorded",
+    "file": "src/app.js",
+    "suite": "unit",
+    "find": "    ...state.carried,\n  };",
+    "replace": "  };",
+    "expect": "never heard of survives a save"
+  },
+  {
+    "name": "a recorded source is erased on save",
+    "guards": "what a song record already said survives being written back",
+    "file": "src/app.js",
+    "suite": "unit",
+    "find": "        ...stored,\n        name,",
+    "replace": "        name,",
+    "expect": "never heard of survives a save"
+  },
+  {
+    "name": "a project from a newer version is read anyway",
+    "guards": "a file this app cannot understand is refused, not guessed at",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "  if (version > FORMAT_VERSION) {",
+    "replace": "  if (false) {",
+    "expect": "version from the future is refused"
   }
 ]

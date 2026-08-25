@@ -31,7 +31,7 @@ const SCRIPTS = [
 ];
 /* The documentation pages. They are served alongside the app rather than only
    read on GitHub, so whatever must never ship applies to them too. */
-const DOCS = ['docs/help.html', 'docs/docs.css'];
+const DOCS = ['docs/help.html', 'docs/docs.css', 'docs/program.skate.schema.json'];
 const ASSETS = ['src/logo.svg'];
 const SHIPPED = ['index.html', 'src/style.css', ...SCRIPTS, ...DOCS, ...ASSETS];
 

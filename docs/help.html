@@ -455,29 +455,47 @@
       <p><b>Save project</b> writes a small, readable JSON file:</p>
 
       <pre><code>{
+  "format": "skate-program",
+  "version": 1,
   "name": "my 2026 junior long program",
-  "level": "usfs-jr",
-  "targetSeconds": 210,
-  "toleranceSeconds": 10,
-  "files": [
+  "event": {
+    "level": "usfs-jr",
+    "label": "Junior — 3:30 ±10s",
+    "targetSeconds": 210,
+    "toleranceSeconds": 10
+  },
+  "songs": [
     { "name": "chosen song.mp3", "bytes": 5216340, "seconds": 212.5,
       "fingerprint": "1k4v9p" }
   ],
   "clips": [
-    { "file": "chosen song.mp3", "srcStart": 4.76, "srcEnd": 77.08,
-      "fadeIn": 1.5, "fadeOut": 0, "crossfade": 0, "gain": 1 }
+    { "song": "chosen song.mp3", "title": "chosen song",
+      "start": 4.76, "end": 77.08,
+      "fadeIn": 1.5, "fadeOut": 0, "blend": 0, "gainDb": 0 }
   ]
 }</code></pre>
 
       <p>
-        <code>files</code> records what each song <em>was</em> &mdash; not where it was. A browser
+        The words are the ones the editor uses on screen. <code>start</code> and
+        <code>end</code> are seconds into the song, <code>blend</code> is how long this clip
+        overlaps the one before it, and <code>gainDb</code> is the level in decibels &mdash; the
+        same number the volume slider shows, where <code>0</code> means the song as recorded.
+      </p>
+      <p>
+        <code>songs</code> records what each song <em>was</em> &mdash; not where it was. A browser
         will not tell a page where a file lives, so a project cannot save a location. What it saves
         instead is enough to recognize a different song wearing the same name, which is the check
         described <a href="#wrong-song">above</a>.
       </p>
       <p>
-        Projects written before this have no <code>files</code> section and are read exactly as
-        before: with nothing recorded, nothing is claimed.
+        A file written by hand needs only <code>clips</code>: with no <code>songs</code> section,
+        nothing is claimed about the music. Anything missing falls back to something sensible rather
+        than refusing to open, so it is safe to edit.
+      </p>
+      <p>
+        <code>version</code> is the one thing that is not guessed at. A project saved by a newer
+        editor than the one you are using will say so and decline to open, rather than showing you a
+        program that looks right and is not.
       </p>
 
       <h2 id="export">Making the music file</h2>

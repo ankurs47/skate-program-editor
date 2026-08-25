@@ -108,7 +108,7 @@ thing that will not run.
 ## Commands
 
 ```bash
-npm test             # 168 unit, wiring and asset checks — fast, no browser
+npm test             # 172 unit, wiring and asset checks — fast, no browser
 npm run lint
 npm run check        # lint + test, which is what the pre-commit hook runs
 npm run test:net     # also re-verifies the pinned CDN hash over the network
@@ -151,12 +151,14 @@ docs/
   social-card.png     what a link to the site unfurls as
   development.md      this file
   docs.css
+  program.skate.schema.json   the format, for other tools to check against
 test/
   harness.js          check/eq/near/ok, and where the shipped files are
   run.js              loads the test files and reports the totals
   analysis.test.js    beats, phrases, loudness
   formats.test.js     container and codec parsing, the quality verdict
   app.test.js         layout, envelopes, undo, the project file
+  fixtures/           a saved project, asserted field by field
   assets.test.js      wiring, and the app's own files
   site.test.js        the guide, the logo, and how a link to this looks
   repo.test.js        what must never ship, and how everything is spelled
@@ -186,7 +188,7 @@ mistake.
 
 ### Unit checks
 
-`npm test` — 168 checks across six files, no browser, under a second.
+`npm test` — 172 checks across six files, no browser, under a second.
 
 They cover the parts that are easy to get quietly wrong: timeline math with
 overlapping blends, fade and crossfade envelopes summing correctly, filename
