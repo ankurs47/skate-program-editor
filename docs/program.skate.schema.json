@@ -69,6 +69,10 @@
             "description": "The file name alone, never a path. A host resolves it inside the project's media folder, so a separator here would be a way out of that folder.",
             "examples": ["opening theme.m4a"]
           },
+          "title": {
+            "type": "string",
+            "description": "What the music is called, for a person reading rather than a file system \u2014 often better than what the file ended up being named. A desktop app knows it from wherever it fetched the song. Absent means the file name without its extension."
+          },
           "bytes": {
             "type": ["integer", "null"],
             "minimum": 0,
@@ -143,7 +147,7 @@
           },
           "title": {
             "type": "string",
-            "description": "What to call this clip in the interface. Defaults to the song's name without its extension."
+            "description": "What to call this slice of the song in the interface, when it is called something other than the song itself. Absent means the song's title, which is the usual case: three clips cut from one song do not each need to repeat its name."
           },
           "start": {
             "type": "number",

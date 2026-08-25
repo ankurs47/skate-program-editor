@@ -469,6 +469,7 @@ function usedSongs() {
       return {
         ...stored,
         name,
+        title: songTitle(stored, name),
         bytes: measured.bytes || null,
         seconds: measured.duration
           ? Number(measured.duration.toFixed(2))
@@ -511,7 +512,12 @@ function project() {
     clips: state.clips.map((c) => ({
       id: c.id,
       song: c.file,
-      title: c.title,
+      /* Only when the clip is called something other than its song. Three clips
+         cut from one song repeating its name three times says nothing, and
+         renaming the song would then mean editing every one of them. */
+      ...(c.title && c.title !== songTitle(state.expectedFiles.get(c.file), c.file)
+        ? { title: c.title }
+        : {}),
       start: Number(c.srcStart.toFixed(3)),
       end: Number(c.srcEnd.toFixed(3)),
       fadeIn: Number((c.fadeIn || 0).toFixed(2)),

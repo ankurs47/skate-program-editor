@@ -350,7 +350,12 @@ const SCHEMA_URL = 'https://ankurs47.github.io/skate-program-editor/docs/program
 /* The keys this reader knows. Anything else in a file — written by a desktop
    shell, or by a version after this one — is carried through untouched rather
    than dropped, so saving in one app never silently erases what another
-   recorded. `readProject` collects them and `project` puts them back. */
+   recorded. `readProject` collects them and `project` puts them back.
+
+   Every key `project` writes has to appear here. One that does not is read back
+   as a carried key, and from the next save onwards the carried copy overwrites
+   whatever the app computed — the field silently freezes at the first value it
+   ever had. A check in app.test.js holds the two lists together. */
 const KNOWN_KEYS = [
   '$schema',
   'format',
@@ -371,6 +376,47 @@ function unknownKeys(from, known) {
     if (!known.includes(key)) rest[key] = from[key];
   }
   return rest;
+}
+
+/**
+ * What to call a song, for a person reading rather than a file system.
+ *
+ * The song's own title when it has one — a desktop shell knows it from wherever
+ * it fetched the music, and it is usually better than what the file ended up
+ * being called. Otherwise the file name without its extension, which is all the
+ * app can work out on its own.
+ */
+function songTitle(song, name) {
+  const given = song && typeof song.title === 'string' ? song.title.trim() : '';
+  return given || name.replace(/\.[^.]+$/, '');
+}
+
+/**
+ * The file name a song record names, with any path taken off it.
+ *
+ * A project holds names, never locations, and a desktop app resolves each one
+ * inside the folder holding the project — so a name carrying `../` would be a
+ * way out of that folder. Reducing it to the last component here means the app
+ * that resolves it is not the only thing standing in the way, and means a name
+ * typed by hand as a path still finds the file it obviously meant.
+ *
+ * Empty, or nothing but dots, names no file at all.
+ */
+function songName(value) {
+  const last = (typeof value === 'string' ? value : '').split(/[/\\]/).pop();
+  return /^\.*$/.test(last) ? '' : last;
+}
+
+/**
+ * A number of seconds from a file, which may hold anything at all.
+ *
+ * `1e999` parses as Infinity, and one of those in a trim spreads through the
+ * arithmetic until the timer reads NaN and the program has no length. Absent,
+ * negative and non-finite all mean zero: a hand-edited file should come up
+ * looking wrong, not take the page down.
+ */
+function seconds(value) {
+  return typeof value === 'number' && isFinite(value) && value > 0 ? value : 0;
 }
 
 /**
@@ -449,7 +495,12 @@ function readProject(data) {
   const retargeted = level && level.seconds !== targetSeconds ? level : null;
   if (retargeted) levelId = CUSTOM_LEVEL;
 
-  const songs = Array.isArray(doc.songs) ? doc.songs.filter((s) => s && s.name) : [];
+  const songs = (Array.isArray(doc.songs) ? doc.songs : [])
+    .filter((song) => song && typeof song === 'object' && songName(song.name))
+    .map((song) => ({ ...song, name: songName(song.name) }));
+  /* What each song is called, so a clip that says nothing about its own title
+     is shown the song's rather than its file name. */
+  const titles = new Map(songs.map((song) => [song.name, songTitle(song, song.name)]));
 
   return {
     unsupported: null,
@@ -471,21 +522,32 @@ function readProject(data) {
        put them where it found them. Per-song ones need no such list: the song
        records go into `state.expectedFiles` whole and are written back whole. */
     carried: unknownKeys(doc, KNOWN_KEYS),
-    clips: (Array.isArray(doc.clips) ? doc.clips : []).map((c) => ({
-      /* The file's own id, so anything that refers to a clip still refers to
+    /* A clip that is not an object names nothing and cannot be drawn. Dropped
+       rather than read, because reading one throws and this must not: it is
+       what opens every file anybody has, including hand-edited ones. */
+    clips: (Array.isArray(doc.clips) ? doc.clips : [])
+      .filter((c) => c && typeof c === 'object' && songName(c.song))
+      .map((c) => ({
+        /* The file's own id, so anything that refers to a clip still refers to
          the same one after a save. Selecting and removing are by id and two
          clips sharing one would take each other out, so a repeated or unusable
          id is replaced rather than trusted. */
-      id: claimId(c.id, taken),
-      file: c.song,
-      title: c.title || String(c.song).replace(/\.[^.]+$/, ''),
-      srcStart: c.start || 0,
-      srcEnd: c.end || 0,
-      fadeIn: c.fadeIn || 0,
-      fadeOut: c.fadeOut || 0,
-      crossfade: c.blend || 0,
-      gain: gainFromDb(c.gainDb),
-    })),
+        id: claimId(c.id, taken),
+        file: songName(c.song),
+        /* The clip's own label when it has one, then the song's title, then
+           the bare file name. A clip is a slice of a song and usually wants no
+           name of its own; one that has been labeled keeps its label. */
+        title:
+          (typeof c.title === 'string' && c.title.trim()) ||
+          titles.get(songName(c.song)) ||
+          songName(c.song).replace(/\.[^.]+$/, ''),
+        srcStart: seconds(c.start),
+        srcEnd: seconds(c.end),
+        fadeIn: seconds(c.fadeIn),
+        fadeOut: seconds(c.fadeOut),
+        crossfade: seconds(c.blend),
+        gain: gainFromDb(c.gainDb),
+      })),
   };
 }
 
@@ -593,7 +655,11 @@ if (typeof module !== 'undefined' && module.exports) {
     FORMAT_VERSION,
     SCHEMA_URL,
     claimId,
+    KNOWN_KEYS,
     unknownKeys,
+    songName,
+    songTitle,
+    seconds,
     gainFromDb,
     SR,
     MIN_CROSSFADE,

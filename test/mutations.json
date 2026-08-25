@@ -76,7 +76,7 @@
     "guards": "a project can tell whether it has the right music",
     "file": "src/program.js",
     "suite": "unit",
-    "find": "  const songs = Array.isArray(doc.songs) ? doc.songs.filter((s) => s && s.name) : [];",
+    "find": "  const songs = (Array.isArray(doc.songs) ? doc.songs : [])\n    .filter((song) => song && typeof song === 'object' && songName(song.name))\n    .map((song) => ({ ...song, name: songName(song.name) }));",
     "replace": "  const songs = [];",
     "expect": "records what each song was"
   },
@@ -430,5 +430,41 @@
     "find": "  endUndoRun();\n  state.name = read.name;",
     "replace": "  state.name = read.name;",
     "expect": "note is saved with the program"
+  },
+  {
+    "name": "a stray null in the clips takes the page down",
+    "guards": "opening a file never throws, whatever is in it",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "      .filter((c) => c && typeof c === 'object' && songName(c.song))\n",
+    "replace": "",
+    "expect": "makes opening it throw"
+  },
+  {
+    "name": "a trim from a file is trusted to be a number",
+    "guards": "a program always has a length",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "  return typeof value === 'number' && isFinite(value) && value > 0 ? value : 0;",
+    "replace": "  return value;",
+    "expect": "makes opening it throw"
+  },
+  {
+    "name": "a clip keeps whatever path its song name carried",
+    "guards": "a name from a file can never point outside the project",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "        file: songName(c.song),",
+    "replace": "        file: c.song,",
+    "expect": "never be a path"
+  },
+  {
+    "name": "a song stops carrying what it is called",
+    "guards": "the title of the music is a fact about the song",
+    "file": "src/app.js",
+    "suite": "unit",
+    "find": "        title: songTitle(stored, name),",
+    "replace": "        title: name,",
+    "expect": "belongs to the song"
   }
 ]
