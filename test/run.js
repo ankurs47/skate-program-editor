@@ -17,14 +17,15 @@
  *   site.test.js        the guide, the logo, and how a link to this looks
  *   repo.test.js        what must never ship, and how everything is spelled
  *
- * Loading a test file runs its checks — `check` records rather than throws, so
- * one failure never hides the rest. This file only collects the totals.
+ * Loading a test file queues its checks; this file runs them and collects the
+ * totals. `check` records a failure rather than throwing, so one never hides
+ * the rest — and queueing is what lets an async check be an ordinary one.
  */
 'use strict';
 
 const crypto = require('crypto');
 const { execFileSync } = require('child_process');
-const { app, check, eq, results, writeReport, reportPath } = require('./harness.js');
+const { app, check, runAll, eq, results, writeReport, reportPath } = require('./harness.js');
 
 require('./analysis.test.js');
 require('./formats.test.js');
@@ -51,16 +52,18 @@ if (process.argv.includes('--net')) {
 
 /* ---------------------------------------------------------------- report */
 
-const { passed, failures } = results();
-for (const failure of failures) console.error(`  FAIL  ${failure}`);
-console.log(`\n${passed} passed, ${failures.length} failed`);
+runAll().then(() => {
+  const { passed, failures } = results();
+  for (const failure of failures) console.error(`  FAIL  ${failure}`);
+  console.log(`\n${passed} passed, ${failures.length} failed`);
 
-writeReport(reportPath(process.argv), {
-  suite: 'unit',
-  passed,
-  failed: failures.length,
-  net: process.argv.includes('--net'),
-  failures: failures.map((f) => f.split('\n')[0]),
+  writeReport(reportPath(process.argv), {
+    suite: 'unit',
+    passed,
+    failed: failures.length,
+    net: process.argv.includes('--net'),
+    failures: failures.map((f) => f.split('\n')[0]),
+  });
+
+  process.exit(failures.length ? 1 : 0);
 });
-
-process.exit(failures.length ? 1 : 0);

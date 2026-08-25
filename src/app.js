@@ -1184,9 +1184,16 @@ function bindHostImport() {
     button.onclick = offered ? () => offered.run() : null;
   }
   if (!offered) return;
-  /* When something arrives, read the folder again rather than being told what
-     changed: the folder is the truth, and one way of learning it is enough. */
-  if (offered.onAdded) offered.onAdded(() => openHostProject());
+  /* When something arrives, read the folder again rather than trusting the
+     account of it: the folder is the truth, and one way of learning what is in
+     it is enough. What the shell hands over is only what the folder cannot say
+     — a title, and where the song came from. */
+  if (offered.onAdded) {
+    offered.onAdded(async (entry) => {
+      await openHostMedia(entry);
+      refresh();
+    });
+  }
 }
 
 /**
@@ -1209,12 +1216,47 @@ async function openHostProject() {
   } catch (_) {
     toast('Could not read the project in this folder', 6000);
   }
+  await openHostMedia();
+  refresh();
+}
+
+/**
+ * Read the folder's music, decoding whatever is not already open.
+ *
+ * Apart from `openHostProject` because the two happen at different moments and
+ * mean different things. Opening a folder is both: a program and its songs. A
+ * song *arriving* — a shell finished fetching one — changes the media folder
+ * and nothing else, and reloading the program from disk for it would throw away
+ * whatever was being edited in the seconds it took.
+ *
+ * `added` is what the shell knows about the song that the file itself cannot
+ * say: what it is called where it came from, and where that was. Recorded here
+ * so it survives into the project file — see `usedSongs`, which spreads this
+ * over what it measures. It appears in the saved file once a clip uses the
+ * song, which is the point at which the song is part of the program.
+ */
+async function openHostMedia(added) {
+  const folder = hostProject();
+  if (!folder) return;
+
+  if (added && typeof added === 'object' && added.name) {
+    const known = state.expectedFiles.get(added.name) || {};
+    state.expectedFiles.set(added.name, { ...known, ...added });
+  }
+
   try {
     const songs = (await folder.media()) || [];
     const files = [];
     for (const song of songs) {
       const name = song && typeof song === 'object' ? song.name : song;
       if (!name) continue;
+      /* Already decoded, so there is nothing to fetch. `addFiles` would skip it
+         anyway, but only after its bytes had been read out of the folder and
+         handed across — and the whole folder is read every time one song
+         arrives. The same test it uses, so a file that failed to decode last
+         time gets another go. */
+      const open = library.get(name);
+      if (open && open.buffer) continue;
       try {
         files.push(new File([await folder.open(name)], name));
       } catch (_) {
@@ -1225,7 +1267,6 @@ async function openHostProject() {
   } catch (_) {
     toast('Could not read the music in this folder', 6000);
   }
-  refresh();
 }
 
 /* ------------------------------------------------------- browser support */
@@ -1428,6 +1469,7 @@ if (typeof document !== 'undefined') {
     syncLevelPicker,
     bind,
     onKey,
+    openHostMedia,
     unsupportedReasons,
     readFileBytes,
     SMALL_SCREEN_KEY,

@@ -108,7 +108,7 @@ thing that will not run.
 ## Commands
 
 ```bash
-npm test             # 188 unit, wiring and asset checks — fast, no browser
+npm test             # 191 unit, wiring and asset checks — fast, no browser
 npm run lint
 npm run check        # lint + test, which is what the pre-commit hook runs
 npm run test:net     # also re-verifies the pinned CDN hash over the network
@@ -200,7 +200,7 @@ mistake.
 
 ### Unit checks
 
-`npm test` — 188 checks across six files, no browser, under a second.
+`npm test` — 191 checks across six files, no browser, under a second.
 
 They cover the parts that are easy to get quietly wrong: timeline math with
 overlapping blends, fade and crossfade envelopes summing correctly, filename
@@ -225,6 +225,12 @@ thinks to look.
 The harness catches, so one failure does not hide the rest. A run reports
 everything that is wrong at once, which is what makes it worth running after a
 refactor rather than before.
+
+Checks are queued where they are written and run by `runAll`, so an async body
+is as ordinary as a synchronous one. That was not always true: run on the spot,
+an async check returned a promise nobody waited for and was counted as passed
+the instant it started. Two checks written that way passed against code that
+did none of what they described.
 
 ### Browser checks
 

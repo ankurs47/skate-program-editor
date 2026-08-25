@@ -529,5 +529,32 @@
     "find": "    button.classList.toggle('hidden', !offered);",
     "replace": "    button.classList.remove('hidden');",
     "expect": "exactly the page it was"
+  },
+  {
+    "name": "a song arrives and nothing records where it came from",
+    "guards": "what a shell knows about a song reaches the project file",
+    "file": "src/app.js",
+    "suite": "unit",
+    "find": "    state.expectedFiles.set(added.name, { ...known, ...added });",
+    "replace": "    void known;",
+    "expect": "what a shell knows about a song"
+  },
+  {
+    "name": "a song arriving reopens the program underneath it",
+    "guards": "only the folder's music is re-read, never the program",
+    "file": "src/app.js",
+    "suite": "unit",
+    "find": "  if (added && typeof added === 'object' && added.name) {",
+    "replace": "  await folder.read();\n  if (added && typeof added === 'object' && added.name) {",
+    "expect": "does not reopen the program"
+  },
+  {
+    "name": "a song already open is fetched out of the folder again",
+    "guards": "one song arriving does not re-read every song there is",
+    "file": "src/app.js",
+    "suite": "unit",
+    "find": "      if (open && open.buffer) continue;",
+    "replace": "      if (false && open && open.buffer) continue;",
+    "expect": "already open is not fetched"
   }
 ]
