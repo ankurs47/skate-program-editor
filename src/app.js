@@ -722,6 +722,10 @@ function bind() {
 
   $('btnAddFiles').onclick = pickFiles;
   $('btnAddMissing').onclick = pickFiles;
+  /* The same two routes as the topbar, put where someone with an empty program
+     is already looking. */
+  $('btnEmptyAdd').onclick = pickFiles;
+  $('btnEmptyLoad').onclick = () => $('projectInput').click();
   $('btnReconnect').onclick = reconnectMissing;
 
   $('btnNew').onclick = () => openStartDialog(true);

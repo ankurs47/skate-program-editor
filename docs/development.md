@@ -214,7 +214,7 @@ refactor rather than before.
 
 ### Browser checks
 
-`npm run test:dom` — 35 checks in real headless Chrome, driven over the DevTools
+`npm run test:dom` — 36 checks in real headless Chrome, driven over the DevTools
 Protocol. No dependency: Node 22 has a global `WebSocket`, and Chrome speaks CDP
 over one.
 

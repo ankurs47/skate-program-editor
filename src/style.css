@@ -649,7 +649,8 @@ body.dropping .dropzone {
   color: var(--accent);
   background: var(--accent-soft);
 }
-body.dropping #timelineWrap .timeline {
+body.dropping #timelineWrap .timeline,
+body.dropping #timelineWrap[data-mode="start"] .empty {
   border-color: var(--accent);
   background: var(--accent-soft);
 }
@@ -687,7 +688,60 @@ body.dropping #timelineWrap .timeline {
   place-items: center;
   color: var(--muted);
   font-size: 14px;
+  /* The panel behind this is a drop target, so the overlay lets everything
+     through; the buttons inside take their clicks back. */
   pointer-events: none;
+  padding: 12px;
+}
+/* One grid item, not several. Grid blockifies each run of text, so a bare
+   sentence with a <b> in it comes out as three stacked lines — including the
+   full stop on a line of its own. */
+.empty-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+.empty-lead {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.empty-sub {
+  margin: 0;
+  max-width: 46ch;
+}
+.empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 2px;
+  pointer-events: auto;
+}
+.empty-card .hint {
+  margin: 0;
+}
+/* Whichever state is not current is not there at all, so nothing reads it out
+   to a screen reader either. */
+#timelineWrap[data-mode="start"] [data-when="pick"],
+#timelineWrap:not([data-mode="start"]) [data-when="start"] {
+  display: none;
+}
+/* With nothing added there is no strip to overlay, so the card stands in the
+   slot and the wrapper takes its height from it — an absolutely positioned
+   overlay contributes none, and the card is taller than an empty strip. */
+#timelineWrap[data-mode="start"] .timeline {
+  display: none;
+}
+#timelineWrap[data-mode="start"] .empty {
+  position: static;
+  padding: 26px 12px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
 }
 .tl-clip {
   position: relative;

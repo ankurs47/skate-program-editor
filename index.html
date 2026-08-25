@@ -318,8 +318,25 @@
 
         <div id="timelineWrap">
           <div id="timeline" class="timeline"></div>
-          <div id="timelineEmpty" class="empty">
-            Pick a song on the left and press <b>Add to program</b>.
+          <!-- Two states, not one. With nothing in the library, "pick a song on
+           the left" points at an empty panel — so the first run gets the step
+           that can actually be taken. Both are written out here and chosen
+           between with data-mode, so nothing builds this text at runtime. -->
+          <div id="timelineEmpty" class="empty" data-mode="start">
+            <div class="empty-card">
+              <p class="empty-lead" data-when="start">Start by adding your music</p>
+              <p class="empty-sub" data-when="start">
+                Two or three songs is usual. They stay on this computer.
+              </p>
+              <div class="empty-actions" data-when="start">
+                <button id="btnEmptyAdd" class="primary">Add your music</button>
+                <button id="btnEmptyLoad">Load a saved project</button>
+              </div>
+              <p class="hint" data-when="start">or drop the files anywhere on this page</p>
+              <p class="empty-lead" data-when="pick">
+                Pick a song on the left and press <b>Add to program</b>
+              </p>
+            </div>
           </div>
         </div>
 
