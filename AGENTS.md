@@ -27,7 +27,7 @@ src/style.css    theming via CSS custom properties, light and dark
 docs/            help.html — the user guide, linked from the topbar;
                  development.md; docs.css, whose color tokens copy
                  style.css's and are held to them by a test
-test/            167 checks, no dependencies — one file per testable script
+test/            168 checks, no dependencies — one file per testable script
 test/dom/        browser checks and render budgets, driven over CDP
 tools/           music-get.sh and .cmd — optional YouTube downloader, not the app
 ```
@@ -158,6 +158,14 @@ is not evidence of anything. **When you add a check worth trusting, add the
 mutation that proves it can fail.** It runs on every push to `main`, weekly, and
 on demand; not on pull requests, where it would add minutes to every push and
 break for reasons unrelated to the change.
+
+**Write the anchor against the formatted file, not the one you typed.** Prettier
+reflows a ternary and rewrites a quote on the way into the commit, and an anchor
+matching the shape you wrote stops matching the shape that lands — silently,
+because only a mutation run looks. Add the mutation, run the hooks, then check
+the anchor still matches. `repo.test.js` checks every anchor on every commit for
+exactly this reason, so the second it costs there is an afternoon it does not
+cost in a mutation run.
 
 **Run it in a worktree, which is what `npm run test:mutate` now does.** The
 runner edits source files in place, so a run and an edit in the same tree ruin
