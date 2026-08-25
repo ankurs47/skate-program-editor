@@ -45,53 +45,18 @@ npm install
 `npm install` turns on a pre-commit hook, so **checks run before every commit**.
 `git commit --no-verify` skips it in an emergency.
 
-Which checks depends on what you have. With [pre-commit](https://pre-commit.com)
-installed — `pip install pre-commit` — it owns the hook and you get the whole set
-in `.pre-commit-config.yaml`: whitespace and end-of-file fixes, YAML and JSON
-parsing, yamllint, markdownlint, shellcheck over the three shell scripts,
-codespell, prettier,
-stylelint, then eslint and the unit suite.
+The hooks are in `.pre-commit-config.yaml`: whitespace and end-of-file fixes,
+YAML and JSON parsing, yamllint, markdownlint, shellcheck over the shell scripts,
+codespell, Prettier, stylelint, then eslint and the unit suite.
 
-Prettier formats the JavaScript, CSS, JSON, YAML and Markdown. Only HTML is kept
-out, and `.prettierignore` says why: it turned 1,138 lines into 2,376 by
-re-indenting markup whose structure and comments are deliberate. The HTML has
-structural checks in `assets.test.js` and `site.test.js` instead.
+`npm install` runs `tools/install-hooks.js`, which turns them on. Without
+`pre-commit` on the machine it says so and stops — a missing tool should not fail
+someone's install — and nothing checks your commits until CI does.
 
-CSS costs 816 changed lines of 1,040, almost all of it one-line rules being
-expanded. Worth checking before believing that is only layout, which it is: with
-whitespace and leading zeros normalized the two files are otherwise identical,
-and the only other changes are `.5` written as `0.5`, `[type=range]` quoted, and
-spacing inside `rgba()`. No declaration changed, and the app renders the same.
-
-The `*.css` override keeps double quotes. Both are valid CSS — this is
-convention, not correctness: all 21 strings here were already double-quoted,
-which is what MDN, the spec's examples and stylelint-config-standard use.
-`singleQuote` is a JavaScript preference and should not follow the formatter
-into another language.
-
-The settings match what was already here rather than being taken as defaults:
-`singleQuote` and `printWidth: 100` between them halved the JavaScript diff, and
-`proseWrap: preserve` stops it rewrapping prose wrapped by hand. Three things no
-option controls are simply accepted — one space before a trailing comment, which
-loses the column alignment; expanded one-line CSS rules, which is why CSS is
-excluded; and `*emphasis*` normalized to `_emphasis_`.
-
-`.stylelintrc.json` names its rules outright instead of extending
-`stylelint-config-standard`. Two reasons: stylelint looks for an extended config
-next to the config file, and here that package lives in pre-commit's own
-environment where it would never be found — and the rules chosen are all
-"this is wrong" rather than "I prefer this", which is the same line drawn when
-Prettier was considered and declined. It would have rewritten 1,978 of app.js's
-3,162 lines, flattening the aligned comments that are most of what makes this
-code readable.
-
-stylelint and its environment belong to pre-commit, not to `package.json`, so
-the one-devDependency rule still holds and a contributor with only Node is
-unaffected. With only Node you fall back to `.githooks/pre-commit`, which runs
-lint and the unit suite — what this repo had before, and the part that is never
-optional. `tools/install-hooks.js` picks between them; the two cannot coexist,
-because git ignores `.git/hooks` once `core.hooksPath` is set and pre-commit
-refuses to install while it is.
+There was a second path here once, a plain git hook in `.githooks` for anyone
+without the framework. It went because two hook systems is two things to
+understand and the fallback was much the weaker: no shellcheck, no spelling, no
+formatting, none of the file hygiene.
 
 CI runs the same hooks, so a contributor without the framework still cannot land
 trailing whitespace, a shell bug or a typo.
