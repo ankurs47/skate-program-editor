@@ -32,11 +32,11 @@ function drawClipEditor() {
   const x = (t) => (t / duration) * w;
 
   /* Fade everything outside the kept region back towards the panel it sits on.
-     This used to be a flat rgba(0,0,0,.35), which reads as "dimmed" over a dark
-     panel and as a heavy gray slab over a light one — the discarded audio ended
-     up louder than the audio being kept. Painting the panel color over it
-     instead washes the waveform out in either theme, which is what dimming is
-     supposed to look like. */
+     The panel color rather than a flat rgba(0,0,0,.35): black reads as "dimmed"
+     over a dark panel and as a heavy gray slab over a light one, which leaves
+     the discarded audio looking louder than the audio being kept. Painting the
+     panel over it washes the waveform out in either theme, which is what
+     dimming is supposed to look like. */
   g.save();
   g.globalAlpha = 0.62;
   g.fillStyle = css('--panel');

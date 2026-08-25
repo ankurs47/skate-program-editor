@@ -56,9 +56,9 @@ check('qualityDetail: the tooltip says the numbers the badge refuses to', () => 
 });
 
 check('quality: judged per codec, not on the raw number', () => {
-  /* This calls the app's own judgment. It used to reimplement the thresholds
-     here and then assert against its own copy of them, which meant it would
-     have passed whatever `qualityKind` actually did — the thresholds were never
+  /* This calls the app's own judgment rather than restating the thresholds
+     here. A test carrying its own copy of them asserts against itself, and
+     passes whatever `qualityKind` actually does — leaving the thresholds not
      under test at all. */
   const verdict = (bitrate, codec) => app.qualityKind({ bitrate, codec });
   eq(verdict(128, 'opus'), 'good', '128k opus is genuinely fine: ');

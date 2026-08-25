@@ -53,10 +53,9 @@ codespell, Prettier, stylelint, then eslint and the unit suite.
 `pre-commit` on the machine it says so and stops — a missing tool should not fail
 someone's install — and nothing checks your commits until CI does.
 
-There was a second path here once, a plain git hook in `.githooks` for anyone
-without the framework. It went because two hook systems is two things to
-understand and the fallback was much the weaker: no shellcheck, no spelling, no
-formatting, none of the file hygiene.
+This is the only hook path. A plain git hook for anyone without the framework
+would be a second thing to understand and much the weaker of the two: no
+shellcheck, no spelling, no formatting, none of the file hygiene.
 
 CI runs the same hooks, so a contributor without the framework still cannot land
 trailing whitespace, a shell bug or a typo.
@@ -258,12 +257,15 @@ twice before the script existed.
 
 The worktree means you can keep editing while it runs. It also means
 **uncommitted work is not tested** — the script refuses to start on a dirty tree
-rather than quietly testing something else. `npm run test:mutate:here` is the
-old in-place behavior if you want it.
+rather than quietly testing something else. `npm run test:mutate:here` runs it
+in place if you want that.
 
 The runner restores from in-memory copies of the files, never from git. This is
-not a stylistic preference: an earlier version used `git checkout --` and
-destroyed uncommitted work.
+not a stylistic preference: `git checkout --` takes uncommitted work with it.
+
+The worktree cannot protect `tools/mutate-worktree.sh` itself. Bash reads a
+script by byte offset as it runs, so editing one mid-run makes it resume in the
+wrong place and fail with something unrecognizable. Let a run finish first.
 
 ## Continuous integration
 
@@ -314,10 +316,9 @@ These are the ones that will get a change rejected, and they are the same list
 - **Plain language in the interface.** "Make music file", not "Export". A word
   like _bitrate_, _codec_ or _render_ appearing in visible text is a defect;
   technical detail belongs in a tooltip.
-- **Feature-detect, never sniff the protocol.** An earlier version of the
-  documentation asserted the File System Access API was unavailable from
-  `file://`. Chrome treats `file://` as a secure context, so it is available, and
-  the claim was simply wrong.
+- **Feature-detect, never sniff the protocol.** Chrome treats `file://` as a
+  secure context, so the File System Access API is available from there. A rule
+  written against the protocol rather than the feature gets this wrong.
 
 ## Adding a test
 

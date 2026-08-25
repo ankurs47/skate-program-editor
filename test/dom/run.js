@@ -221,8 +221,8 @@ async function main() {
     });
 
     await check('undo puts back the target length, not just the clips', async () => {
-      /* Choosing the wrong event used to lose the length being worked to, with
-         nothing to get it back — and the timer is the number the edit is for. */
+      /* Choosing the wrong event must not lose the length being worked to with
+         nothing to get it back — the timer is the number the edit is for. */
       const result = await run(`
         window.__reset([['a.mp3', window.__tone(220, 30)]]);
         applyLevel('usfs-juv');
@@ -280,8 +280,8 @@ async function main() {
     /* ------------------------------------------------------------ dialogs */
 
     await check('a dialog owns the keyboard while it is open', async () => {
-      // The export dialog used to be left out of this, so Space, Delete and the
-      // trim keys still reached the program behind it.
+      // The export dialog included: leave one out and Space, Delete and the
+      // trim keys still reach the program behind it.
       const result = await run(`
         window.__reset([['a.mp3', window.__tone(220, 30)], ['b.mp3', window.__tone(330, 30)]]);
         state.selected = state.clips[1].id;
@@ -428,8 +428,8 @@ async function main() {
     /* -------------------------------------------------------- audio graph */
 
     await check('auditioning a clip applies its level and its fades', async () => {
-      /* It used to connect the source straight to the output, so a song set to
-         40% auditioned at 100% — which teaches the wrong thing about the edit. */
+      /* Connected straight to the output, a song set to 40% would audition at
+         100% — which teaches the wrong thing about the edit. */
       const result = await run(`
         window.__reset([['a.mp3', window.__tone(220, 30)]]);
         const clip = state.clips[0];
@@ -440,9 +440,8 @@ async function main() {
 
         const context = ctx();
         /* Follow the graph that is actually built, not the nodes that happen to
-           be constructed. Asserting the latter is how an earlier version of
-           this check passed while the source was wired straight to the output
-           and both gain nodes dangled unused. */
+           be constructed. Asserting the latter passes while the source is wired
+           straight to the output and both gain nodes dangle unused. */
         const edges = [];
         const realConnect = AudioNode.prototype.connect;
         AudioNode.prototype.connect = function (target) {
@@ -624,7 +623,7 @@ async function main() {
                           stillSelected: selectedClip().title };
 
         // A dragged text selection, and a dropped file: neither carries the
-        // private type, and both used to move the first song.
+        // private type, so neither may move a song.
         const blocks = () => [...document.querySelectorAll('.tl-clip')];
         for (const payload of ['some words', '1', '']) {
           const dt = new DataTransfer();
@@ -786,8 +785,8 @@ async function main() {
     /* -------------------------------------------------------------- drops */
 
     await check('music dropped anywhere on the page is taken', async () => {
-      /* It used to be the small box under the list only, and everywhere else
-         had a blanket preventDefault, so a drop on the timeline did nothing. */
+      /* Not just the small box under the list: a blanket preventDefault
+         everywhere else would mean a drop on the timeline did nothing. */
       const result = await run(`
         window.__reset([]);
         // A real DataTransfer carrying a file, as a drag from the desktop does.

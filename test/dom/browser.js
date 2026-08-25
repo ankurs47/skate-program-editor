@@ -94,9 +94,9 @@ function get(url) {
  *
  * Sixty seconds, not twenty. This only ever elapses when something is wrong —
  * the loop returns the moment Chrome answers, so a longer limit costs a fast
- * machine nothing. Twenty was enough until CI grew a step that installs several
- * Node environments immediately before this runs, and then it failed one run in
- * three on a busy runner. A browser check that fails for reasons unrelated to
+ * machine nothing. Twenty is not enough on a busy runner: CI installs several
+ * Node environments immediately before this runs, and twenty seconds fails
+ * about one run in three. A browser check that fails for reasons unrelated to
  * the change under review is one people learn to re-run without reading.
  */
 async function waitForPort(port, chrome) {

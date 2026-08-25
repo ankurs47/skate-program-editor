@@ -58,8 +58,8 @@ check('layout: empty program is zero, not NaN', () => {
 check('clips: trims are brought inside the file that actually arrives', () => {
   /* A project records trims but not the audio, so nothing checks those numbers
      against a real duration until the file turns up. Web Audio plays silence
-     past the end rather than failing, so an overrun used to show a clip
-     duration that was a lie and export a program of the wrong length. */
+     past the end rather than failing, so an unclamped overrun shows a clip
+     duration that is a lie and exports a program of the wrong length. */
   const clips = [
     { file: 'a.mp3', srcStart: 0, srcEnd: 200 }, // the file is only 120s long
     { file: 'a.mp3', srcStart: 10, srcEnd: 60 }, // already fits
@@ -149,11 +149,12 @@ check('reorder: moves on a real pair of positions, and only then', () => {
   eq(app.reordered(clips, 1, 1), null, 'a block dropped back on itself: ');
   eq(ids(clips), 'abc', 'the list handed in is never touched: ');
 
-  /* The drop handler used to read text/plain and hand the result straight over.
-     A dragged text selection parses to NaN, every comparison against NaN is
-     false, and the check only looked at the destination — so it went through,
-     and splice(NaN, 1) coerces to splice(0, 1). Dropping a stray selection on
-     the timeline silently moved the *first* song to wherever it landed. */
+  /* Where a drag began has to be validated, not just where it lands. A dragged
+     text selection carries text/plain, which parses to NaN; every comparison
+     against NaN is false, so a check that looks only at the destination lets it
+     through, and splice(NaN, 1) coerces to splice(0, 1). A stray selection
+     dropped on the timeline would silently move the *first* song to wherever it
+     landed. */
   for (const bad of [NaN, 1.5, -1, 3, 99, '1', null, undefined, Infinity]) {
     eq(app.reordered(clips, bad, 2), null, `dragged from ${JSON.stringify(bad)}: `);
     eq(app.reordered(clips, 0, bad), null, `dropped at ${JSON.stringify(bad)}: `);
@@ -292,9 +293,9 @@ check('blends: the two sides sum to 1 through the overlap', () => {
 });
 
 check('fmt: carries the minute rather than showing sixty seconds', () => {
-  /* Both formatters used to round the seconds after splitting the minutes off,
-     so anything that rounded up to 60 was displayed as sixty seconds: a 59.98s
-     program read "0:60.0" on the timer, and a 119.6s song listed as "1:60". */
+  /* Both formatters round before splitting the minutes off. The other way
+     round, anything that rounds up to 60 shows as sixty seconds: a 59.98s
+     program reads "0:60.0" on the timer, and a 119.6s song lists as "1:60". */
   eq(app.fmt(59.98), '1:00.0', 'rounding up to a whole minute has to carry: ');
   eq(app.fmt(119.97), '2:00.0');
   eq(app.fmtShort(59.7), '1:00');
@@ -680,9 +681,9 @@ function withClips(clips, fn) {
 }
 
 check('undo: a snapshot holds the length being worked to, not only the clips', () => {
-  /* Changing the event used to be outside the stack entirely, so picking the
-     wrong one lost the target length with no way back — the one number the
-     whole edit is aimed at. */
+  /* The event has to be inside the stack. Outside it, picking the wrong one
+     loses the target length with no way back — the one number the whole edit
+     is aimed at. */
   withProgram(
     {
       name: 'my long program',
@@ -767,11 +768,10 @@ check('undo: a fresh edit closes off the branch that was undone', () => {
 });
 
 check('undo: a held key is one gesture, not thirty entries', () => {
-  /* Key repeat fires about thirty times a second, and each repeat used to push
-     its own snapshot. The stack is sixty deep, so two seconds on the arrow key
-     emptied it and took every earlier edit with it. These calls are all inside
-     the coalescing window by virtue of running synchronously, which is exactly
-     the situation a held key produces. */
+  /* Key repeat fires about thirty times a second. One snapshot per repeat fills
+     the sixty-deep stack in two seconds and takes every earlier edit with it.
+     These calls are all inside the coalescing window by virtue of running
+     synchronously, which is exactly the situation a held key produces. */
   withClips([{ id: 'a', srcStart: 0, srcEnd: 10 }], () => {
     app.pushUndo(); // an ordinary edit
     for (let i = 0; i < 40; i++) app.pushUndo('nudge-end:a');

@@ -231,10 +231,9 @@ function setLibraryCollapsed(collapsed) {
 
 /* ----------------------------------------------------------------- clips */
 
-/* A held key repeats about thirty times a second, and every repeat used to push
-   its own snapshot. The stack is sixty deep, so two seconds on the arrow key
-   emptied it and took every earlier edit down with it — which is the one thing
-   an undo stack exists to prevent.
+/* A held key repeats about thirty times a second. One snapshot per repeat fills
+   a sixty-deep stack in two seconds and pushes every earlier edit off the end —
+   which is the one thing an undo stack exists to prevent.
 
    A run of repeats of the same key on the same clip is one gesture and gets one
    snapshot. `tag` is what says two calls belong to that run; untagged callers
@@ -248,10 +247,10 @@ let undoRun = { tag: null, at: 0 };
 /**
  * Everything an undo has to put back.
  *
- * Not just the clips. Renaming the program or changing the event used to be
- * outside the stack entirely, so picking the wrong level lost the length you
- * had been working to with no way back — the one number the whole edit is aimed
- * at. These are the same fields the project file records, for the same reason.
+ * Not just the clips. The name and the event are in here too: left outside the
+ * stack, picking the wrong level loses the length you were working to with no
+ * way back — the one number the whole edit is aimed at. These are the same
+ * fields the project file records, for the same reason.
  */
 function undoSnapshot() {
   return JSON.stringify({
@@ -925,9 +924,9 @@ function onKey(e) {
   // Escape closes whichever dialog is open, wherever focus happens to be.
   if (e.key === 'Escape' && closeTopDialog()) return;
 
-  // A dialog is open — it owns the keyboard, and Tab stays inside it. The
-  // export dialog used to be left out of this, so Space, Delete and the trim
-  // keys all still reached the program behind it.
+  // A dialog is open — it owns the keyboard, and Tab stays inside it. Every
+  // dialog, the export one included: leave one out and Space, Delete and the
+  // trim keys all still reach the program behind it.
   const dialog = openDialog();
   if (dialog) {
     trapFocus(e, dialog.querySelector('.modal-card') || dialog);

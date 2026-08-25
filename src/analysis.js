@@ -316,8 +316,8 @@ function refinePeriod(env, lag) {
  * What a metronome scores here when its period means nothing.
  *
  * Needed because the score at the chosen period is the maximum over dozens of
- * phases, and taking a maximum lifts the number even on formless audio — white
- * noise looked 50% confident before this existed. Unrelated periods get the
+ * phases, and taking a maximum lifts the number even on formless audio: with no
+ * correction, white noise scores around 50% confident. Unrelated periods get the
  * same free lift, so dividing by them cancels it out.
  *
  * Periods related to `period` by a simple ratio are skipped: half, double and
@@ -943,7 +943,7 @@ function windowAround(buffer, at, opts = {}) {
  * Beats first, because a shared pulse is the strongest thing two pieces of
  * music can have in common. When there isn't one — rubato piano, a free-time
  * introduction, most of the orchestral repertoire — fall back to phrasing
- * rather than giving up, which is what this used to do.
+ * rather than giving up.
  */
 function suggestJoinForBuffers(outBuffer, cutOut, incBuffer, cutIn, opts = {}) {
   const a = windowAround(outBuffer, cutOut, opts);

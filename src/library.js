@@ -446,10 +446,10 @@ function draggingFiles(e) {
 /**
  * Accept music dropped anywhere on the page.
  *
- * It used to be the small box under the list only, and everywhere else had a
- * blanket preventDefault so nothing happened at all — including on the timeline,
- * which is the obvious thing to aim at. A drop on the timeline also puts the
- * songs in the program, because that is plainly what was meant by it.
+ * Anywhere, not just the small box under the list. The timeline is the obvious
+ * thing to aim at, and a blanket preventDefault everywhere else would mean a
+ * drop there did nothing at all. A drop on the timeline also puts the songs in
+ * the program, because that is plainly what was meant by it.
  *
  * `dragenter` and `dragleave` fire for every element the pointer crosses, so
  * the highlight is driven by a depth count rather than by the last event seen.

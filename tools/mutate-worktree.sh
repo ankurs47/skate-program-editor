@@ -4,11 +4,15 @@
 # The runner edits source files in place. Doing that in the working tree you are
 # using means two things go wrong at once: your edits land in the middle of a
 # run, so its results describe a file nobody wrote, and the runner's restore
-# writes its own copy back over whatever you changed in the meantime. Both
-# happened before this script existed.
+# writes its own copy back over whatever you changed in the meantime.
 #
 # A worktree gives the runner its own checkout of HEAD to chew on, so the tree
 # you are working in is never touched and you can keep editing while it runs.
+#
+# One thing it cannot protect is this file. Bash reads a script by byte offset
+# as it goes, so editing one that is running makes it resume at the wrong place
+# and fail with something that looks nothing like the cause. Let a run finish
+# before changing this script.
 #
 #   ./tools/mutate-worktree.sh            # every mutation
 #   ./tools/mutate-worktree.sh --only 3   # whatever flags test/mutate.js takes
