@@ -57,6 +57,9 @@ const browser = {
   OfflineAudioContext: 'readonly',
   FileReader: 'readonly',
   Blob: 'readonly',
+  // Built from bytes a desktop shell hands over, so music from a project
+  // folder goes in through the same door as a drop or the file picker.
+  File: 'readonly',
   URL: 'readonly',
   DataView: 'readonly',
   TextDecoder: 'readonly',

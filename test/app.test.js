@@ -1300,6 +1300,100 @@ check('project file: a song name can never be a path', () => {
   }
 });
 
+/* ------------------------------------------------------- 1f. a desktop host */
+
+/** Runs `fn` with `window.skateHost` set to `given`, then puts the world back. */
+function withHost(given, fn) {
+  const had = 'window' in global;
+  const saved = had ? global.window : undefined;
+  global.window = { ...(saved || {}), skateHost: given };
+  try {
+    fn();
+  } finally {
+    if (had) global.window = saved;
+    else delete global.window;
+  }
+}
+
+/** A host with everything this app requires, plus whatever `extra` adds. */
+const workingHost = (extra = {}) => ({
+  version: app.HOST_VERSION,
+  project: {
+    name: () => 'a folder',
+    read: () => Promise.resolve(null),
+    write: () => Promise.resolve(),
+    media: () => Promise.resolve([]),
+    open: () => Promise.resolve(new ArrayBuffer(0)),
+  },
+  ...extra,
+});
+
+check('host: with nothing offering one, there is no host', () => {
+  /* The whole guarantee: the page is a web page first. Everything a shell makes
+     possible is asked for through here, so if this says no, none of it runs. */
+  ok(!app.hostPresent(), 'a host was found where there is no window at all');
+  eq(app.hostProject(), null);
+  eq(app.hostImport(), null);
+  withHost(undefined, () => ok(!app.hostPresent(), 'undefined counted as a host'));
+});
+
+check('host: a shell that does not fit is ignored, not half-used', () => {
+  /* A bridge whose methods mean something other than what they say is worse
+     than no bridge, because the page works perfectly well without one. Same
+     reasoning as refusing a project file from a newer version. */
+  const broken = [
+    ['not an object', 'yes please'],
+    ['null', null],
+    ['no version at all', { project: workingHost().project }],
+    ['a version from the future', { ...workingHost(), version: app.HOST_VERSION + 1 }],
+    ['a version as a string', { ...workingHost(), version: String(app.HOST_VERSION) }],
+    ['no project', { version: app.HOST_VERSION }],
+    ['a project that is not an object', { version: app.HOST_VERSION, project: 'folder' }],
+  ];
+  for (const [label, given] of broken) {
+    withHost(given, () => {
+      ok(!app.hostPresent(), `${label} was accepted as a host`);
+      eq(app.hostProject(), null, `${label}: `);
+    });
+  }
+
+  // One missing method is enough: a shell offering a project with no way to
+  // read one is not offering a project.
+  for (const method of app.HOST_PROJECT_METHODS) {
+    const given = workingHost();
+    delete given.project[method];
+    withHost(given, () => ok(!app.hostPresent(), `a host with no ${method}() was accepted`));
+  }
+
+  // And the one that fits is accepted, so none of the above passes by refusing
+  // everything.
+  withHost(workingHost(), () => {
+    ok(app.hostPresent(), 'a host that fits was refused');
+    ok(app.hostProject(), 'a host that fits gave back no project');
+  });
+});
+
+check('host: a way to bring music in is named by the shell, not by the page', () => {
+  /* The page knows a shell may offer a route to more music. What that route is
+     — a download, a shared folder, a CD — is the shell's business, so whatever
+     it calls itself is what the button says. */
+  withHost(workingHost({ import: { run: () => {}, label: 'Add from YouTube…' } }), () => {
+    eq(app.hostImport().label, 'Add from YouTube…');
+  });
+  withHost(workingHost({ import: { run: () => {} } }), () => {
+    eq(app.hostImport().label, 'Add music', 'a shell that names nothing still needs a word: ');
+  });
+  withHost(workingHost({ import: { run: () => {}, label: '   ' } }), () => {
+    eq(app.hostImport().label, 'Add music', 'a blank name is not a name: ');
+  });
+
+  // Offered without a way to run it is not offered.
+  withHost(workingHost({ import: { label: 'Add from YouTube…' } }), () => {
+    eq(app.hostImport(), null, 'an import with no run(): ');
+  });
+  withHost(workingHost(), () => eq(app.hostImport(), null, 'a shell offering no import: '));
+});
+
 /* ------------------------------------------------------------- 1e. undo */
 
 /** Runs `fn` with a throwaway clip list, then puts the real state back. */

@@ -281,6 +281,7 @@
             </svg>
           </button>
           <h2>Music</h2>
+          <button id="btnImport" class="hidden"></button>
           <button id="btnAddFiles">Add files</button>
         </div>
         <ul id="libraryList"></ul>
@@ -344,6 +345,10 @@
               </p>
               <div class="empty-actions" data-when="start">
                 <button id="btnEmptyAdd" class="primary">Add your music</button>
+                <!-- A route only a desktop shell can offer. Hidden, and named
+                 by whatever the shell calls it: the page knows there may be a
+                 way to fetch more music and not what the way is. -->
+                <button id="btnEmptyImport" class="hidden"></button>
                 <button id="btnEmptyLoad">Load a saved project</button>
               </div>
               <p class="hint" data-when="start">or drop the files anywhere on this page</p>
@@ -729,6 +734,7 @@
     <script src="src/analysis.js"></script>
     <script src="src/formats.js"></script>
     <script src="src/program.js"></script>
+    <script src="src/host.js"></script>
     <script src="src/canvas.js"></script>
     <script src="src/audio.js"></script>
     <script src="src/library.js"></script>
