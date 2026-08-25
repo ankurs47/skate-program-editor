@@ -16,6 +16,7 @@ index.html       the page — stays at the root, see below
 src/analysis.js  beat detection, phrase detection, loudness — samples in, numbers out
 src/formats.js   ID3/MPEG/Ogg parsing and the Good/Fair/Low verdict
 src/program.js   what a program is: clips, levels, envelopes, joins, project files
+src/host.js      the desktop shell, when there is one — and nothing when there is not
 src/canvas.js    colors read from the stylesheet, and the canvas helpers
 src/audio.js     playback scheduling, offline render, WAV/MP3 encoding
 src/library.js   decoding files, the song list, remembered file handles
@@ -27,7 +28,7 @@ src/style.css    theming via CSS custom properties, light and dark
 docs/            help.html — the user guide, linked from the topbar;
                  development.md; docs.css, whose color tokens copy
                  style.css's and are held to them by a test
-test/            185 checks, no dependencies — one file per testable script
+test/            188 checks, no dependencies — one file per testable script
 test/dom/        browser checks and render budgets, driven over CDP
 tools/           music-get.sh and .cmd — optional YouTube downloader, not the app
 ```
@@ -116,6 +117,20 @@ and mints a fresh one for a repeat.
 control, so anything written there is published. That is the reason there is no
 field for a skater's name — see the check in `repo.test.js` that exists to keep
 one out of this repository.
+
+**A desktop shell is a capability, never a dependency.** If one is hosting the
+page it puts a single object on `window.skateHost`; `src/host.js` is the only
+file that reads it, and decides whether it is usable at all — a shell announcing
+a version this app does not know, or a project it cannot read from, is ignored
+rather than half-used. Everything a shell makes possible sits behind
+`hostPresent()`, and with none the page is exactly the page it was: opened from
+a file, no server, nothing installed. A browser check deletes the host and holds
+it to that.
+
+The bridge is deliberately not called YouTube, or Electron, or anything else.
+The page knows a shell may own a project folder and may offer a route to more
+music, and renders whatever that route calls itself. What it actually is belongs
+to the shell.
 
 **The edit is data.** `state.clips` is an ordered list of
 `{file, srcStart, srcEnd, fadeIn, fadeOut, crossfade}`. Everything else —

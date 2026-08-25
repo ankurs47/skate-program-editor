@@ -21,6 +21,7 @@ const SCRIPTS = [
   'src/analysis.js',
   'src/formats.js',
   'src/program.js',
+  'src/host.js',
   'src/canvas.js',
   'src/audio.js',
   'src/library.js',

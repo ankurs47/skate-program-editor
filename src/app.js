@@ -543,7 +543,47 @@ function project() {
   };
 }
 
+/* How long to wait before writing the project to a folder a shell owns.
+   `save()` runs on every edit, and typing a program name is an edit a letter —
+   which localStorage will absorb and a file on disk will not. */
+const HOST_SAVE_DELAY = 400;
+let hostSaveTimer = null;
+let hostSaveFailed = false;
+
+/**
+ * Write the project out now, if a shell is holding one waiting.
+ *
+ * Called when the page is being hidden or closed, because the wait above is the
+ * one window in which an edit exists nowhere but in memory.
+ */
+function flushHostSave() {
+  const folder = hostProject();
+  if (!folder || hostSaveTimer === null) return;
+  clearTimeout(hostSaveTimer);
+  hostSaveTimer = null;
+  Promise.resolve(folder.write(project())).catch(reportHostSaveFailure);
+}
+
+/* Said once, not once per keystroke: a folder that cannot be written to will
+   fail on every edit, and a toast a second is not information. */
+function reportHostSaveFailure() {
+  if (hostSaveFailed) return;
+  hostSaveFailed = true;
+  toast('Could not save to the project folder — your editing is still here', 6000);
+}
+
 function save() {
+  const folder = hostProject();
+  if (folder) {
+    /* The folder is the project. Nothing goes to localStorage: two copies of
+       one program, one of them invisible, is how they come to disagree. */
+    if (hostSaveTimer !== null) clearTimeout(hostSaveTimer);
+    hostSaveTimer = setTimeout(() => {
+      hostSaveTimer = null;
+      Promise.resolve(folder.write(project())).catch(reportHostSaveFailure);
+    }, HOST_SAVE_DELAY);
+    return;
+  }
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify(project()));
   } catch (_) {
@@ -826,6 +866,16 @@ function bind() {
     save();
   };
 
+  /* The wait before a folder is written is the one window where an edit is
+     only in memory. `pagehide` is the event that still fires when a window is
+     closed, which `beforeunload` cannot be relied on for. */
+  if (hostPresent()) {
+    window.addEventListener('pagehide', flushHostSave);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') flushHostSave();
+    });
+  }
+
   // The same shape as the name above, for the same reason.
   $('programNotes').oninput = (e) => {
     pushUndo('program-notes');
@@ -839,6 +889,7 @@ function bind() {
      is already looking. */
   $('btnEmptyAdd').onclick = pickFiles;
   $('btnEmptyLoad').onclick = () => $('projectInput').click();
+  bindHostImport();
   $('btnReconnect').onclick = reconnectMissing;
 
   $('btnNew').onclick = () => openStartDialog(true);
@@ -1113,6 +1164,70 @@ function onKey(e) {
   }
 }
 
+/**
+ * Offer the shell's way of bringing music in, if it has one.
+ *
+ * The button is named by the shell rather than by the page. The editor knows
+ * there may be a route to more music; what that route is — a download, a
+ * folder somewhere, a CD — belongs to whatever is hosting it.
+ */
+function bindHostImport() {
+  const offered = hostImport();
+  /* Says what is true either way rather than only ever revealing. A function
+     that can show a button and not hide it leaves the page describing a shell
+     that is not there, and makes what is on screen depend on the order things
+     were called in. */
+  for (const id of ['btnImport', 'btnEmptyImport']) {
+    const button = $(id);
+    button.classList.toggle('hidden', !offered);
+    button.textContent = offered ? offered.label : '';
+    button.onclick = offered ? () => offered.run() : null;
+  }
+  if (!offered) return;
+  /* When something arrives, read the folder again rather than being told what
+     changed: the folder is the truth, and one way of learning it is enough. */
+  if (offered.onAdded) offered.onAdded(() => openHostProject());
+}
+
+/**
+ * Open the project a desktop shell is holding, and decode the music with it.
+ *
+ * The one thing a folder buys that a browser cannot: a project and its songs
+ * arrive together, so the missing-files notice has nothing to say and nobody is
+ * asked to find three files they already have.
+ *
+ * Files are handed to `addFiles` as ordinary File objects, which is the same
+ * path a drop or the file picker takes — decoding, fingerprints, the quality
+ * verdict and the waveform all happen exactly as they always did.
+ */
+async function openHostProject() {
+  const folder = hostProject();
+  if (!folder) return;
+  try {
+    const saved = await folder.read();
+    if (saved) loadProject(saved);
+  } catch (_) {
+    toast('Could not read the project in this folder', 6000);
+  }
+  try {
+    const songs = (await folder.media()) || [];
+    const files = [];
+    for (const song of songs) {
+      const name = song && typeof song === 'object' ? song.name : song;
+      if (!name) continue;
+      try {
+        files.push(new File([await folder.open(name)], name));
+      } catch (_) {
+        /* one unreadable file is not a reason to open none of them */
+      }
+    }
+    if (files.length) await addFiles(files);
+  } catch (_) {
+    toast('Could not read the music in this folder', 6000);
+  }
+  refresh();
+}
+
 /* ------------------------------------------------------- browser support */
 
 /**
@@ -1192,14 +1307,23 @@ function init() {
   tryLoadLame();
 
   let saved = null;
-  try {
-    const stored = localStorage.getItem(STORE_KEY);
-    if (stored) {
-      saved = JSON.parse(stored);
-      loadProject(saved);
+  const folder = hostProject();
+  if (folder) {
+    /* The folder is the project, so there is nothing to choose and nothing to
+       find: it opens, and its music opens with it. Never waited on — the editor
+       has to start whether or not the folder answers. */
+    saved = { clips: [] }; // enough to keep the start dialog shut
+    openHostProject();
+  } else {
+    try {
+      const stored = localStorage.getItem(STORE_KEY);
+      if (stored) {
+        saved = JSON.parse(stored);
+        loadProject(saved);
+      }
+    } catch (_) {
+      /* start empty */
     }
-  } catch (_) {
-    /* start empty */
   }
 
   let collapsed = false;
@@ -1241,6 +1365,7 @@ if (typeof document !== 'undefined') {
     require('./analysis.js'),
     require('./formats.js'),
     require('./program.js'),
+    require('./host.js'),
     require('./canvas.js'),
     require('./audio.js'),
     require('./library.js'),

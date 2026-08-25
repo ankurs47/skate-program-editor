@@ -493,5 +493,41 @@
     "find": "      rights.href = `${CLICKNCLEAR_SEARCH}?entity=tracks&search=${encodeURIComponent(named || entry.name.replace(/\\.[^.]+$/, ''))}`;",
     "replace": "      rights.href = `${CLICKNCLEAR_SEARCH}?direction=desc&entity=tracks&labels=89&yearRange=1012-2022&search=${encodeURIComponent(named || entry.name.replace(/\\.[^.]+$/, ''))}`;",
     "expect": "says about itself"
+  },
+  {
+    "name": "a shell from any version at all is trusted",
+    "guards": "a bridge whose methods may mean something else is not used",
+    "file": "src/host.js",
+    "suite": "unit",
+    "find": "  if (given.version !== HOST_VERSION) return null;",
+    "replace": "  if (given.version === HOST_VERSION) return null;",
+    "expect": "does not fit"
+  },
+  {
+    "name": "a shell missing half the bridge is accepted",
+    "guards": "a shell offering a project it cannot read is not offering one",
+    "file": "src/host.js",
+    "suite": "unit",
+    "find": "    if (typeof project[method] !== 'function') return null;",
+    "replace": "    if (false) return null;",
+    "expect": "does not fit"
+  },
+  {
+    "name": "a project folder is written on every keystroke",
+    "guards": "typing a name does not write a file a letter",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "    }, HOST_SAVE_DELAY);",
+    "replace": "    }, 0);",
+    "expect": "folder opens as the program"
+  },
+  {
+    "name": "an import button appears with no shell to run it",
+    "guards": "the page never describes a shell that is not there",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "    button.classList.toggle('hidden', !offered);",
+    "replace": "    button.classList.remove('hidden');",
+    "expect": "exactly the page it was"
   }
 ]

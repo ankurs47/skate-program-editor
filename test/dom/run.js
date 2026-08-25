@@ -359,7 +359,40 @@ async function main() {
 
         const rights = item.querySelector('.lib-rights').href;
 
-        return { shut, open, survived, heading, fileLine, bareHasInfo, rights,
+        /* Everything above works on a library entry built here, which leaves
+           the actual reading of a file untested — a mutation that stopped the
+           tags being read at all survived exactly that way. So: a real ID3 tag
+           on the front of a file, handed to addFiles the way a drop would.
+
+           The audio is deliberately not decodable. Tags are read before the
+           decode, so a file that will not play still says what it claims to be,
+           and this needs no encoder to build. */
+        const id3 = (title, composer) => {
+          const text = (s) => [...new TextEncoder().encode(s)];
+          const frame = (name, value) => {
+            const body = [3, ...text(value), 0];
+            return [...text(name), (body.length >> 24) & 255, (body.length >> 16) & 255,
+              (body.length >> 8) & 255, body.length & 255, 0, 0, ...body];
+          };
+          const frames = [...frame('TIT2', title), ...frame('TCOM', composer)];
+          const n = frames.length;
+          return new Uint8Array([...text('ID3'), 3, 0, 0,
+            (n >> 21) & 127, (n >> 14) & 127, (n >> 7) & 127, n & 127, ...frames]);
+        };
+        await addFiles([new File([id3('Bolero', 'Maurice Ravel')], 'track07.mp3')]);
+        const readFromFile = library.get('track07.mp3');
+        const fromFile = {
+          title: readFromFile && readFromFile.tags && readFromFile.tags.title,
+          composer: readFromFile && readFromFile.tags && readFromFile.tags.composer,
+          // Found by the file name under it, not by position: the list holds
+          // whatever earlier parts of this check put there.
+          named: [...document.querySelectorAll('#libraryList li')]
+            .filter((li) => li.querySelector('.lib-file'))
+            .filter((li) => li.querySelector('.lib-file').textContent === 'track07.mp3')
+            .map((li) => li.querySelector('.lib-title').textContent)[0],
+        };
+
+        return { fromFile, shut, open, survived, heading, fileLine, bareHasInfo, rights,
                  bareHeading: bare.querySelector('.lib-title').textContent };
       `);
 
@@ -389,8 +422,132 @@ async function main() {
         'the link narrows the search: ',
       );
 
+      /* The reading itself, not just the showing: these come off a real tag on
+         a real file that went in through addFiles. */
+      eq(out.fromFile.title, 'Bolero', 'the tag on an added file was never read: ');
+      eq(out.fromFile.composer, 'Maurice Ravel', 'the composer was never read: ');
+      eq(out.fromFile.named, 'Bolero', 'a file that will not play still says what it is: ');
+
       ok(!out.bareHasInfo, 'a song with nothing to say still offered an Info button');
       eq(out.bareHeading, 'bare.mp3', 'a song with no title should show its file name: ');
+    });
+
+    /* ------------------------------------------------------- a desktop host */
+
+    await check("a desktop shell's folder opens as the program, music and all", async () => {
+      /* The one thing a folder buys that a browser cannot: the project and its
+         songs arrive together, so nobody is asked to find three files they
+         already have. Driven with a fake shell — the bridge is only an object,
+         so none of this needs Electron to be checked. */
+      const out = await run(`
+        window.__reset([]);
+        const bytes = await window.encodeWav(window.__tone(220, 4)).arrayBuffer();
+        const written = [];
+        window.skateHost = {
+          version: HOST_VERSION,
+          project: {
+            name: () => 'my 2027 junior long',
+            read: async () => ({
+              format: FORMAT, version: FORMAT_VERSION, name: 'from a folder',
+              event: { level: 'usfs-juv', targetSeconds: 135, toleranceSeconds: 10 },
+              songs: [{ name: 'opening.wav', title: 'Adagio in G minor' }],
+              clips: [{ id: 'a', song: 'opening.wav', start: 0, end: 3 }],
+            }),
+            write: async (doc) => { written.push(doc); },
+            media: async () => [{ name: 'opening.wav' }],
+            open: async () => bytes,
+          },
+          import: { label: 'Add from YouTube…', run: () => { window.__imported = true; } },
+        };
+
+        const seen = hostPresent();
+        bindHostImport();
+        const button = {
+          label: document.getElementById('btnImport').textContent,
+          hidden: document.getElementById('btnImport').classList.contains('hidden'),
+          emptyLabel: document.getElementById('btnEmptyImport').textContent,
+        };
+        document.getElementById('btnImport').click();
+
+        await openHostProject();
+        const opened = {
+          name: state.name,
+          clips: state.clips.length,
+          title: state.clips.length ? state.clips[0].title : null,
+          decoded: !!(library.get('opening.wav') && library.get('opening.wav').buffer),
+          missing: !document.getElementById('missingNotice').classList.contains('hidden'),
+        };
+
+        /* Saving goes to the folder and nowhere else: two copies of one program,
+           one of them invisible, is how they come to disagree. */
+        localStorage.removeItem('skate.program.v1');
+        state.name = 'edited';
+        save();
+        const beforeWait = { writes: written.length, local: localStorage.getItem('skate.program.v1') };
+        await new Promise((done) => setTimeout(done, 600));
+        const afterWait = { writes: written.length, name: written.length ? written[0].name : null,
+                            local: localStorage.getItem('skate.program.v1') };
+
+        delete window.skateHost;
+        return { seen, button, opened, beforeWait, afterWait, ran: !!window.__imported };
+      `);
+
+      ok(out.seen, 'the shell was not found');
+      eq(out.button.hidden, false, 'the shell offered a way in and no button appeared: ');
+      eq(out.button.label, 'Add from YouTube…', 'the button is named by the shell: ');
+      eq(out.button.emptyLabel, 'Add from YouTube…', 'and so is the one in the empty state: ');
+      ok(out.ran, 'pressing it did not reach the shell');
+
+      eq(out.opened.name, 'from a folder', 'the project in the folder did not open: ');
+      eq(out.opened.clips, 1, 'the program came back empty: ');
+      eq(out.opened.title, 'Adagio in G minor', 'the song title in the folder was lost: ');
+      ok(out.opened.decoded, 'the music in the folder was not decoded');
+      ok(!out.opened.missing, 'a folder that holds the music still asked for it');
+
+      eq(out.beforeWait.writes, 0, 'a folder was written to on the keystroke: ');
+      eq(out.afterWait.writes, 1, 'the folder was never written to: ');
+      eq(out.afterWait.name, 'edited', 'what reached the folder was not the edit: ');
+      eq(out.afterWait.local, null, 'the program was also left in localStorage: ');
+    });
+
+    await check('with no shell, the page is exactly the page it was', async () => {
+      /* The guarantee the whole bridge rests on. Everything above is asked for
+         through hostPresent(), so with nothing offering a host none of it can
+         run — the editor is a web page, opened from a file, as it always was. */
+      const out = await run(`
+        delete window.skateHost;
+        window.__reset([]);
+        bindHostImport();
+
+        localStorage.removeItem('skate.program.v1');
+        state.name = 'no shell here';
+        save();
+        const stored = JSON.parse(localStorage.getItem('skate.program.v1') || 'null');
+
+        return {
+          present: hostPresent(),
+          project: hostProject(),
+          importer: hostImport(),
+          importHidden: document.getElementById('btnImport').classList.contains('hidden'),
+          emptyImportHidden: document.getElementById('btnEmptyImport').classList.contains('hidden'),
+          storedName: stored && stored.name,
+          routes: [...document.querySelectorAll('#timelineEmpty .empty-actions button')]
+            .filter((b) => !b.classList.contains('hidden'))
+            .map((b) => b.textContent),
+        };
+      `);
+
+      eq(out.present, false, 'a host was found with nothing offering one: ');
+      eq(out.project, null);
+      eq(out.importer, null);
+      ok(out.importHidden, 'an import button appeared with no shell to run it');
+      ok(out.emptyImportHidden, 'the empty state offered an import with no shell to run it');
+      eq(out.storedName, 'no shell here', 'saving stopped going to localStorage: ');
+      eq(
+        out.routes,
+        ['Add your music', 'Load a saved project'],
+        'the empty state has to be what it was: ',
+      );
     });
 
     /* --------------------------------------------------------------- undo */
