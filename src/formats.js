@@ -221,9 +221,9 @@ function fingerprint(head) {
  *
  * Separate from `analyzeSource`, which needs a decoded buffer and a File to say
  * anything at all. The judgment itself is the part that is easy to get wrong
- * and easy to check, so it stands on its own and takes plain numbers — the test
- * for it used to reimplement these thresholds and assert against its own copy,
- * which would have passed whatever this actually did.
+ * and easy to check, so it stands on its own and takes plain numbers. Its test
+ * calls it rather than keeping its own copy of these thresholds, which would be
+ * asserting against itself and would pass whatever this actually did.
  *
  * `bitrate` is the real figure; the comparison is against its MP3-equivalent,
  * because 128k Opus and 128k MP3 are not the same thing. A null measurement

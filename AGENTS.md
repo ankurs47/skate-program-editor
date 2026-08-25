@@ -137,9 +137,9 @@ that only exist as a sequence of clicks. They are opt-in for the same reason
 
 Assert on the graph and on page state, never on how long something took or on
 what came out of the speakers — nothing is audible headless. And assert on the
-graph that was _built_, not the nodes that were constructed: an earlier version
-of the audition check watched `createGain` and passed happily while the source
-was wired straight to the output and both gain nodes dangled unused. Every check
+graph that was _built_, not the nodes that were constructed: a check watching
+`createGain` passes happily while the source is wired straight to the output and
+both gain nodes dangle unused. Every check
 there has been confirmed to fail when the code it covers is deliberately broken,
 which is the only evidence that a test is worth its runtime.
 
@@ -168,9 +168,9 @@ throwaway worktree from HEAD, so the tree you are working in is never touched
 and you can keep editing while it runs — which also means **uncommitted work is
 not tested**, and the script refuses to start rather than pretend otherwise.
 
-`npm run test:mutate:here` is the old in-place behavior, for when you want it.
-The runner restores from a copy in memory, never with git — reverting with git
-is how an earlier session destroyed uncommitted work.
+`npm run test:mutate:here` runs it in place, for when you want that. The runner
+restores from a copy in memory, never with git: a `git checkout --` takes
+uncommitted work with it.
 
 The unit tests follow what can be tested without a DOM —
 `test/analysis.test.js`, `test/formats.test.js` and `test/app.test.js`, the last
@@ -242,11 +242,11 @@ than losing it. Firefox and Safari have no picker at all and take the fallback:
 the hidden `<input>` does the picking and the notice asks for the files by hand,
 exactly as before.
 
-Feature-detect, never sniff the protocol. An earlier version of this note
-claimed the API was absent over `file://` and that was simply wrong — checked
-against Chrome, where `showOpenFilePicker` and IndexedDB both work there. There
-is a browser check that deletes `showOpenFilePicker` and asserts the fallbacks
-still fire; do not let anything above become load-bearing.
+Feature-detect, never sniff the protocol. Chrome treats `file://` as a secure
+context, so `showOpenFilePicker` and IndexedDB are both available there — a rule
+written against the protocol would be wrong. There is a browser check that
+deletes `showOpenFilePicker` and asserts the fallbacks still fire; do not let
+anything above become load-bearing.
 
 ## Traps
 
@@ -335,13 +335,11 @@ still fire; do not let anything above become load-bearing.
   which is why the tests assert that coverage _separates_ the two cases rather
   than that every sparse window is rejected. Until then some free-tempo music
   gets the beat strategy when it should get phrasing.
-- **Round to the precision you display, then split the minutes off.** Both
-  clock formatters did it the other way round, so any value that came to 60 once
-  rounded was shown as sixty seconds instead of carrying: a 59.98 second
-  program read `0:60.0` on the timer, and a 119.6 second song was listed as
-  `1:60`. Neither was noticed for the length of the project, because the level
-  times that dominate the interface are all whole minutes. This is what writing
-  a test for an untested export is _for_.
+- **Round to the precision you display, then split the minutes off.** The other
+  way round, any value reaching 60 once rounded shows as sixty seconds instead
+  of carrying: a 59.98 second program reads `0:60.0` on the timer, and a 119.6
+  second song lists as `1:60`. It is an easy one to miss by eye, because the
+  level times that dominate the interface are all whole minutes.
 - **A project's trims are unchecked until the audio turns up.** The file is not
   in the project, so nothing has compared `srcEnd` against a real duration until
   `addFiles` decodes one. Web Audio does not complain when a source is asked to
@@ -366,10 +364,9 @@ still fire; do not let anything above become load-bearing.
   by a private type (`CLIP_DRAG_TYPE`) that only these blocks publish, and
   `reordered()` validates both indices. Keep both halves.
 - **A key repeat is one gesture, not thirty edits.** Held keys fire about thirty
-  `keydown`s a second, and the trim and nudge handlers pushed a snapshot on each
-  one. The stack is sixty deep, so two seconds on the arrow key emptied it and
-  took every earlier edit with it — an undo stack destroying the history it
-  exists to hold. `pushUndo(tag)` coalesces a run of the same tag within
+  `keydown`s a second. A snapshot on each one fills the sixty-deep stack in two
+  seconds and takes every earlier edit with it — an undo stack destroying the
+  history it exists to hold. `pushUndo(tag)` coalesces a run of the same tag within
   `UNDO_COALESCE_MS`; untagged callers never coalesce and end any run. `undo()`
   must call `endUndoRun()`, or the next repeat folds into the gesture whose
   snapshot was just popped and becomes unundoable. Sliders solve the same

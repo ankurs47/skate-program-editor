@@ -116,10 +116,10 @@ function playProgram(fromTime = 0, until = Infinity) {
  * Play one clip on its own, from a point inside it.
  *
  * Its level and its own fades are applied, because hearing what this song will
- * sound like is the entire point — auditioning at full volume a song you have
- * just set to 40% tells you nothing, and it used to do exactly that. The blend
- * is not applied: that belongs to the join rather than to the song, and there
- * is no previous song here to blend with.
+ * sound like is the entire point, and auditioning at full volume a song you
+ * have just set to 40% tells you nothing. The blend is not applied: that belongs
+ * to the join rather than to the song, and there is no previous song here to
+ * blend with.
  */
 function playClipAudition(clip, fromSource) {
   const entry = library.get(clip.file);

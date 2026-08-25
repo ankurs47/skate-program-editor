@@ -4,11 +4,11 @@
  *
  * Run by `npm install` through the prepare script; harmless to run again.
  *
- * There used to be a second path here — a plain git hook in .githooks that ran
- * lint and the tests for anyone without the framework. It went because two hook
- * systems is two things to understand and the fallback was much the weaker of
- * them: no shellcheck, no spelling, no formatting, none of the file hygiene.
- * Anyone who skips this still has CI, which runs the same hooks.
+ * This is the only hook path. A plain git hook running lint and the tests would
+ * cover anyone without the framework, but two hook systems is two things to
+ * understand and that fallback is much the weaker of them: no shellcheck, no
+ * spelling, no formatting, none of the file hygiene. Anyone who skips this
+ * still has CI, which runs the same hooks.
  */
 'use strict';
 

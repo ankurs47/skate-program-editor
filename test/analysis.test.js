@@ -532,10 +532,10 @@ const HZ = { C4: 261.63, E4: 329.63, G4: 392.0, A4: 440, D4: 293.66, F4: 349.23,
  * Free-tempo piano: phrases of a few notes, separated by real silences, with
  * every interval drawn from a wide range so nothing repeats.
  *
- * The irregularity is load-bearing. An earlier version spaced notes evenly
- * enough that the beat detector accepted it, and the fallback under test never
- * ran — so the fixture asserts its own premise below, and every test using it
- * checks that `analyzeBeats` really is declining before drawing a conclusion.
+ * The irregularity is load-bearing. Notes spaced evenly enough for the beat
+ * detector to accept them mean the fallback under test never runs at all — so
+ * the fixture asserts its own premise below, and every test using it checks
+ * that `analyzeBeats` really is declining before drawing a conclusion.
  *
  * Returns the audio and the spans where nothing is sounding. Spans, not
  * midpoints: anywhere inside a pause is a legitimate cut, and asserting against
