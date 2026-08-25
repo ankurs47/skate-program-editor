@@ -48,7 +48,8 @@ npm install
 Which checks depends on what you have. With [pre-commit](https://pre-commit.com)
 installed — `pip install pre-commit` — it owns the hook and you get the whole set
 in `.pre-commit-config.yaml`: whitespace and end-of-file fixes, YAML and JSON
-parsing, shellcheck over the three shell scripts, codespell, prettier,
+parsing, yamllint, markdownlint, shellcheck over the three shell scripts,
+codespell, prettier,
 stylelint, then eslint and the unit suite.
 
 Prettier formats the JavaScript, CSS, JSON, YAML and Markdown. Only HTML is kept
@@ -108,6 +109,22 @@ Exceptions go in `.codespell-ignore`, each with a comment saying why. A check in
 rather than the file — written the lazy way it passed while the dictionary was
 off, because the comment above the hook happens to name it.
 
+`.yamllint` and `.markdownlint.json` draw the same line: **Prettier decides
+layout, the linters decide whether the document is sound.** Every rule switched
+off in them is one Prettier already has an opinion about, because two tools
+rewriting the same file in opposite directions on each commit is a loop rather
+than a quality bar — yamllint's default wants two spaces before an inline
+comment and Prettier collapses to one, which is exactly that.
+
+Line length is off in both, for a reason worth stating: nothing can enforce it.
+Prettier does not reach inside a `run: |` block, a `${{ }}` expression cannot be
+broken across lines at all, and `proseWrap: preserve` means prose is left as
+written. Every finding would be a line no tool will ever fix.
+
+`MD033` is allowed by element rather than switched off — GitHub markdown cannot
+center a logo or lay out a badge row without inline HTML, so the tags the README
+uses are listed and a `<script>` appearing there would still be a finding.
+
 Two shellcheck findings are suppressed in place with the reason written down
 rather than fixed, because both are deliberate: `music-get.sh` splits `$limit`
 into two words on purpose and is `/bin/sh` with no arrays to do it otherwise,
@@ -140,7 +157,7 @@ gets the numbers it posts on a pull request rather than any written down by hand
 
 ## Layout
 
-```
+```text
 index.html            the whole interface; stays at the root, because
                       GitHub Pages serves from / and "open index.html"
                       has to keep working from disk

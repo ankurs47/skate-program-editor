@@ -1,0 +1,17 @@
+{
+  "//": "Same division as .yamllint: Prettier decides layout, markdownlint decides whether the document is sound.",
+
+  "MD013": false,
+
+  "//MD013": "Line length. Prettier runs with proseWrap: preserve, so it deliberately does not rewrap prose — leaving this on would flag lines nothing will ever fix, including the header's HTML and every long URL.",
+
+  "MD033": {
+    "allowed_elements": ["h1", "img", "a", "p", "b", "br", "div", "details", "summary"]
+  },
+
+  "//MD033": "Inline HTML, allowed by element rather than switched off. GitHub markdown cannot center a logo or lay out a badge row without it, and these are the tags the README actually uses — a <script> or an <iframe> appearing here should still be a finding.",
+
+  "MD041": false,
+
+  "//MD041": "First line must be a heading. The README opens with a centered <div> holding the logo, which is the point of it."
+}

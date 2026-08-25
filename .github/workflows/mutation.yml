@@ -56,6 +56,8 @@ jobs:
         if: failure() && steps.mutate.outcome == 'failure'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Named once: the expression is longer than a line can hold.
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           # The runner prints a summary line only once it has actually run. Without
           # one it never started — a broken command, a missing browser — and saying
@@ -77,7 +79,8 @@ jobs:
               echo "applies, which is not evidence of anything and needs its anchor updated"
               echo "in \`test/mutations.json\`."
             else
-              echo "The mutation runner never got as far as reporting on \`${{ github.ref_name }}\`,"
+              ref='${{ github.ref_name }}'
+              echo "The mutation runner never got as far as reporting on \`$ref\`,"
               echo "so this says nothing either way about the tests. Something stopped it"
               echo "before it started — the output below is what it managed to say."
             fi
@@ -89,7 +92,7 @@ jobs:
             tail -40 mutation.log
             echo '```'
             echo
-            echo "[full run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+            echo "[full run]($RUN_URL)"
           } > issue.md
 
           # The label exists on this repo, but a fork or a fresh clone will not

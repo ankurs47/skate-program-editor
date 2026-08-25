@@ -11,7 +11,7 @@ build step, no runtime dependencies, no server. It is used by skaters and their
 parents, not by audio engineers — the language in the interface is deliberately
 plain, and jargon is treated as a bug.
 
-```
+```text
 index.html       the page — stays at the root, see below
 src/analysis.js  beat detection, phrase detection, loudness — samples in, numbers out
 src/formats.js   ID3/MPEG/Ogg parsing and the Good/Fair/Low verdict
