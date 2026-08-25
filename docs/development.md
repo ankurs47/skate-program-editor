@@ -25,7 +25,7 @@ open `index.html` from disk, and it works. The single devDependency is eslint,
 and it is only for checking changes — nothing it does is needed to run the app.
 
 That constraint is the reason for most of what follows. There is no bundler, so
-the three scripts share one global scope and load in a fixed order. There is no
+the scripts share one global scope and are listed by hand in the page. There is no
 test framework, so the harness is forty lines. There is no headless-browser
 library, so the DOM tests drive Chrome over the DevTools Protocol using the
 `WebSocket` that Node 22 already has.
@@ -62,26 +62,22 @@ CI runs the same hooks, so a contributor without the framework still cannot land
 trailing whitespace, a shell bug or a typo.
 
 codespell runs with `--builtin=clear,rare,en-GB_to_en-US`. That last dictionary
-is what keeps the spelling American, and it replaced a hand-written list of 28
-stems that used to live in `test/repo.test.js`. The dictionary is better in both
-directions: it found ten spellings the list had missed, and it matches whole
-words where the list matched substrings — which is how the list came to flag the
-British form inside `aria-labelledby`, and how a blanket fix on the strength of
-that put `aria-labeledby` into four dialogs and took their accessible names away.
+is what keeps the spelling American. It matches whole words, which matters:
+`aria-labelledby` is an ARIA attribute whose spelling is fixed by the spec, and
+a matcher working on substrings flags the British form inside it and invites a
+"fix" that renames the attribute and takes four dialogs' accessible names away.
 
 Exceptions go in `.codespell-ignore`, each with a comment saying why. A check in
 `repo.test.js` asserts the dictionary is still switched on, reading the argument
 rather than the file — written the lazy way it passed while the dictionary was
 off, because the comment above the hook happens to name it.
 
-Where a hook already answers a question, the test that used to ask it is gone.
-Prettier's HTML parser rejects unbalanced tags and stylelint rejects an unclosed
-CSS block, so the two checks that did that by hand were removed rather than kept
-for company. A third, "every script file parses", turned out never to have been
-able to run at all: the harness requires `app.js`, which requires the other two,
-so a syntax error anywhere took the suite down before the check was reached.
+Where a hook answers a question, the test suite does not ask it again. Prettier's
+HTML parser rejects unbalanced tags, stylelint rejects an unclosed CSS block, and
+a syntax error in any script takes the whole suite down at require time, since
+the harness requires `app.js` and `app.js` requires the rest.
 
-What stayed is what nothing else covers — a `var(--name)` with no matching
+The suite covers what nothing else does — a `var(--name)` with no matching
 definition passes stylelint happily, and only `assets.test.js` notices.
 
 `.yamllint` and `.markdownlint.json` draw the same line: **Prettier decides
@@ -140,7 +136,15 @@ src/
   analysis.js         pure DSP — beats, phrases, loudness. No DOM.
   formats.js          container and codec parsing, quality verdicts,
                       file fingerprints. No DOM.
-  app.js              state, DOM, playback, export, and all the wiring
+  program.js          what a program is — clips, levels, envelopes,
+                      joins, project files. No DOM.
+  canvas.js           theme colors and the canvas helpers
+  audio.js            playback, offline render, WAV and MP3 encoding
+  library.js          decoding files, the song list, remembered handles
+  timeline.js         the clip strip, the ruler, the playhead
+  editor.js           one clip up close, and what acts on a selection
+  dialogs.js          modals, and keeping the keyboard inside them
+  app.js              state, undo, theme, saving, and all the wiring
   style.css
 docs/
   help.html           the user-facing guide, linked from the app
@@ -164,15 +168,17 @@ test/
 tools/                the YouTube download wrappers
 ```
 
-`analysis.js` and `formats.js` are the halves that can be tested without a DOM,
-and a test asserts they stay that way: one `document.`, one `window.`, one reach
-into `state` and the split has quietly stopped being worth anything.
+`analysis.js`, `formats.js` and `program.js` are the parts that can be tested
+without a DOM, and a test asserts they stay that way: one `document.`, one
+`window.`, one reach into `state` and the split has quietly stopped being worth
+anything. Almost every unit test points at one of the three.
 
-`app.js` is a plain browser script, so its functions are global by design.
+The rest are plain browser scripts, so their functions are global by design.
 `no-implicit-globals` is disabled deliberately — satisfying it would mean
-wrapping two thousand lines in an IIFE for no benefit. Under Node it requires
-the other two and re-exports them, so a test file asking for `app` gets
-everything.
+wrapping every file in an IIFE for no benefit. Under Node, `app.js` requires all
+of them and re-exports them, so a test file asking for `app` gets everything.
+Nothing runs when a file is loaded, which is what makes that safe and what makes
+the order of the script tags a matter of readability rather than correctness.
 
 ## The three layers of testing
 

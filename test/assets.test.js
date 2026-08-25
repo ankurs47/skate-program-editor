@@ -15,7 +15,7 @@ const path = require('path');
 const { check, eq, ok, html, css, ROOT, SCRIPTS } = require('./harness.js');
 
 check('every element the code reaches for exists in the HTML', () => {
-  // All three files, not just app.js: the day one of the others grows a $()
+  // Every script, not just app.js: the day one of the others grows a $()
   // is the day this should start covering it — and the day the check above
   // about them staying free of the browser should fail.
   const source = SCRIPTS.map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('\n');
@@ -92,12 +92,12 @@ check('the page and the file picker both cover what the tools produce', () => {
   }
 });
 
-check('the analysis and format files stay free of the browser', () => {
-  /* The split is only worth anything while it holds. These two are the parts
+check('the analysis, format and program files stay free of the browser', () => {
+  /* The split is only worth anything while it holds. These three are the parts
      that can be tested without a DOM, and one `document.` or one reach into
      `state` would quietly take that away — the drift would not break anything
      until someone tried to test the thing that had drifted. */
-  for (const file of ['src/analysis.js', 'src/formats.js']) {
+  for (const file of ['src/analysis.js', 'src/formats.js', 'src/program.js']) {
     const body = fs.readFileSync(path.join(ROOT, file), 'utf8');
     const code = body
       .split('\n')
@@ -115,8 +115,10 @@ check('the analysis and format files stay free of the browser', () => {
   }
 });
 
-check('the page loads the scripts, in an order that works', () => {
-  // app.js calls into both by name at load time, so they have to come first.
+check('the page loads every script, in the order the tests assume', () => {
+  /* Nothing runs at load but init(), so the order is not what makes the app
+     work — but the page and the harness have to agree on the list, or a file
+     could be added to one and forgotten in the other. */
   const order = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map((m) => m[1]);
   eq(order, SCRIPTS, 'the page must load exactly these, in this order: ');
 });

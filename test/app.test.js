@@ -1,5 +1,5 @@
 /**
- * The editor itself — the app.js file.
+ * The editor itself — mostly program.js, plus the state app.js owns.
  *
  * Timeline math with overlapping blends, the envelopes, the undo stack, the
  * project file format, and the plain-language strings the interface is built
@@ -9,7 +9,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { app, check, eq, near, ok, ROOT } = require('./harness.js');
+const { app, check, eq, near, ok, ROOT, SCRIPTS } = require('./harness.js');
 
 /* ------------------------------------------------------------ 1. the math */
 
@@ -165,7 +165,10 @@ check('reorder: a drop counts only when the drag began on a clip block', () => {
      reads back as the empty string — which Number() turns into 0, a perfectly
      valid clip index that the guard above cannot catch. So the payload cannot
      be what identifies the drag; a private type is. */
-  const source = fs.readFileSync(path.join(ROOT, 'src/app.js'), 'utf8');
+  /* Every script, not just one. The first assertion is about something being
+     absent, so it has to read everywhere the code could be: pointed at a single
+     file, it would pass on the strength of not having looked. */
+  const source = SCRIPTS.map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('\n');
   ok(
     !/getData\(\s*'text\/plain'\s*\)/.test(source),
     'a drop handler is reading text/plain again, which every drag supplies',

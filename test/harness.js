@@ -13,11 +13,22 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 
-/* The three script files, in the order index.html loads them — as the page
-   spells them, since that is what the wiring checks compare against. app.js
-   requires the other two under Node and re-exports them, so requiring it alone
-   still gets everything, which is why each test file asks for just `app`. */
-const SCRIPTS = ['src/analysis.js', 'src/formats.js', 'src/app.js'];
+/* The script files, in the order index.html loads them — as the page spells
+   them, since that is what the wiring checks compare against. app.js requires
+   all the others under Node and re-exports them, so requiring it alone still
+   gets everything, which is why each test file asks for just `app`. */
+const SCRIPTS = [
+  'src/analysis.js',
+  'src/formats.js',
+  'src/program.js',
+  'src/canvas.js',
+  'src/audio.js',
+  'src/library.js',
+  'src/timeline.js',
+  'src/editor.js',
+  'src/dialogs.js',
+  'src/app.js',
+];
 /* The documentation pages. They are served alongside the app rather than only
    read on GitHub, so whatever must never ship applies to them too. */
 const DOCS = ['docs/help.html', 'docs/docs.css'];

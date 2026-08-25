@@ -8,7 +8,7 @@
  * is hardest to get right and easiest to test, and keeping it away from the
  * editing and drawing code is what stops the two being read as one thing.
  *
- * Loaded before app.js, which uses these as plain globals — no modules, no
+ * Loaded first, and used as plain globals by every file after it — no modules, no
  * build step. Under Node the test suite requires this file directly.
  */
 'use strict';
@@ -18,7 +18,7 @@
 /**
  * Hold a value between two ends.
  *
- * Lives here rather than in app.js because this file loads first and everything
+ * Lives here rather than alongside its callers because this file loads first and everything
  * after it can see the result. Note that an inverted range yields the ceiling,
  * which several callers rely on when a clip is shorter than a minimum.
  */

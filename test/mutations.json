@@ -29,7 +29,7 @@
   {
     "name": "reorder stops validating the index it is handed",
     "guards": "a stray drag cannot splice at NaN",
-    "file": "src/app.js",
+    "file": "src/program.js",
     "suite": "unit",
     "find": "  if (!valid(fromIndex) || !valid(toIndex) || fromIndex === toIndex) return null;",
     "replace": "  if (fromIndex === toIndex) return null;",
@@ -38,7 +38,7 @@
   {
     "name": "trims are no longer clamped to the file that arrives",
     "guards": "a program cannot claim time the audio does not have",
-    "file": "src/app.js",
+    "file": "src/program.js",
     "suite": "unit",
     "find": "    if (start === clip.srcStart && end === clip.srcEnd) continue;",
     "replace": "    continue;",
@@ -47,7 +47,7 @@
   {
     "name": "the clock rounds after splitting the minutes off",
     "guards": "59.98 seconds is not shown as 0:60.0",
-    "file": "src/app.js",
+    "file": "src/program.js",
     "suite": "unit",
     "find": "  const tenths = Math.round(seconds * 10);\n  const m = Math.floor(tenths / 600);\n  const s = (tenths - m * 600) / 10;",
     "replace": "  const m = Math.floor(seconds / 60);\n  const s = seconds - m * 60;",
@@ -65,7 +65,7 @@
   {
     "name": "a swapped song is accepted without comment",
     "guards": "a different song with the same name is not built into the program",
-    "file": "src/app.js",
+    "file": "src/program.js",
     "suite": "unit",
     "find": "  if (expected.fingerprint === entry.fingerprint) return null;",
     "replace": "  if (true) return null;",
@@ -74,7 +74,7 @@
   {
     "name": "the project stops recording what its songs were",
     "guards": "a project can tell whether it has the right music",
-    "file": "src/app.js",
+    "file": "src/program.js",
     "suite": "unit",
     "find": "    files: Array.isArray(data.files) ? data.files.filter((f) => f && f.name) : [],",
     "replace": "    files: [],",
@@ -83,7 +83,7 @@
   {
     "name": "every reconnect failure gives the same message",
     "guards": "each way of failing says what to do about it",
-    "file": "src/app.js",
+    "file": "src/program.js",
     "suite": "unit",
     "find": "  if (!files.length && refused.length && !gone.length) {",
     "replace": "  if (false) {",
@@ -101,7 +101,7 @@
   {
     "name": "remembering files stops being optional",
     "guards": "browsers without the API keep working exactly as before",
-    "file": "src/app.js",
+    "file": "src/library.js",
     "suite": "dom",
     "find": "    typeof window.showOpenFilePicker === 'function' &&\n    typeof indexedDB !== 'undefined' &&\n    window.isSecureContext === true",
     "replace": "    true",
@@ -110,7 +110,7 @@
   {
     "name": "the reconnect button is offered for files nothing remembers",
     "guards": "only songs that can actually come back are offered",
-    "file": "src/app.js",
+    "file": "src/library.js",
     "suite": "dom",
     "find": "  return canRememberFiles() ? missingFiles().filter((name) => rememberedNames.has(name)) : [];",
     "replace": "  return canRememberFiles() ? missingFiles() : [];",
@@ -119,7 +119,7 @@
   {
     "name": "the color cache is bypassed",
     "guards": "drawing does not force a style resolve every frame",
-    "file": "src/app.js",
+    "file": "src/canvas.js",
     "suite": "dom",
     "find": "  if (!palette.has(name)) {",
     "replace": "  if (true) {",
@@ -128,7 +128,7 @@
   {
     "name": "the timeline is rebuilt on every call",
     "guards": "dragging a slider does not churn the DOM",
-    "file": "src/app.js",
+    "file": "src/timeline.js",
     "suite": "dom",
     "find": "  if (\n    signature === timelineShape &&\n    wrap.querySelectorAll('.tl-clip').length === state.clips.length\n  ) {",
     "replace": "  if (false) {",
@@ -137,7 +137,7 @@
   {
     "name": "the library is rebuilt on every refresh",
     "guards": "an idle refresh costs nothing",
-    "file": "src/app.js",
+    "file": "src/library.js",
     "suite": "dom",
     "find": "  if (signature === libraryShape) return;",
     "replace": "  void signature;",
@@ -146,7 +146,7 @@
   {
     "name": "waveforms are drawn per event rather than per frame",
     "guards": "drawing coalesces to one batch a frame",
-    "file": "src/app.js",
+    "file": "src/timeline.js",
     "suite": "dom",
     "find": "  if (timelineWaveFrame) return;",
     "replace": "  drawTimelineWaves(); return;",
@@ -155,7 +155,7 @@
   {
     "name": "the blend marker is dropped from the timeline signature",
     "guards": "a change of structure hiding inside a change of number",
-    "file": "src/app.js",
+    "file": "src/timeline.js",
     "suite": "dom",
     "find": "        parts[i].xf >= MIN_CROSSFADE ? 1 : 0, // whether a blend marker is shown",
     "replace": "        0,",
@@ -164,7 +164,7 @@
   {
     "name": "a theme change trusts the stale color cache",
     "guards": "switching theme repaints the canvases",
-    "file": "src/app.js",
+    "file": "src/canvas.js",
     "suite": "dom",
     "find": "function repaintForTheme() {\n  palette.clear();",
     "replace": "function repaintForTheme() {\n  void 0;",
@@ -173,7 +173,7 @@
   {
     "name": "the audition bypasses its level and fade nodes",
     "guards": "what you hear is the clip as it is set",
-    "file": "src/app.js",
+    "file": "src/audio.js",
     "suite": "dom",
     "find": "  src.connect(level).connect(fade).connect(context.destination);",
     "replace": "  src.connect(context.destination);",
@@ -191,7 +191,7 @@
   {
     "name": "the drop handler reads text/plain again",
     "guards": "a stray drop cannot reorder the program",
-    "file": "src/app.js",
+    "file": "src/timeline.js",
     "suite": "dom",
     "find": "      const from = e.dataTransfer.getData(CLIP_DRAG_TYPE);",
     "replace": "      const from = e.dataTransfer.getData('text/plain');",
@@ -209,7 +209,7 @@
   {
     "name": "the export clipping guard is removed",
     "guards": "a distorted program is caught before it is encoded",
-    "file": "src/app.js",
+    "file": "src/audio.js",
     "suite": "dom",
     "find": "    if (clipsOnExport(peakOf(channelsOf(rendered))) && !clippingAccepted) {",
     "replace": "    if (false) {",
@@ -236,7 +236,7 @@
   {
     "name": "a drop on the timeline no longer adds the song",
     "guards": "dropping on the strip puts the music in the program",
-    "file": "src/app.js",
+    "file": "src/library.js",
     "suite": "dom",
     "find": "    if (ontoTimeline) for (const entry of added) addClip(entry);",
     "replace": "    void ontoTimeline;",
