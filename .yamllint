@@ -1,0 +1,28 @@
+# Prettier decides how the YAML is laid out; yamllint decides whether it is
+# sane. Every rule switched off below is one Prettier already has an opinion
+# about, and two tools reformatting the same file in opposite directions on
+# every commit is not a quality bar, it is a loop.
+extends: default
+
+rules:
+  # Prettier collapses to one space before an inline comment; yamllint's
+  # default demands two. Prettier wins, because it is the one that rewrites.
+  comments:
+    min-spaces-from-content: 1
+
+  # Off, because nothing can enforce it. Prettier does not reach inside a
+  # `run: |` block, and a ${{ }} expression cannot be broken across lines at
+  # all — so every finding here is a shell string that has to be rewritten by
+  # hand, and the rewriting makes the workflow worse, not better. Two of the
+  # ones flagged first time were a URL and a gh command; shortening the URL
+  # into an env var was worth doing on its own merits and has been kept.
+  line-length: disable
+
+  # GitHub Actions workflows do not carry one, and adding them would be
+  # decoration rather than meaning.
+  document-start: disable
+
+  # `on:` is the key GitHub Actions requires. Reading it as the boolean `true`
+  # is the well-known false positive, and renaming it would break the workflow.
+  truthy:
+    check-keys: false

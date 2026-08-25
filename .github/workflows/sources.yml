@@ -46,6 +46,9 @@ jobs:
         if: failure() && steps.sources.outcome == 'failure'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Named once: the expression is longer than a line can hold, and it
+          # appears in both branches below.
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           # The script writes the report when it finds something. If it is not
           # here the script itself broke, and saying "the rules changed" would
@@ -55,12 +58,12 @@ jobs:
               echo "The monthly source check could not run, so this says nothing"
               echo "about whether the program lengths are still right."
               echo
-              echo "[full run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+              echo "[full run]($RUN_URL)"
             } > sources-report.md
             title="The source check could not run"
           else
             echo >> sources-report.md
-            echo "[full run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> sources-report.md
+            echo "[full run]($RUN_URL)" >> sources-report.md
             title="Check the program lengths against the rulebook"
           fi
 

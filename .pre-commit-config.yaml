@@ -33,6 +33,16 @@ repos:
         # default would reject it on every regeneration.
         args: [--maxkb=1024]
 
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.38.0
+    hooks:
+      - id: yamllint
+
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.49.1
+    hooks:
+      - id: markdownlint
+
   # shellcheck-py rather than koalaman/shellcheck-precommit: that one runs the
   # check inside Docker, which is a heavy thing to require of someone who wants
   # to fix a typo. This ships the same binary as a Python package.
