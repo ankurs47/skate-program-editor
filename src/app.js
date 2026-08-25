@@ -364,7 +364,7 @@ function addClip(entry) {
   const clip = {
     id: uid(),
     file: entry.name,
-    title: entry.name.replace(/\.[^.]+$/, ''),
+    title: songTitle({ title: entry.tags && entry.tags.title }, entry.name),
     srcStart: 0,
     srcEnd: entry.duration,
     fadeIn: state.clips.length === 0 ? 1.0 : 0,
@@ -469,7 +469,13 @@ function usedSongs() {
       return {
         ...stored,
         name,
-        title: songTitle(stored, name),
+        /* What the project already said wins over what the file says: a title
+           set by hand or by a desktop shell is a decision, and a tag is a
+           guess the file came with. */
+        title: songTitle(
+          { title: stored.title || (entry && entry.tags && entry.tags.title) },
+          name,
+        ),
         bytes: measured.bytes || null,
         seconds: measured.duration
           ? Number(measured.duration.toFixed(2))

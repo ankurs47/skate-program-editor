@@ -9,6 +9,12 @@ rem the audio exactly as it already exists on the other end — nothing is
 rem converted and nothing is re-encoded, so no quality is thrown away before you
 rem have even started cutting.
 rem
+rem It does ask yt-dlp to write the title, artist and so on into the file, which
+rem saves typing them onto an entry form later and is what the editor reads to
+rem name a song. That step wants ffmpeg, but it only writes tags: the audio
+rem comes out byte for byte the same. Without ffmpeg yt-dlp says so and still
+rem saves the music, untagged.
+rem
 rem The Mac and Linux equivalent is music-get.sh next to this file. Keep the two
 rem in step: same options, same defaults, same messages.
 
@@ -88,7 +94,7 @@ set "FAILED="
 for /l %%I in (1,1,%NURLS%) do (
   set "URL=!URL_%%I!"
   call :count BEFORE
-  yt-dlp --format bestaudio --no-overwrites %PLAYLIST% %LIMIT% --output "!TEMPLATE!" --print-to-file "!PRINTED!" "!LIST!" "!URL!"
+  yt-dlp --format bestaudio --embed-metadata --no-overwrites %PLAYLIST% %LIMIT% --output "!TEMPLATE!" --print-to-file "!PRINTED!" "!LIST!" "!URL!"
   if errorlevel 1 set "FAILED=1"
   call :count AFTER
   rem yt-dlp can finish quietly having saved nothing at all — the feed case

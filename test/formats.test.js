@@ -245,3 +245,181 @@ check('oggAudioStart: says nothing rather than guessing on other containers', ()
     'one header alone is not enough to locate the audio: ',
   );
 });
+
+/* ------------------------------------------------------------------- tags */
+
+/* Real tag layouts, built here rather than shipped as sample files: a few dozen
+   bytes each, and every field is visible in the test instead of hidden inside a
+   binary nobody can read in a diff. */
+const bytes = (...parts) =>
+  Buffer.concat(parts.map((p) => (Buffer.isBuffer(p) ? p : Buffer.from(p))));
+const be32 = (n) => {
+  const b = Buffer.alloc(4);
+  b.writeUInt32BE(n);
+  return b;
+};
+const le32 = (n) => {
+  const b = Buffer.alloc(4);
+  b.writeUInt32LE(n);
+  return b;
+};
+/** Seven bits a byte, which is how ID3 writes a length that must not look like audio. */
+const synchsafe = (n) => Buffer.from([(n >> 21) & 127, (n >> 14) & 127, (n >> 7) & 127, n & 127]);
+const asBuffer = (b) => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
+
+function id3File(major, frames) {
+  const body = Buffer.concat(
+    frames.map(([name, text]) => {
+      const payload = bytes(Buffer.from([3]), Buffer.from(text, 'utf8'), Buffer.from([0]));
+      if (major === 2) {
+        const size = Buffer.alloc(3);
+        size.writeUIntBE(payload.length, 0, 3);
+        return bytes(Buffer.from(name.slice(0, 3), 'latin1'), size, payload);
+      }
+      const size = major >= 4 ? synchsafe(payload.length) : be32(payload.length);
+      return bytes(Buffer.from(name, 'latin1'), size, Buffer.from([0, 0]), payload);
+    }),
+  );
+  return asBuffer(bytes('ID3', Buffer.from([major, 0, 0]), synchsafe(body.length), body));
+}
+
+function mp4File(fields) {
+  const box = (name, ...inner) => {
+    const body = Buffer.concat(inner.map((p) => (Buffer.isBuffer(p) ? p : Buffer.from(p))));
+    return bytes(be32(body.length + 8), Buffer.from(name, 'latin1'), body);
+  };
+  const item = (name, text) => box(name, box('data', be32(1), be32(0), Buffer.from(text, 'utf8')));
+  const list = box('ilst', ...fields.map(([name, value]) => item(name, value)));
+  // `meta` keeps four bytes of version and flags between itself and its children
+  const meta = bytes(be32(list.length + 12), Buffer.from('meta', 'latin1'), be32(0), list);
+  return asBuffer(bytes(box('ftyp', 'M4A '), box('moov', box('udta', meta))));
+}
+
+function opusFile(comments) {
+  const vendor = Buffer.from('test', 'utf8');
+  const parts = comments.map((c) => {
+    const b = Buffer.from(c, 'utf8');
+    return bytes(le32(b.length), b);
+  });
+  return asBuffer(
+    bytes(
+      'OggS',
+      Buffer.alloc(23),
+      'OpusTags',
+      le32(vendor.length),
+      vendor,
+      le32(parts.length),
+      Buffer.concat(parts),
+    ),
+  );
+}
+
+check('tags: an ID3 tag gives up what the file is called and who wrote it', () => {
+  /* Entry forms ask for the title and often the composer, and `track03.mp3`
+     answers neither. All three ID3 generations are still out there — 2.2 names
+     frames with three characters, and 2.4 writes their lengths seven bits at a
+     time — so a file from any of them has to be readable. */
+  const v23 = app.readTags(
+    id3File(3, [
+      ['TIT2', 'Adagio in G minor'],
+      ['TPE1', 'Some Orchestra'],
+      ['TCOM', 'Tomaso Albinoni'],
+      ['TPUB', 'A Label'],
+      ['TSRC', 'GBAYE0601498'],
+      ['TCOP', '1958 A Label Ltd'],
+      ['TYER', '1958'],
+    ]),
+  );
+  eq(v23.title, 'Adagio in G minor');
+  eq(v23.composer, 'Tomaso Albinoni');
+  eq(v23.publisher, 'A Label');
+  eq(v23.year, '1958');
+  /* The two that answer "who would I ask about using this". An ISRC names one
+     specific recording rather than the song, which is what a rights database
+     wants; the copyright line usually names whoever owns it. */
+  eq(v23.isrc, 'GBAYE0601498');
+  eq(v23.copyright, '1958 A Label Ltd');
+
+  const v24 = app.readTags(
+    id3File(4, [
+      ['TIT2', 'Bolero'],
+      ['TCOM', 'Ravel'],
+      ['TDRC', '1928'],
+    ]),
+  );
+  eq([v24.title, v24.composer, v24.year], ['Bolero', 'Ravel', '1928'], 'ID3v2.4: ');
+
+  const v22 = app.readTags(
+    id3File(2, [
+      ['TT2', 'Carmen'],
+      ['TCM', 'Bizet'],
+    ]),
+  );
+  eq([v22.title, v22.composer], ['Carmen', 'Bizet'], 'ID3v2.2: ');
+});
+
+check('tags: m4a and opus keep the same facts somewhere else entirely', () => {
+  /* The two formats a download is most likely to arrive in. Every reader is
+     tried rather than choosing one by extension, because files are routinely
+     named wrongly. */
+  const m4a = app.readTags(
+    mp4File([
+      ['\u00a9nam', 'Swan Lake'],
+      ['\u00a9wrt', 'Tchaikovsky'],
+      ['\u00a9ART', 'An Orchestra'],
+    ]),
+  );
+  eq([m4a.title, m4a.composer, m4a.artist], ['Swan Lake', 'Tchaikovsky', 'An Orchestra'], 'm4a: ');
+
+  const opus = app.readTags(
+    opusFile(['TITLE=Nocturne', 'COMPOSER=Chopin', 'ORGANIZATION=A Label', 'ISRC=GBAYE0601498']),
+  );
+  eq([opus.title, opus.composer, opus.publisher], ['Nocturne', 'Chopin', 'A Label'], 'opus: ');
+  eq(opus.isrc, 'GBAYE0601498', 'an ISRC in a Vorbis comment: ');
+});
+
+check('tags: a file with nothing to say is not a file that fails', () => {
+  /* Most of what a skater has is untagged, and a tag can be truncated, padded,
+     or written by something that got the length wrong. None of that is a reason
+     to refuse somebody's music. */
+  const hostile = [
+    ['no tags at all', asBuffer(Buffer.alloc(2048))],
+    ['an empty file', asBuffer(Buffer.alloc(0))],
+    [
+      'an ID3 header and nothing else',
+      asBuffer(bytes('ID3', Buffer.from([3, 0, 0]), synchsafe(4096))),
+    ],
+    [
+      'a frame claiming more than is there',
+      asBuffer(
+        bytes(
+          'ID3',
+          Buffer.from([3, 0, 0]),
+          synchsafe(100),
+          'TIT2',
+          be32(9999),
+          Buffer.from([0, 0, 3]),
+          'x',
+        ),
+      ),
+    ],
+    ['an MP4 box bigger than the file', asBuffer(bytes(be32(99999), 'moov'))],
+    [
+      'a comment count past the end',
+      asBuffer(bytes('OggS', Buffer.alloc(23), 'OpusTags', le32(0), le32(9999))),
+    ],
+  ];
+  for (const [label, doc] of hostile) {
+    let found = null;
+    try {
+      found = app.readTags(doc);
+    } catch (e) {
+      ok(false, `${label} threw: ${e.message}`);
+      continue;
+    }
+    ok(found && typeof found === 'object', `${label} gave back nothing usable`);
+  }
+
+  // And a real tag still reads, so the above is not passing by reading nothing.
+  eq(app.readTags(id3File(3, [['TIT2', 'Still works']])).title, 'Still works');
+});

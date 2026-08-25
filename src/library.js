@@ -47,6 +47,9 @@ async function addFiles(fileList) {
       // so ask whichever container this is where its audio really starts.
       const tagEnd = id3Size(bytes) || oggAudioStart(bytes);
       const head = bytes.slice(tagEnd, Math.min(bytes.byteLength, tagEnd + 32768));
+      /* Before decoding, for the same reason as the window above: the tags live
+         in these bytes and decodeAudioData takes the buffer away. */
+      entry.tags = readTags(bytes);
       const buffer = await ctx().decodeAudioData(bytes);
       entry.buffer = buffer;
       entry.duration = buffer.duration;
@@ -115,6 +118,7 @@ function clipsUsing(file) {
  * was no way to release it at all.
  */
 function removeFromLibrary(name) {
+  infoOpen.delete(name);
   if (clipsUsing(name)) {
     toast('That song is in your program — take it out of the program first');
     return;
@@ -128,6 +132,11 @@ function removeFromLibrary(name) {
    program still uses it — but that answer, and everything else on show here,
    changes far less often than `refresh()` is called. */
 let libraryShape = null;
+
+/* Which songs are showing what their file says about itself. Held out here
+   because the list is rebuilt whenever anything about it changes, and a panel
+   somebody opened should not close because a different song finished loading. */
+const infoOpen = new Set();
 
 /** Drop the "already drawn" cache, so the next render really redraws. */
 function forgetLibraryShape() {
@@ -160,10 +169,21 @@ function renderLibrary() {
     const li = document.createElement('li');
     if (entry.state === 'loading') li.classList.add('loading');
 
+    /* What the song is called, with the file name under it when they differ.
+       The title is what the program will show; the file name is what identifies
+       it, what a project records, and what has to be found again later — so
+       neither can be the only one on screen. */
+    const named = (entry.tags && entry.tags.title) || '';
     const title = document.createElement('div');
     title.className = 'lib-title';
-    title.textContent = entry.name;
+    title.textContent = named || entry.name;
     li.appendChild(title);
+    if (named && named !== entry.name) {
+      const file = document.createElement('div');
+      file.className = 'lib-file';
+      file.textContent = entry.name;
+      li.appendChild(file);
+    }
 
     if (entry.peaks) {
       const canvas = document.createElement('canvas');
@@ -215,7 +235,55 @@ function renderLibrary() {
     drop.onclick = () => removeFromLibrary(entry.name);
     row.appendChild(drop);
 
+    /* What the file says about itself, when it says anything. Competition entry
+       forms ask for the title and often the composer, and a file called
+       track03.mp3 will not tell you either. */
+    const tags = entry.tags || {};
+    const known = TAG_LABELS.filter(([key]) => tags[key]);
+    let panel = null;
+    if (known.length) {
+      const shown = infoOpen.has(entry.name);
+      const info = document.createElement('button');
+      info.className = 'small';
+      info.textContent = 'Info';
+      info.title = 'What this file says about itself';
+      info.setAttribute('aria-expanded', String(shown));
+      row.insertBefore(info, drop);
+
+      panel = document.createElement('dl');
+      panel.className = 'lib-tags';
+      panel.hidden = !shown;
+      for (const [key, label] of known) {
+        const name = document.createElement('dt');
+        name.textContent = label;
+        const value = document.createElement('dd');
+        // textContent, never innerHTML: this is text out of somebody's file.
+        value.textContent = tags[key];
+        panel.append(name, value);
+      }
+      /* Where the ISU points skaters to clear the rights to a piece of music.
+         A plain link to the site, not a search for this song: nothing here has
+         checked that it takes a query, and a deep link that quietly stops
+         working is worse than one that lands a click away. */
+      const rights = document.createElement('a');
+      rights.className = 'lib-rights';
+      rights.href = 'https://isu.clicknclear.com';
+      rights.target = '_blank';
+      rights.rel = 'noopener noreferrer';
+      rights.textContent = 'Check the rights on ClicknClear';
+      panel.append(rights);
+
+      info.onclick = () => {
+        const open = !infoOpen.has(entry.name);
+        if (open) infoOpen.add(entry.name);
+        else infoOpen.delete(entry.name);
+        panel.hidden = !open;
+        info.setAttribute('aria-expanded', String(open));
+      };
+    }
+
     li.appendChild(row);
+    if (panel) li.appendChild(panel);
     list.appendChild(li);
   }
 }

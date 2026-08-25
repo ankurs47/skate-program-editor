@@ -181,6 +181,7 @@ check('the music-get wrappers agree on what they do', () => {
   const cmd = fs.readFileSync(path.join(ROOT, 'tools/music-get.cmd'), 'utf8');
   const flags = [
     '--format bestaudio', // the native stream, never re-encoded
+    '--embed-metadata', // the title and composer, which the editor reads back
     '--no-overwrites',
     '--no-playlist',
     '--yes-playlist',
@@ -191,14 +192,18 @@ check('the music-get wrappers agree on what they do', () => {
     ok(sh.includes(flag), `music-get.sh no longer passes ${flag}`);
     ok(cmd.includes(flag), `music-get.cmd no longer passes ${flag}`);
   }
-  // Comments only, stripped out: both scripts say the word ffmpeg while
-  // explaining that they don't need it, which is the opposite of the problem.
+  /* Comments stripped out: both scripts talk about ffmpeg while explaining what
+     it is and is not for, which is the opposite of the problem.
+
+     Writing tags does need ffmpeg, and that is fine — it copies the audio
+     stream through untouched. Converting it is what must never happen, so the
+     rule is about the flags that transcode, not about ffmpeg. */
   const code = (sh + cmd)
     .split('\n')
     .filter((line) => !/^\s*(#|rem\b)/i.test(line))
     .join('\n');
   ok(
-    !/--extract-audio|--audio-format|\bffmpeg\b/i.test(code),
+    !/--extract-audio|--audio-format|--recode-video/i.test(code),
     'a wrapper converts the audio; it is meant to take the stream as it is',
   );
   ok(!/\/home\/|file:\/\/\//.test(code), 'a wrapper references a local path');

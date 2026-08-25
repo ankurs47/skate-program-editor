@@ -463,8 +463,26 @@
     "guards": "the title of the music is a fact about the song",
     "file": "src/app.js",
     "suite": "unit",
-    "find": "        title: songTitle(stored, name),",
+    "find": "        title: songTitle(\n          { title: stored.title || (entry && entry.tags && entry.tags.title) },\n          name,\n        ),",
     "replace": "        title: name,",
     "expect": "belongs to the song"
+  },
+  {
+    "name": "a file stops being asked what it is called",
+    "guards": "the title, composer and rights a file carries reach the screen",
+    "file": "src/library.js",
+    "suite": "dom",
+    "find": "      entry.tags = readTags(bytes);",
+    "replace": "      entry.tags = {};",
+    "expect": "says about itself"
+  },
+  {
+    "name": "the song list ignores the title in the file",
+    "guards": "a song is named by what it is, not by what the file was called",
+    "file": "src/library.js",
+    "suite": "dom",
+    "find": "    const named = (entry.tags && entry.tags.title) || '';",
+    "replace": "    const named = '';",
+    "expect": "says about itself"
   }
 ]

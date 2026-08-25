@@ -308,6 +308,76 @@ async function main() {
       eq(out.fresh, { state: '', value: '', open: false }, 'a new program kept the old note: ');
     });
 
+    await check('a song shows what its file says about itself', async () => {
+      /* The tags are read from bytes the browser hands over once and then takes
+         away, so the only place this can be checked end to end is here. The
+         panel is built from text out of somebody's file, which is why it is
+         asserted as text rather than as markup. */
+      const out = await run(`
+        window.__reset([]);
+        const ctx = new AudioContext();
+        const buf = ctx.createBuffer(2, ctx.sampleRate * 20, ctx.sampleRate);
+        library.set('track03.m4a', {
+          name: 'track03.m4a', buffer: buf, peaks: computePeaks(buf), duration: 20,
+          bytes: 700000, quality: { kind: 'good', label: 'Good', detail: '' },
+          fingerprint: 'x', state: 'ready',
+          tags: { title: 'Adagio in G minor', composer: 'Tomaso Albinoni', year: '1958' },
+        });
+        libraryShape = null;
+        renderLibrary();
+
+        const item = document.querySelector('#libraryList li');
+        const info = [...item.querySelectorAll('button')].find(b => b.textContent === 'Info');
+        const panel = () => item.querySelector('.lib-tags');
+        const shut = { expanded: info.getAttribute('aria-expanded'), hidden: panel().hidden };
+        info.click();
+        const open = {
+          expanded: info.getAttribute('aria-expanded'),
+          hidden: panel().hidden,
+          text: panel().innerText.replace(/\\s+/g, ' ').trim(),
+        };
+
+        /* Rebuilding the list must not shut a panel somebody opened — the list
+           is redrawn whenever anything in it changes. */
+        libraryShape = null;
+        renderLibrary();
+        const survived = document.querySelector('#libraryList .lib-tags').hidden;
+
+        const heading = document.querySelector('#libraryList .lib-title').textContent;
+        const fileLine = document.querySelector('#libraryList .lib-file').textContent;
+
+        // A song with nothing to say offers no button at all.
+        library.set('bare.mp3', {
+          name: 'bare.mp3', buffer: buf, peaks: computePeaks(buf), duration: 20,
+          bytes: 1000, quality: { kind: 'good', label: 'Good', detail: '' },
+          fingerprint: 'y', state: 'ready', tags: {},
+        });
+        libraryShape = null;
+        renderLibrary();
+        const bare = [...document.querySelectorAll('#libraryList li')][1];
+        const bareHasInfo = [...bare.querySelectorAll('button')].some(b => b.textContent === 'Info');
+
+        return { shut, open, survived, heading, fileLine, bareHasInfo,
+                 bareHeading: bare.querySelector('.lib-title').textContent };
+      `);
+
+      eq(out.shut, { expanded: 'false', hidden: true }, 'the panel should start shut: ');
+      eq(out.open.expanded, 'true', 'the button did not say it had opened: ');
+      eq(out.open.hidden, false, 'the panel stayed hidden: ');
+      ok(/Adagio in G minor/.test(out.open.text), `no title in the panel: "${out.open.text}"`);
+      // Case-insensitive: the labels are uppercased by the stylesheet, and a
+      // check on what the panel says should not depend on how it is styled.
+      ok(/Composer Tomaso Albinoni/i.test(out.open.text), `no composer: "${out.open.text}"`);
+      ok(/1958/.test(out.open.text), `no year: "${out.open.text}"`);
+      eq(out.survived, false, 'redrawing the list shut a panel that was open: ');
+
+      eq(out.heading, 'Adagio in G minor', 'the song is still named after its file: ');
+      eq(out.fileLine, 'track03.m4a', 'the file name has to stay visible: ');
+
+      ok(!out.bareHasInfo, 'a song with nothing to say still offered an Info button');
+      eq(out.bareHeading, 'bare.mp3', 'a song with no title should show its file name: ');
+    });
+
     /* --------------------------------------------------------------- undo */
 
     await check('a held key is one undo step, and spares the history', async () => {
