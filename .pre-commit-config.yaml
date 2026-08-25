@@ -49,6 +49,21 @@ repos:
         # test/repo.test.js, which knows which forms this project has settled on.
         args: [--ignore-words=.codespell-ignore]
 
+  # 755 lines of CSS with nothing checking them until now. stylelint and its
+  # shared config live in pre-commit's own environment rather than in
+  # package.json, so this costs the project nothing against its one-dependency
+  # rule — a contributor with only Node is unaffected either way.
+  - repo: https://github.com/thibaudcolas/pre-commit-stylelint
+    rev: v17.14.1
+    hooks:
+      - id: stylelint
+        files: \.css$
+        # stylelint only. .stylelintrc.json names its rules outright rather
+        # than extending a shared config, which stylelint would look for next
+        # to that file and never find in here.
+        additional_dependencies:
+          - stylelint@17.14.1
+
   - repo: local
     hooks:
       - id: eslint

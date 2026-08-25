@@ -48,8 +48,21 @@ npm install
 Which checks depends on what you have. With [pre-commit](https://pre-commit.com)
 installed — `pip install pre-commit` — it owns the hook and you get the whole set
 in `.pre-commit-config.yaml`: whitespace and end-of-file fixes, YAML and JSON
-parsing, shellcheck over the three shell scripts, codespell, then eslint and the
-unit suite. With only Node you fall back to `.githooks/pre-commit`, which runs
+parsing, shellcheck over the three shell scripts, codespell, stylelint, then
+eslint and the unit suite.
+
+`.stylelintrc.json` names its rules outright instead of extending
+`stylelint-config-standard`. Two reasons: stylelint looks for an extended config
+next to the config file, and here that package lives in pre-commit's own
+environment where it would never be found — and the rules chosen are all
+"this is wrong" rather than "I prefer this", which is the same line drawn when
+Prettier was considered and declined. It would have rewritten 1,978 of app.js's
+3,162 lines, flattening the aligned comments that are most of what makes this
+code readable.
+
+stylelint and its environment belong to pre-commit, not to `package.json`, so
+the one-devDependency rule still holds and a contributor with only Node is
+unaffected. With only Node you fall back to `.githooks/pre-commit`, which runs
 lint and the unit suite — what this repo had before, and the part that is never
 optional. `tools/install-hooks.js` picks between them; the two cannot coexist,
 because git ignores `.git/hooks` once `core.hooksPath` is set and pre-commit
