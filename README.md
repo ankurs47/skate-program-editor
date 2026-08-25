@@ -108,6 +108,17 @@ coach, before an entry deadline.
 This project is not affiliated with, endorsed by, or connected to the ISU or
 U.S. Figure Skating.
 
+## Contributing
+
+Issues and pull requests are welcome, with no promise about when they get
+looked at — see [CONTRIBUTING.md](CONTRIBUTING.md) for how to set up and what
+any change has to keep working. Found a security problem?
+[SECURITY.md](SECURITY.md) says where it goes.
+
+If an event length here disagrees with your rulebook, that is the most useful
+issue you can open: there is a template for it, and a link to the document is
+the part that matters.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

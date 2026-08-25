@@ -1,0 +1,37 @@
+name: Suggest something
+description: An idea for the editor
+labels: [idea]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The app does one job: cut, order, blend, check the length, save the
+        file. Ideas that make that job easier have a much better chance than
+        ideas that add a second job — this is deliberately not a digital audio
+        workstation, and most of what one of those does is missing on purpose.
+
+        It also has to keep working with no dependencies, no build step, and
+        opened straight from disk. That rules more out than it sounds like.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is awkward at the moment
+      description: >-
+        The situation, not the solution. What were you trying to do, and where
+        did it get slow or confusing?
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you had in mind
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: How you work around it today
+      description: If you do. "I gave up" is a legitimate answer and a useful one.

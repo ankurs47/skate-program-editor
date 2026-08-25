@@ -1,0 +1,67 @@
+name: A program length is wrong
+description: An event's allowed length does not match what the rulebook says
+labels: [program-length]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The lengths in the app come from ISU and US Figure Skating documents,
+        and they change between seasons. Nothing automatic can confirm them —
+        neither body publishes them in a form a program can read — so this
+        depends entirely on someone checking.
+
+        **The link to the source is the important part.** Finding it is the
+        slow half of the job.
+
+  - type: input
+    id: event
+    attributes:
+      label: Which event
+      description: As the app spells it, so it can be found.
+      placeholder: USFS Juvenile — free skate
+    validations:
+      required: true
+
+  - type: input
+    id: shown
+    attributes:
+      label: What the app shows
+      placeholder: 2:20 ±10s
+    validations:
+      required: true
+
+  - type: input
+    id: correct
+    attributes:
+      label: What it should be
+      placeholder: 2:30 ±10s
+    validations:
+      required: true
+
+  - type: input
+    id: source
+    attributes:
+      label: Link to the document that says so
+      description: >-
+        An ISU Communication, a US Figure Skating rulebook or technical
+        notification. A link to a club page quoting one is not enough — those
+        go out of date too.
+      placeholder: https://www.isu.org/... (ISU Communication 2712, page 4)
+    validations:
+      required: true
+
+  - type: input
+    id: season
+    attributes:
+      label: Which season it applies from
+      placeholder: 2026–27
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: >-
+        Whether it replaces an earlier document, whether it is a tolerance
+        change rather than a length change, and so on.

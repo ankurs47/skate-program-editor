@@ -148,3 +148,46 @@ check('every rule source is one the checker knows how to read', () => {
   ok(/^\d{4}-\d{2}-\d{2}$/.test(baseline.checked), 'no date for when a person last looked');
   ok(baseline.checked > '2020-01-01', 'the baseline date looks unset');
 });
+
+check('the check counts in the documentation are the real ones', () => {
+  /* Four documents quote how many checks there are, and the number goes out of
+     date the moment anyone adds one — it had drifted in three places at once
+     before this existed. The counts are derivable, so nobody should be keeping
+     them by hand.
+
+     The unit total is the number of `check(` calls across the test files, which
+     is what the runner ends up reporting because none of them are conditional.
+     A number is read as a claim when it sits within a few words of "check", and
+     is capped at four digits so a sample rate in a nearby sentence is not
+     mistaken for one. */
+  const files = fs
+    .readdirSync(path.join(ROOT, 'test'))
+    .filter((name) => name.endsWith('.test.js'))
+    .map((name) => fs.readFileSync(path.join(ROOT, 'test', name), 'utf8'));
+  const unit = files.reduce((total, body) => total + (body.match(/^check\(/gm) || []).length, 0);
+  const dom = (
+    fs.readFileSync(path.join(ROOT, 'test/dom/run.js'), 'utf8').match(/await check\(/g) || []
+  ).length;
+
+  ok(unit > 100 && dom > 10, `the counting itself broke: ${unit} unit, ${dom} browser`);
+
+  const docs = ['README.md', 'AGENTS.md', 'CONTRIBUTING.md', 'docs/development.md'];
+  let claims = 0;
+  for (const file of docs) {
+    const body = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    for (const match of body.matchAll(/\b(\d{1,4})\b(?=[^.\n]{0,40}\bchecks?\b)/g)) {
+      claims++;
+      const line = body.slice(0, match.index).split('\n').length;
+      ok(
+        Number(match[1]) === unit || Number(match[1]) === dom,
+        `${file}:${line} says ${match[1]} checks; there are ${unit} unit and ${dom} browser`,
+      );
+    }
+  }
+  /* Without this the check passes by finding nothing to look at — the way a
+     test goes quiet rather than red. */
+  ok(
+    claims >= 4,
+    `only ${claims} check counts found in the docs; the pattern has stopped matching`,
+  );
+});
