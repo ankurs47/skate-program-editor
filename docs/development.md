@@ -51,12 +51,22 @@ in `.pre-commit-config.yaml`: whitespace and end-of-file fixes, YAML and JSON
 parsing, shellcheck over the three shell scripts, codespell, prettier,
 stylelint, then eslint and the unit suite.
 
-Prettier formats the JavaScript, JSON, YAML and Markdown, and is deliberately
-kept away from CSS and HTML — `.prettierignore` says so and why. The numbers
-behind that: it rewrote 816 of 1,040 CSS lines by expanding every one-line rule,
-and turned 1,138 lines of HTML into 2,376 by re-indenting markup whose structure
-and comments are deliberate. stylelint covers the CSS instead, and the HTML has
-structural checks in `assets.test.js` and `site.test.js`.
+Prettier formats the JavaScript, CSS, JSON, YAML and Markdown. Only HTML is kept
+out, and `.prettierignore` says why: it turned 1,138 lines into 2,376 by
+re-indenting markup whose structure and comments are deliberate. The HTML has
+structural checks in `assets.test.js` and `site.test.js` instead.
+
+CSS costs 816 changed lines of 1,040, almost all of it one-line rules being
+expanded. Worth checking before believing that is only layout, which it is: with
+whitespace and leading zeros normalized the two files are otherwise identical,
+and the only other changes are `.5` written as `0.5`, `[type=range]` quoted, and
+spacing inside `rgba()`. No declaration changed, and the app renders the same.
+
+The `*.css` override keeps double quotes. Both are valid CSS — this is
+convention, not correctness: all 21 strings here were already double-quoted,
+which is what MDN, the spec's examples and stylelint-config-standard use.
+`singleQuote` is a JavaScript preference and should not follow the formatter
+into another language.
 
 The settings match what was already here rather than being taken as defaults:
 `singleQuote` and `printWidth: 100` between them halved the JavaScript diff, and

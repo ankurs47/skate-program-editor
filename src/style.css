@@ -65,25 +65,52 @@
   --topbar-dim: #98a1ae;
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
 /* Every focusable thing shows where the keyboard is. Only .help-btn used to,
    so everywhere else fell back to the UA default, which is close to invisible
    against the dark panel. */
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  font:
+    15px/1.5 system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
 }
 
-h1 { font-size: 17px; margin: 0; }
-h2 { font-size: 13px; margin: 0; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
-.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
-.hint { color: var(--muted); font-size: 13px; margin: 0; }
-.hidden { display: none !important; }
+h1 {
+  font-size: 17px;
+  margin: 0;
+}
+h2 {
+  font-size: 13px;
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+}
+.mono {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.hint {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}
+.hidden {
+  display: none !important;
+}
 
 /* ---- unsupported browser / no JavaScript ---- */
 .blocker {
@@ -109,8 +136,14 @@ h2 { font-size: 13px; margin: 0; text-transform: uppercase; letter-spacing: .07e
   color: var(--ink);
   margin-bottom: 10px;
 }
-.blocker-card p { margin: 0 0 10px; font-size: 14px; color: var(--muted); }
-.blocker-card p:last-child { margin-bottom: 0; }
+.blocker-card p {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.blocker-card p:last-child {
+  margin-bottom: 0;
+}
 
 /* ---- small-screen advisory ---- */
 .advisory {
@@ -123,7 +156,10 @@ h2 { font-size: 13px; margin: 0; text-transform: uppercase; letter-spacing: .07e
   color: var(--ink);
   border-bottom: 1px solid var(--line);
 }
-.advisory button { flex: 0 0 auto; margin-left: auto; }
+.advisory button {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
 
 /* ---- header ---- */
 header {
@@ -135,12 +171,17 @@ header {
   border-bottom: 1px solid var(--line);
   flex-wrap: wrap;
 }
-.brand { display: flex; flex-direction: column; gap: 3px; min-width: 220px; }
+.brand {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 220px;
+}
 .field-label {
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
   color: var(--muted);
 }
 /* A visible box, so it reads as a field you can type in rather than a caption. */
@@ -153,20 +194,51 @@ header {
   padding: 4px 8px;
   width: 260px;
 }
-#programName:hover { border-color: var(--muted); }
-#programName:focus { border-color: var(--accent); outline: none; background: var(--bg); }
+#programName:hover {
+  border-color: var(--muted);
+}
+#programName:focus {
+  border-color: var(--accent);
+  outline: none;
+  background: var(--bg);
+}
 
-.budget { flex: 1 1 380px; min-width: 260px; max-width: 560px; }
-.budget-time { font: 600 30px/1.1 var(--mono); font-variant-numeric: tabular-nums; }
-.budget-meta { display: flex; align-items: center; gap: 10px; margin-top: 2px; }
+.budget {
+  flex: 1 1 380px;
+  min-width: 260px;
+  max-width: 560px;
+}
+.budget-time {
+  font: 600 30px/1.1 var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.budget-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 2px;
+}
 /* The readout never wraps, so the select is what gives way when the header is
    tight: a truncated level name is still readable, a readout broken across two
    lines mid-phrase is not. */
-.budget-meta > select { min-width: 0; flex: 0 1 auto; }
-.budget-meta > .delta { flex: 0 0 auto; }
-.delta { font-size: 13px; font-weight: 600; white-space: nowrap; }
-.delta.ok { color: var(--good); }
-.delta.bad { color: var(--bad); }
+.budget-meta > select {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+.budget-meta > .delta {
+  flex: 0 0 auto;
+}
+.delta {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.delta.ok {
+  color: var(--good);
+}
+.delta.bad {
+  color: var(--bad);
+}
 .budget-bar {
   position: relative;
   height: 8px;
@@ -175,12 +247,29 @@ header {
   background: var(--line);
   overflow: hidden;
 }
-.budget-ok { position: absolute; height: 100%; background: var(--accent-soft); }
-.budget-fill { position: absolute; height: 100%; background: var(--muted); transition: width .12s linear; }
-.budget-fill.ok { background: var(--good); }
-.budget-fill.bad { background: var(--bad); }
+.budget-ok {
+  position: absolute;
+  height: 100%;
+  background: var(--accent-soft);
+}
+.budget-fill {
+  position: absolute;
+  height: 100%;
+  background: var(--muted);
+  transition: width 0.12s linear;
+}
+.budget-fill.ok {
+  background: var(--good);
+}
+.budget-fill.bad {
+  background: var(--bad);
+}
 
-.actions { display: flex; gap: 8px; margin-left: auto; }
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
 
 /* ---- buttons ---- */
 button {
@@ -192,20 +281,47 @@ button {
   padding: 7px 14px;
   cursor: pointer;
 }
-button:hover:not(:disabled) { border-color: var(--muted); }
-button:disabled { opacity: .45; cursor: default; }
-button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-button.primary:hover:not(:disabled) { filter: brightness(1.08); }
-button.small { padding: 4px 10px; font-size: 13px; }
-button.danger { color: var(--bad); }
-button.danger:hover:not(:disabled) { border-color: var(--bad); }
+button:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+button.primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+button.small {
+  padding: 4px 10px;
+  font-size: 13px;
+}
+button.danger {
+  color: var(--bad);
+}
+button.danger:hover:not(:disabled) {
+  border-color: var(--bad);
+}
 /* Filled red only on the confirmation itself, so the destructive step is the
    one that looks destructive — not the button that opens the dialog. */
-button.danger-solid { background: var(--bad); border-color: var(--bad); color: #fff; }
-button.danger-solid:hover:not(:disabled) { filter: brightness(1.08); }
-button.play { min-width: 76px; }
+button.danger-solid {
+  background: var(--bad);
+  border-color: var(--bad);
+  color: #fff;
+}
+button.danger-solid:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+button.play {
+  min-width: 76px;
+}
 
-select, input[type=text] {
+select,
+input[type="text"] {
   font: inherit;
   color: var(--ink);
   background: var(--panel);
@@ -228,16 +344,28 @@ main {
    to. Below the breakpoint there is one column anyway and nothing to reclaim,
    so the collapsed rule has to be overridden rather than merely outranked:
    main.library-collapsed is the more specific selector. */
-main.library-collapsed { grid-template-columns: auto 1fr; }
+main.library-collapsed {
+  grid-template-columns: auto 1fr;
+}
 /* The same padding as the expanded panel, so the toggle keeps the exact spot it
    was in rather than sliding as the sidebar goes. */
-main.library-collapsed #library { padding: 14px; }
-main.library-collapsed #library > :not(.panel-head) { display: none; }
-main.library-collapsed #library .panel-head { margin-bottom: 0; }
-main.library-collapsed #library .panel-head > :not(.lib-toggle) { display: none; }
+main.library-collapsed #library {
+  padding: 14px;
+}
+main.library-collapsed #library > :not(.panel-head) {
+  display: none;
+}
+main.library-collapsed #library .panel-head {
+  margin-bottom: 0;
+}
+main.library-collapsed #library .panel-head > :not(.lib-toggle) {
+  display: none;
+}
 /* ---- settings menu ---- */
 
-.menu-wrap { position: relative; }
+.menu-wrap {
+  position: relative;
+}
 .menu {
   position: absolute;
   right: 0;
@@ -252,24 +380,38 @@ main.library-collapsed #library .panel-head > :not(.lib-toggle) { display: none;
   color: var(--ink);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, .28);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
 }
 .menu-head {
   margin: 0;
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
   color: var(--muted);
 }
-.menu-head + * { margin-top: -2px; }
-.menu-note { font-size: 12px; }
-.menu hr { width: 100%; border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
+.menu-head + * {
+  margin-top: -2px;
+}
+.menu-note {
+  font-size: 12px;
+}
+.menu hr {
+  width: 100%;
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 4px 0;
+}
 
 /* One control, three states, and the chosen one is obvious without reading —
    which a cycling button never manages, because it can only ever show you where
    you are and not what else there is. */
-.seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg {
+  display: flex;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
 .seg > button {
   flex: 1;
   border: 0;
@@ -279,24 +421,40 @@ main.library-collapsed #library .panel-head > :not(.lib-toggle) { display: none;
   color: var(--muted);
   background: transparent;
 }
-.seg > button + button { border-left: 1px solid var(--line); }
-.seg > button:hover:not([aria-checked="true"]) { color: var(--ink); background: var(--bg); }
-.seg > button[aria-checked="true"] { color: #fff; background: var(--accent); }
+.seg > button + button {
+  border-left: 1px solid var(--line);
+}
+.seg > button:hover:not([aria-checked="true"]) {
+  color: var(--ink);
+  background: var(--bg);
+}
+.seg > button[aria-checked="true"] {
+  color: #fff;
+  background: var(--accent);
+}
 
 /* The panel-with-a-chevron mark, which is what editors and browsers use for
    "show or hide the side panel". A bare arrow was the first attempt and says
    nothing about what it acts on; this draws the panel itself, with the bar down
    the side standing for the sidebar and the chevron pointing the way it is
    about to go. */
-.lib-toggle .ico-show { display: none; }
-main.library-collapsed .lib-toggle .ico-hide { display: none; }
-main.library-collapsed .lib-toggle .ico-show { display: block; }
+.lib-toggle .ico-show {
+  display: none;
+}
+main.library-collapsed .lib-toggle .ico-hide {
+  display: none;
+}
+main.library-collapsed .lib-toggle .ico-show {
+  display: block;
+}
 
 /* The toggle comes first in the row and the heading takes the slack, so the
    button sits at the far left whether the panel is open or shut. Collapsed it
    is the only thing left, and a control that moves when you use it is a control
    you have to go looking for the second time. */
-#library .panel-head > h2 { margin-right: auto; }
+#library .panel-head > h2 {
+  margin-right: auto;
+}
 .lib-toggle {
   display: grid;
   place-items: center;
@@ -311,13 +469,20 @@ main.library-collapsed .lib-toggle .ico-show { display: block; }
   background: transparent;
   border-color: transparent;
 }
-.lib-toggle:hover:not(:disabled) { color: var(--ink); border-color: var(--line); }
-
-@media (max-width: 860px) {
-  main, main.library-collapsed { grid-template-columns: 1fr; }
+.lib-toggle:hover:not(:disabled) {
+  color: var(--ink);
+  border-color: var(--line);
 }
 
-aside, section {
+@media (max-width: 860px) {
+  main,
+  main.library-collapsed {
+    grid-template-columns: 1fr;
+  }
+}
+
+aside,
+section {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -345,10 +510,16 @@ aside, section {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.panel-head > :not(h2) { flex: 0 0 auto; }
+.panel-head > :not(h2) {
+  flex: 0 0 auto;
+}
 
 /* ---- library ---- */
-#libraryList { list-style: none; margin: 10px 0 0; padding: 0; }
+#libraryList {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
 #libraryList li {
   display: flex;
   flex-direction: column;
@@ -358,7 +529,10 @@ aside, section {
   border-radius: 8px;
   margin-bottom: 6px;
 }
-#libraryList .lib-title { font-size: 13px; word-break: break-word; }
+#libraryList .lib-title {
+  font-size: 13px;
+  word-break: break-word;
+}
 /* Badge and button hold their size; the duration gives way first, and the row
    wraps rather than pushing the Add button out of the card. */
 #libraryList .lib-row {
@@ -369,7 +543,9 @@ aside, section {
   flex-wrap: wrap;
 }
 #libraryList .lib-row .badge,
-#libraryList .lib-row button { flex: 0 0 auto; }
+#libraryList .lib-row button {
+  flex: 0 0 auto;
+}
 #libraryList .lib-dur {
   flex: 1 1 auto;
   min-width: 0;
@@ -377,8 +553,14 @@ aside, section {
   font-size: 12px;
   color: var(--muted);
 }
-#libraryList canvas { width: 100%; height: 28px; display: block; }
-#libraryList li.loading { opacity: .55; }
+#libraryList canvas {
+  width: 100%;
+  height: 28px;
+  display: block;
+}
+#libraryList li.loading {
+  opacity: 0.55;
+}
 
 .badge {
   font-family: var(--mono);
@@ -389,14 +571,30 @@ aside, section {
   white-space: nowrap;
   border: 1px solid transparent;
 }
-.badge.good { color: var(--good); border-color: var(--good); }
-.badge.unknown { color: var(--muted); border-color: var(--line); }
+.badge.good {
+  color: var(--good);
+  border-color: var(--good);
+}
+.badge.unknown {
+  color: var(--muted);
+  border-color: var(--line);
+}
 /* 5.56:1 on the panel — 10px bold needs at least 4.5:1, and the old #b4770e
    only reached 3.76:1. The dark-mode value below is already well clear. */
-.badge.caution { color: #8f5e0b; border-color: #8f5e0b; }
-.badge.poor { color: var(--bad); border-color: var(--bad); background: color-mix(in srgb, var(--bad) 10%, transparent); }
+.badge.caution {
+  color: #8f5e0b;
+  border-color: #8f5e0b;
+}
+.badge.poor {
+  color: var(--bad);
+  border-color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 10%, transparent);
+}
 @media (prefers-color-scheme: dark) {
-  .badge.caution { color: #e0a33c; border-color: #e0a33c; }
+  .badge.caution {
+    color: #e0a33c;
+    border-color: #e0a33c;
+  }
 }
 
 .warn {
@@ -408,10 +606,26 @@ aside, section {
   gap: 6px;
   background: color-mix(in srgb, var(--bad) 8%, transparent);
 }
-.warn-head { margin: 0; font-size: 13px; font-weight: 600; }
-.warn-row { display: flex; align-items: center; gap: 8px; font-size: 12px; word-break: break-word; }
-.missing-actions { display: flex; gap: 6px; flex-wrap: wrap; }
-.warn .hint { font-size: 12px; }
+.warn-head {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.warn-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  word-break: break-word;
+}
+.missing-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.warn .hint {
+  font-size: 12px;
+}
 
 .dropzone {
   margin-top: 10px;
@@ -422,7 +636,11 @@ aside, section {
   border: 1px dashed var(--line);
   border-radius: 8px;
 }
-.dropzone.over { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.dropzone.over {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
 /* Music can be dropped anywhere on the page, so while one is over it both
    places that mean something light up: the list it will join, and the timeline,
    which also puts it straight into the program. */
@@ -437,12 +655,20 @@ body.dropping #timelineWrap .timeline {
 }
 
 /* ---- timeline ---- */
-.transport { display: flex; align-items: center; gap: 8px; }
+.transport {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 /* Sits with the transport rather than stranded mid-row, but as its own flex
    item so it can take a second line on a narrow window instead of pushing
    Play and Stop off the edge. */
-#btnEvenOut { margin-left: auto; }
-#timelineWrap { position: relative; }
+#btnEvenOut {
+  margin-left: auto;
+}
+#timelineWrap {
+  position: relative;
+}
 .timeline {
   display: flex;
   gap: 4px;
@@ -465,8 +691,8 @@ body.dropping #timelineWrap .timeline {
 }
 .tl-clip {
   position: relative;
-  flex: 1 1 0;          /* grow factor is set per clip from its duration */
-  min-width: 52px;      /* a very short clip stays clickable */
+  flex: 1 1 0; /* grow factor is set per clip from its duration */
+  min-width: 52px; /* a very short clip stays clickable */
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
@@ -474,8 +700,13 @@ body.dropping #timelineWrap .timeline {
   cursor: grab;
   overflow: hidden;
 }
-.tl-clip.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
-.tl-clip.dragging { opacity: .4; }
+.tl-clip.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.tl-clip.dragging {
+  opacity: 0.4;
+}
 .tl-clip .tl-name {
   font-size: 11px;
   white-space: nowrap;
@@ -483,12 +714,22 @@ body.dropping #timelineWrap .timeline {
   text-overflow: ellipsis;
   margin-bottom: 4px;
 }
-.tl-clip .tl-dur { font-family: var(--mono); font-size: 11px; color: var(--muted); }
-.tl-clip canvas { width: 100%; height: 44px; display: block; }
-.tl-clip.missing { border-color: var(--bad); }
+.tl-clip .tl-dur {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+.tl-clip canvas {
+  width: 100%;
+  height: 44px;
+  display: block;
+}
+.tl-clip.missing {
+  border-color: var(--bad);
+}
 .tl-xf {
   align-self: center;
-  flex: 0 0 auto;   /* the overlap markers keep their size; clips absorb the rest */
+  flex: 0 0 auto; /* the overlap markers keep their size; clips absorb the rest */
   font-family: var(--mono);
   font-size: 10px;
   color: var(--accent);
@@ -506,10 +747,14 @@ body.dropping #timelineWrap .timeline {
   cursor: pointer;
   touch-action: none;
 }
-.scrub-help { margin: 5px 2px 0; }
+.scrub-help {
+  margin: 5px 2px 0;
+}
 
 /* ---- clip editor ---- */
-.editor { margin-top: 16px; }
+.editor {
+  margin-top: 16px;
+}
 #clipCanvas {
   width: 100%;
   height: 180px;
@@ -530,17 +775,51 @@ body.dropping #timelineWrap .timeline {
 }
 /* Four buttons now, so they take a second line on a narrow window rather than
    running off the side of the panel. */
-.editor-actions { display: flex; gap: 6px; flex-wrap: wrap; max-width: 100%; }
-.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
-.controls label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
-.controls label b { color: var(--ink); font-family: var(--mono); }
-.controls input[type=range] { width: 100%; accent-color: var(--accent); }
+.editor-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+.controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+}
+.controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.controls label b {
+  color: var(--ink);
+  font-family: var(--mono);
+}
+.controls input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
 /* The blend slider and the button that sets it share one cell, so they stay
    together however the grid wraps. min-width: 0 or a long button label widens
    the column and pushes the other controls off. */
-.join-cell { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; min-width: 0; }
-.join-cell label { width: 100%; }
-.join-buttons { display: flex; gap: 6px; flex-wrap: wrap; max-width: 100%; }
+.join-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  min-width: 0;
+}
+.join-cell label {
+  width: 100%;
+}
+.join-buttons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
 
 /* ---- help ---- */
 /* Help lives behind header buttons rather than on the page. The buttons are
@@ -560,14 +839,23 @@ body.dropping #timelineWrap .timeline {
 .topbar h1 {
   font-size: 15px;
   font-weight: 600;
-  letter-spacing: .01em;
+  letter-spacing: 0.01em;
   margin: 0 20px 0 0;
   color: var(--topbar-ink);
 }
-.help-nav { display: flex; gap: 2px; flex-wrap: wrap; }
+.help-nav {
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+}
 /* Logo and title travel together; without this they can be split by the wrap
    that the rest of the bar depends on at narrow widths. */
-.topbar-brand { display: flex; align-items: center; gap: 9px; flex: 0 0 auto; }
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: 0 0 auto;
+}
 /* The two outbound links sit apart from the help buttons, at the far end of the
    bar: they leave the page, and the help buttons open a dialog over it. Looking
    alike was the whole problem — same shape, two different kinds of thing. The
@@ -590,16 +878,30 @@ body.dropping #timelineWrap .timeline {
   text-decoration: none;
   white-space: nowrap;
 }
-.topbar-link:hover { color: var(--topbar-ink); background: rgba(255, 255, 255, .11); }
-.topbar-link svg { display: block; }
+.topbar-link:hover {
+  color: var(--topbar-ink);
+  background: rgba(255, 255, 255, 0.11);
+}
+.topbar-link svg {
+  display: block;
+}
 /* The toggle is a button wearing the link styling, so it has to shed the
    button defaults first. Only the icon for the current mode is shown; all
    three ship in the markup so no JavaScript has to build an icon. */
-button.topbar-link { border: 0; background: transparent; font: inherit; cursor: pointer; }
-.theme-btn .ico { display: none; }
+button.topbar-link {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+.theme-btn .ico {
+  display: none;
+}
 .theme-btn[data-mode="auto"] .ico-auto,
 .theme-btn[data-mode="light"] .ico-light,
-.theme-btn[data-mode="dark"] .ico-dark { display: block; }
+.theme-btn[data-mode="dark"] .ico-dark {
+  display: block;
+}
 .help-btn {
   border: none;
   background: transparent;
@@ -610,18 +912,42 @@ button.topbar-link { border: 0; background: transparent; font: inherit; cursor: 
 }
 .help-btn:hover {
   color: var(--topbar-ink);
-  background: rgba(255, 255, 255, .11);
+  background: rgba(255, 255, 255, 0.11);
   border-color: transparent;
 }
-.help-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.help-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
 
 /* ---- start dialog ---- */
-.start-card { width: min(430px, 94vw); }
-.start-card h2 { font-size: 16px; text-transform: none; letter-spacing: 0; color: var(--ink); }
-.start-form { display: flex; flex-direction: column; gap: 12px; }
-.start-field { display: flex; flex-direction: column; gap: 5px; }
-.start-field input, .start-field select { width: 100%; }
-button.wide { width: 100%; padding: 9px 14px; }
+.start-card {
+  width: min(430px, 94vw);
+}
+.start-card h2 {
+  font-size: 16px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ink);
+}
+.start-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.start-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.start-field input,
+.start-field select {
+  width: 100%;
+}
+button.wide {
+  width: 100%;
+  padding: 9px 14px;
+}
 /* A rule with the word sitting in the gap, separating the routes. */
 .start-or {
   display: flex;
@@ -630,7 +956,8 @@ button.wide { width: 100%; padding: 9px 14px; }
   color: var(--muted);
   font-size: 12px;
 }
-.start-or::before, .start-or::after {
+.start-or::before,
+.start-or::after {
   content: "";
   flex: 1;
   height: 1px;
@@ -644,17 +971,30 @@ button.wide { width: 100%; padding: 9px 14px; }
   padding-top: 10px;
   border-top: 1px solid var(--line);
 }
-.start-privacy b { color: var(--ink); }
+.start-privacy b {
+  color: var(--ink);
+}
 
-.help-card { width: min(600px, 94vw); max-height: 84vh; overflow-y: auto; }
+.help-card {
+  width: min(600px, 94vw);
+  max-height: 84vh;
+  overflow-y: auto;
+}
 .help-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
-.help-head h2 { text-transform: none; letter-spacing: 0; font-size: 16px; color: var(--ink); }
-.help-head button { flex: 0 0 auto; }
+.help-head h2 {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 16px;
+  color: var(--ink);
+}
+.help-head button {
+  flex: 0 0 auto;
+}
 
 #helpBody ul {
   margin: 0;
@@ -662,10 +1002,19 @@ button.wide { width: 100%; padding: 9px 14px; }
   font-size: 13.5px;
   line-height: 1.65;
 }
-#helpBody li { margin-bottom: 11px; }
-#helpBody li:last-child { margin-bottom: 0; }
-#helpBody .hint { margin-top: 14px; line-height: 1.6; }
-#helpBody .hint + .hint { margin-top: 10px; }
+#helpBody li {
+  margin-bottom: 11px;
+}
+#helpBody li:last-child {
+  margin-bottom: 0;
+}
+#helpBody .hint {
+  margin-top: 14px;
+  line-height: 1.6;
+}
+#helpBody .hint + .hint {
+  margin-top: 10px;
+}
 
 .badge-key {
   display: grid;
@@ -675,9 +1024,12 @@ button.wide { width: 100%; padding: 9px 14px; }
   align-items: baseline;
   font-size: 13.5px;
 }
-.badge-key dt { justify-self: start; }
-.badge-key dd { margin: 0; }
-
+.badge-key dt {
+  justify-self: start;
+}
+.badge-key dd {
+  margin: 0;
+}
 
 /* Shortcuts read as keys, not as a paragraph — the shape is what makes them
    scannable, so they stay expanded rather than hiding behind a disclosure. */
@@ -701,12 +1053,17 @@ button > kbd {
   padding: 1px 5px;
   font-size: 10px;
   border-bottom-width: 1px;
-  opacity: .6;
+  opacity: 0.6;
   background: transparent;
   pointer-events: none;
 }
-button.primary > kbd { color: #fff; border-color: rgba(255, 255, 255, .5); }
-.hint kbd { margin: 0 1px; }
+button.primary > kbd {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.5);
+}
+.hint kbd {
+  margin: 0 1px;
+}
 .keys {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -715,11 +1072,25 @@ button.primary > kbd { color: #fff; border-color: rgba(255, 255, 255, .5); }
   align-items: baseline;
   font-size: 13.5px;
 }
-.keys dt { justify-self: start; white-space: nowrap; }
-.keys dd { margin: 0; color: var(--muted); line-height: 1.5; }
+.keys dt {
+  justify-self: start;
+  white-space: nowrap;
+}
+.keys dd {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
 
 /* ---- modal ---- */
-.modal { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: grid; place-items: center; z-index: 20; }
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: grid;
+  place-items: center;
+  z-index: 20;
+}
 .modal-card {
   background: var(--panel);
   border-radius: var(--radius);
@@ -729,16 +1100,40 @@ button.primary > kbd { color: #fff; border-color: rgba(255, 255, 255, .5); }
   flex-direction: column;
   gap: 12px;
 }
-.modal-card .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px; }
-.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
-.progress { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
-.progress > div { height: 100%; width: 0; background: var(--accent); transition: width .1s linear; }
+.modal-card .row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+.progress {
+  height: 6px;
+  background: var(--line);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.progress > div {
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  transition: width 0.1s linear;
+}
 
 /* Both width transitions above are feedback rather than decoration, but the
    system setting is a request to stop things moving and nothing is lost by
    honoring it — the bars still land where they were going to. */
 @media (prefers-reduced-motion: reduce) {
-  .budget-fill, .progress > div { transition: none; }
+  .budget-fill,
+  .progress > div {
+    transition: none;
+  }
 }
 
 .toast {
