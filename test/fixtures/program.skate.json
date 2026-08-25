@@ -1,16 +1,14 @@
 {
+  "$schema": "https://ankurs47.github.io/skate-program-editor/docs/program.skate.schema.json",
   "format": "skate-program",
   "version": 1,
-
   "name": "my 2027 junior long",
-
   "event": {
     "level": "usfs-jr",
-    "label": "Junior — 3:30 ±10s",
+    "label": "Junior \u2014 3:30 \u00b110s",
     "targetSeconds": 210,
     "toleranceSeconds": 10
   },
-
   "songs": [
     {
       "name": "opening theme.m4a",
@@ -20,7 +18,7 @@
       "source": {
         "kind": "youtube",
         "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-        "title": "Opening Theme — Live at the Proms",
+        "title": "Opening Theme \u2014 Live at the Proms",
         "channel": "Some Orchestra",
         "addedAt": "2026-08-25",
         "format": "140 m4a 128k"
@@ -48,13 +46,13 @@
       "source": {
         "kind": "purchase",
         "title": "Big Finish",
-        "note": "bought from the artist's site — better master than the video"
+        "note": "bought from the artist's site \u2014 better master than the video"
       }
     }
   ],
-
   "clips": [
     {
+      "id": "opening",
       "song": "opening theme.m4a",
       "title": "opening theme",
       "start": 6.0,
@@ -65,6 +63,7 @@
       "gainDb": 0
     },
     {
+      "id": "slow",
       "song": "the slow part.opus",
       "title": "the slow part",
       "start": 12.0,
@@ -75,6 +74,7 @@
       "gainDb": -1.7
     },
     {
+      "id": "finish",
       "song": "big finish.m4a",
       "title": "big finish",
       "start": 4.0,
@@ -85,15 +85,15 @@
       "gainDb": 0
     }
   ],
-
   "export": {
     "format": "mp3",
     "bitrate": 320
   },
-
   "writtenBy": {
     "app": "skate-desktop",
     "version": "0.1.0"
   },
-  "updatedAt": "2026-08-25"
+  "updatedAt": "2026-08-25",
+  "mediaDir": "media",
+  "notes": "coach wants the slow part a little longer next time"
 }

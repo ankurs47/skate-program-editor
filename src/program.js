@@ -342,11 +342,27 @@ function joinRoom(clip, entry, side) {
 const FORMAT = 'skate-program';
 const FORMAT_VERSION = 1;
 
+/* Written into every project file so an editor validates it and completes field
+   names while it is being edited by hand. A test holds this to the schema's own
+   $id, because a URL that has drifted is one that quietly 404s. */
+const SCHEMA_URL = 'https://ankurs47.github.io/skate-program-editor/docs/program.skate.schema.json';
+
 /* The keys this reader knows. Anything else in a file — written by a desktop
    shell, or by a version after this one — is carried through untouched rather
    than dropped, so saving in one app never silently erases what another
    recorded. `readProject` collects them and `project` puts them back. */
-const KNOWN_KEYS = ['format', 'version', 'name', 'event', 'songs', 'clips', 'export'];
+const KNOWN_KEYS = [
+  '$schema',
+  'format',
+  'version',
+  'name',
+  'event',
+  'songs',
+  'clips',
+  'export',
+  'notes',
+  'mediaDir',
+];
 
 /** The keys of `from` that `known` does not list. */
 function unknownKeys(from, known) {
@@ -355,6 +371,22 @@ function unknownKeys(from, known) {
     if (!known.includes(key)) rest[key] = from[key];
   }
   return rest;
+}
+
+/**
+ * The id to give a clip, preferring the one the file supplied.
+ *
+ * `taken` accumulates across the whole document, so the first clip to claim a
+ * name keeps it and a later duplicate is given a fresh one. A made-up id is
+ * checked against the set too — the chance of a collision is tiny, and "tiny"
+ * is not a thing to leave in the one place that decides whether removing a clip
+ * removes the right clip.
+ */
+function claimId(wanted, taken) {
+  let id = typeof wanted === 'string' && wanted ? wanted : uid();
+  while (taken.has(id)) id = uid();
+  taken.add(id);
+  return id;
 }
 
 /**
@@ -402,6 +434,7 @@ function gainFromDb(db) {
  */
 function readProject(data) {
   const doc = data && typeof data === 'object' ? data : {};
+  const taken = new Set();
   const version = Math.floor(Number(doc.version)) || 1;
   if (version > FORMAT_VERSION) {
     return { unsupported: { version, understands: FORMAT_VERSION } };
@@ -429,12 +462,21 @@ function readProject(data) {
        claimed about the songs, which is a fine state for a hand-written file. */
     songs,
     exportSettings: doc.export && typeof doc.export === 'object' ? doc.export : null,
+    /* Free text nothing reads, and the folder a desktop app keeps the audio in.
+       Both are carried rather than acted on here: a browser has no folder, and
+       nothing in the app writes a note yet. */
+    notes: typeof doc.notes === 'string' ? doc.notes : '',
+    mediaDir: typeof doc.mediaDir === 'string' ? doc.mediaDir : '',
     /* Top-level keys this reader does not know, handed back so `project` can
        put them where it found them. Per-song ones need no such list: the song
        records go into `state.expectedFiles` whole and are written back whole. */
     carried: unknownKeys(doc, KNOWN_KEYS),
     clips: (Array.isArray(doc.clips) ? doc.clips : []).map((c) => ({
-      id: uid(),
+      /* The file's own id, so anything that refers to a clip still refers to
+         the same one after a save. Selecting and removing are by id and two
+         clips sharing one would take each other out, so a repeated or unusable
+         id is replaced rather than trusted. */
+      id: claimId(c.id, taken),
       file: c.song,
       title: c.title || String(c.song).replace(/\.[^.]+$/, ''),
       srcStart: c.start || 0,
@@ -549,6 +591,8 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     FORMAT,
     FORMAT_VERSION,
+    SCHEMA_URL,
+    claimId,
     unknownKeys,
     gainFromDb,
     SR,

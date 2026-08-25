@@ -36,6 +36,11 @@ const state = {
   carried: {},
   // How the finished file was last made, when the project records it.
   exportSettings: null,
+  /* Free text nothing here reads or writes yet, and the folder a desktop app
+     keeps the audio in. Both are held so a project that carries them keeps
+     carrying them. */
+  notes: '',
+  mediaDir: '',
 };
 
 const library = new Map(); // file name -> {name, buffer, peaks, duration, state}
@@ -481,6 +486,9 @@ function usedSongs() {
 function project() {
   const level = findLevel(state.level);
   return {
+    // First, so it is the first thing an editor sees and the first thing a
+    // person opening the file reads.
+    $schema: SCHEMA_URL,
     format: FORMAT,
     version: FORMAT_VERSION,
     name: state.name,
@@ -498,6 +506,7 @@ function project() {
        shell can, and records it here as a source. */
     songs: usedSongs(),
     clips: state.clips.map((c) => ({
+      id: c.id,
       song: c.file,
       title: c.title,
       start: Number(c.srcStart.toFixed(3)),
@@ -511,6 +520,8 @@ function project() {
       gainDb: Number(clamp(gainToDb(clipGain(c)), LEVEL_SLIDER.min, LEVEL_SLIDER.max).toFixed(2)),
     })),
     ...(state.exportSettings ? { export: state.exportSettings } : {}),
+    ...(state.notes ? { notes: state.notes } : {}),
+    ...(state.mediaDir ? { mediaDir: state.mediaDir } : {}),
     /* Last, so a key this app has never heard of is put back where it was found
        rather than overwriting one it does understand. */
     ...state.carried,
@@ -546,6 +557,8 @@ function loadProject(data) {
   state.expectedFiles = new Map(read.songs.map((s) => [s.name, s]));
   state.carried = read.carried;
   state.exportSettings = read.exportSettings;
+  state.notes = read.notes;
+  state.mediaDir = read.mediaDir;
   state.selected = state.clips.length ? state.clips[0].id : null;
   if (read.retargeted) {
     toast(
@@ -607,6 +620,8 @@ function resetProgram() {
   state.expectedFiles.clear();
   state.carried = {};
   state.exportSettings = null;
+  state.notes = '';
+  state.mediaDir = '';
   $('playhead').textContent = '0:00.0';
   try {
     localStorage.removeItem(STORE_KEY);

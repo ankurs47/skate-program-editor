@@ -459,7 +459,15 @@ check('project file: the document holds exactly the fields it is documented to',
     },
     () => {
       const doc = app.project();
-      eq(Object.keys(doc).sort(), ['clips', 'event', 'format', 'name', 'songs', 'version']);
+      eq(Object.keys(doc).sort(), [
+        '$schema',
+        'clips',
+        'event',
+        'format',
+        'name',
+        'songs',
+        'version',
+      ]);
       eq(Object.keys(doc.event).sort(), ['label', 'level', 'targetSeconds', 'toleranceSeconds']);
       eq(Object.keys(doc.clips[0]).sort(), [
         'blend',
@@ -467,6 +475,7 @@ check('project file: the document holds exactly the fields it is documented to',
         'fadeIn',
         'fadeOut',
         'gainDb',
+        'id',
         'song',
         'start',
         'title',
@@ -653,14 +662,136 @@ check('project file: hand-edited nonsense cannot blow the speakers', () => {
 });
 
 check('project file: every clip gets its own id, however the file was written', () => {
-  // Selection and removal are by id, so two clips sharing one would take each
-  // other out. The file does not carry ids at all — they are made on load.
+  /* Selection and removal are by id, so two clips sharing one would take each
+     other out. A file may supply ids — that is what lets anything else refer to
+     a clip — but it is not trusted to have made them unique. */
   const read = app.readProject({
     clips: [{ song: 'a.mp3' }, { song: 'a.mp3' }, { song: 'a.mp3' }],
   });
   const ids = read.clips.map((c) => c.id);
   eq(new Set(ids).size, ids.length, 'duplicate clip ids: ');
   for (const id of ids) ok(id && typeof id === 'string', `unusable id ${JSON.stringify(id)}`);
+
+  // Ids that the file supplies are kept, so a reference to a clip survives.
+  const given = app.readProject({
+    clips: [
+      { song: 'a.mp3', id: 'opening' },
+      { song: 'b.mp3', id: 'finale' },
+    ],
+  });
+  eq(
+    given.clips.map((c) => c.id),
+    ['opening', 'finale'],
+    'the ids the file gave were thrown away: ',
+  );
+
+  // Repeats and unusable ones are replaced rather than trusted.
+  const messy = app.readProject({
+    clips: [
+      { song: 'a.mp3', id: 'same' },
+      { song: 'b.mp3', id: 'same' },
+      { song: 'c.mp3', id: '' },
+      { song: 'd.mp3', id: 42 },
+    ],
+  });
+  const messyIds = messy.clips.map((c) => c.id);
+  eq(messyIds[0], 'same', 'the first to claim an id keeps it: ');
+  eq(new Set(messyIds).size, 4, 'a repeated or unusable id was trusted: ');
+  for (const id of messyIds) ok(id && typeof id === 'string', `unusable id ${JSON.stringify(id)}`);
+});
+
+check('project file: a clip id survives being saved and opened again', () => {
+  /* The point of ids in the file: anything that refers to a clip — a note, a
+     marker, another tool — still refers to the same clip after a save. */
+  const read = app.readProject({
+    clips: [
+      { song: 'a.mp3', id: 'opening', start: 0, end: 30 },
+      { song: 'b.mp3', id: 'finale', start: 0, end: 20 },
+    ],
+  });
+  withProgram(
+    {
+      name: 'x',
+      level: 'usfs-juv',
+      targetSeconds: 135,
+      toleranceSeconds: 10,
+      clips: read.clips,
+    },
+    () => {
+      const again = app.readProject(app.project());
+      eq(
+        again.clips.map((c) => c.id),
+        ['opening', 'finale'],
+        'ids did not survive the round trip: ',
+      );
+    },
+  );
+});
+
+check('project file: a note and a media folder are carried, not acted on', () => {
+  /* Neither is read by anything in the browser: there is no folder here, and
+     nothing writes a note yet. They are named fields rather than unknown ones
+     so they are documented and validated — but the test that matters is the
+     same either way, that a project carrying them keeps carrying them. */
+  const read = app.readProject({
+    format: app.FORMAT,
+    version: app.FORMAT_VERSION,
+    name: 'x',
+    event: { level: 'usfs-juv', targetSeconds: 135, toleranceSeconds: 10 },
+    notes: 'coach wants more of the slow part',
+    mediaDir: 'media',
+    clips: [{ song: 'a.mp3', start: 0, end: 30 }],
+  });
+  eq(read.notes, 'coach wants more of the slow part');
+  eq(read.mediaDir, 'media');
+
+  withProgram(
+    {
+      name: read.name,
+      level: read.level,
+      targetSeconds: read.targetSeconds,
+      toleranceSeconds: read.toleranceSeconds,
+      clips: read.clips,
+    },
+    () => {
+      const saved = { notes: app.state.notes, mediaDir: app.state.mediaDir };
+      app.state.notes = read.notes;
+      app.state.mediaDir = read.mediaDir;
+      try {
+        const doc = app.project();
+        eq(doc.notes, 'coach wants more of the slow part', 'the note was dropped: ');
+        eq(doc.mediaDir, 'media', 'the media folder was dropped: ');
+      } finally {
+        app.state.notes = saved.notes;
+        app.state.mediaDir = saved.mediaDir;
+      }
+    },
+  );
+
+  // A project that says nothing does not gain empty fields it never had.
+  const bare = app.readProject({ clips: [] });
+  eq([bare.notes, bare.mediaDir], ['', ''], 'absent should read as empty: ');
+  withProgram({ name: 'x', level: 'usfs-juv', targetSeconds: 135, clips: [] }, () => {
+    const doc = app.project();
+    ok(!('notes' in doc) && !('mediaDir' in doc), 'empty fields were written out anyway');
+  });
+});
+
+check('project file: the $schema it writes is the schema that is published', () => {
+  /* The app writes a URL into every project file so an editor can validate it.
+     A URL that has drifted from where the file actually sits does not fail —
+     it 404s quietly and the validation simply stops happening. */
+  const schema = JSON.parse(
+    fs.readFileSync(path.join(ROOT, 'docs/program.skate.schema.json'), 'utf8'),
+  );
+  eq(app.SCHEMA_URL, schema.$id, 'the written $schema and the schema $id disagree: ');
+  const site = 'https://ankurs47.github.io/skate-program-editor/';
+  ok(app.SCHEMA_URL.startsWith(site), `the schema URL is not on this site: ${app.SCHEMA_URL}`);
+  eq(
+    app.SCHEMA_URL.slice(site.length),
+    'docs/program.skate.schema.json',
+    'the URL does not point at where the file is published: ',
+  );
 });
 
 check('project file: a field this app has never heard of survives a save', () => {
@@ -762,6 +893,13 @@ check('project file: the worked example still opens the way it reads', () => {
   eq(read.songs[0].source.kind, 'youtube', 'a recorded source has to survive being read: ');
   eq(read.clips[1].crossfade, 1.8, 'blend in the file is the crossfade in memory: ');
   eq(read.clips[0].srcStart, 6, 'start in the file is the source trim in memory: ');
+  eq(
+    read.clips.map((c) => c.id),
+    ['opening', 'slow', 'finish'],
+    'the ids the file names have to survive being read: ',
+  );
+  eq(read.mediaDir, 'media');
+  ok(read.notes.length > 0, 'the note in the fixture was dropped');
   near(
     read.clips[1].gain,
     app.dbToGain(-1.7),

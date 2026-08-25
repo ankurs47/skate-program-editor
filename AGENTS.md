@@ -27,7 +27,7 @@ src/style.css    theming via CSS custom properties, light and dark
 docs/            help.html — the user guide, linked from the topbar;
                  development.md; docs.css, whose color tokens copy
                  style.css's and are held to them by a test
-test/            172 checks, no dependencies — one file per testable script
+test/            175 checks, no dependencies — one file per testable script
 test/dom/        browser checks and render budgets, driven over CDP
 tools/           music-get.sh and .cmd — optional YouTube downloader, not the app
 ```
@@ -96,9 +96,26 @@ rather than failing, because a hand-edited file should not be rejected over a
 number that can be clamped, but a file whose fields may mean something else
 would produce a program that looks right and is not.
 
+**The key names in the schema belong to the editor. Everything else is fair
+game, and a tool that is not the editor should keep its fields under a key named
+for itself** — two tools that both add `notes` at the top level overwrite each
+other, and preservation cannot help with that.
+
 `docs/program.skate.schema.json` is shipped for other tools, maintained by hand,
 and checked against a real `project()` document so it cannot quietly describe a
-format that has moved on.
+format that has moved on. Every file the app writes carries a `$schema` pointing
+at it, and a check holds that URL to the schema's own `$id`, because a drifted
+URL does not fail — it 404s and validation silently stops happening.
+
+**Clips carry an id.** It is what lets anything refer to a clip and still mean
+the same one after a save. The file is not trusted to have made them unique:
+selecting and removing are by id, so `claimId` keeps the first to claim a name
+and mints a fresh one for a repeat.
+
+**`notes` goes into git.** The README suggests keeping project files in version
+control, so anything written there is published. That is the reason there is no
+field for a skater's name — see the check in `repo.test.js` that exists to keep
+one out of this repository.
 
 **The edit is data.** `state.clips` is an ordered list of
 `{file, srcStart, srcEnd, fadeIn, fadeOut, crossfade}`. Everything else —

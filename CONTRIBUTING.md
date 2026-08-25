@@ -49,7 +49,7 @@ Two more that matter nearly as much:
 ## Running the checks
 
 ```sh
-npm test              # 172 unit checks, no browser, about a second
+npm test              # 175 unit checks, no browser, about a second
 npm run test:dom      # 36 checks driving real Chrome over CDP
 npm run lint          # eslint
 pre-commit run --all-files    # everything CI runs

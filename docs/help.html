@@ -455,6 +455,7 @@
       <p><b>Save project</b> writes a small, readable JSON file:</p>
 
       <pre><code>{
+  "$schema": "https://ankurs47.github.io/skate-program-editor/docs/program.skate.schema.json",
   "format": "skate-program",
   "version": 1,
   "name": "my 2026 junior long program",
@@ -469,10 +470,11 @@
       "fingerprint": "1k4v9p" }
   ],
   "clips": [
-    { "song": "chosen song.mp3", "title": "chosen song",
+    { "id": "opening", "song": "chosen song.mp3", "title": "chosen song",
       "start": 4.76, "end": 77.08,
       "fadeIn": 1.5, "fadeOut": 0, "blend": 0, "gainDb": 0 }
-  ]
+  ],
+  "notes": "coach wants the slow part a little longer"
 }</code></pre>
 
       <p>
@@ -496,6 +498,16 @@
         <code>version</code> is the one thing that is not guessed at. A project saved by a newer
         editor than the one you are using will say so and decline to open, rather than showing you a
         program that looks right and is not.
+      </p>
+      <p>
+        <code>notes</code> is yours &mdash; free text nothing here reads. If you keep projects in
+        git, as the read-me suggests, remember that whatever you write there is published along with
+        them.
+      </p>
+      <p>
+        The <code>$schema</code> line points a text editor at a description of this format, so if
+        you edit a project by hand you get the field names completed and mistakes underlined. It is
+        only a convenience; deleting it changes nothing.
       </p>
 
       <h2 id="export">Making the music file</h2>

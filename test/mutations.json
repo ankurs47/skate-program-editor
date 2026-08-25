@@ -376,5 +376,32 @@
     "find": "  if (version > FORMAT_VERSION) {",
     "replace": "  if (false) {",
     "expect": "version from the future is refused"
+  },
+  {
+    "name": "the ids a project file names are thrown away",
+    "guards": "anything referring to a clip still means the same clip after a save",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "  let id = typeof wanted === 'string' && wanted ? wanted : uid();",
+    "replace": "  let id = uid();",
+    "expect": "clip id survives being saved"
+  },
+  {
+    "name": "a repeated clip id is trusted",
+    "guards": "two clips can never share an id, whatever the file says",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "  while (taken.has(id)) id = uid();",
+    "replace": "  void taken;",
+    "expect": "every clip gets its own id"
+  },
+  {
+    "name": "the file stops pointing at the schema",
+    "guards": "a hand-edited project is validated by the editor opening it",
+    "file": "src/app.js",
+    "suite": "unit",
+    "find": "    $schema: SCHEMA_URL,",
+    "replace": "    $schema: 'https://example.invalid/schema.json',",
+    "expect": "schema that is published"
   }
 ]

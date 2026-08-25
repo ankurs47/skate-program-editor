@@ -108,7 +108,7 @@ thing that will not run.
 ## Commands
 
 ```bash
-npm test             # 172 unit, wiring and asset checks — fast, no browser
+npm test             # 175 unit, wiring and asset checks — fast, no browser
 npm run lint
 npm run check        # lint + test, which is what the pre-commit hook runs
 npm run test:net     # also re-verifies the pinned CDN hash over the network
@@ -169,6 +169,17 @@ test/
 tools/                the YouTube download wrappers
 ```
 
+The project file is the app's one lasting output, so two rules hold around it.
+Fields the app does not recognize are preserved, top level and per song, which
+is what lets another tool write into the same file. And the key names the schema
+documents belong to the editor: a tool that is not the editor should keep its
+own fields under a key named for itself, because preservation cannot stop two
+tools that both chose `notes` from overwriting each other.
+
+`notes` is free text nothing reads. Worth knowing that the app suggests keeping
+projects in git, so treat anything written there as published — which is also
+why there is no field for a skater's name.
+
 `analysis.js`, `formats.js` and `program.js` are the parts that can be tested
 without a DOM, and a test asserts they stay that way: one `document.`, one
 `window.`, one reach into `state` and the split has quietly stopped being worth
@@ -188,7 +199,7 @@ mistake.
 
 ### Unit checks
 
-`npm test` — 172 checks across six files, no browser, under a second.
+`npm test` — 175 checks across six files, no browser, under a second.
 
 They cover the parts that are easy to get quietly wrong: timeline math with
 overlapping blends, fade and crossfade envelopes summing correctly, filename
