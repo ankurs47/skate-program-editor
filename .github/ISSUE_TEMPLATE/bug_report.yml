@@ -1,0 +1,79 @@
+name: Something is broken
+description: The editor did the wrong thing, or would not do the right one
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Everything runs in your browser, so what happened on your machine is
+        all there is to go on. The more of the below you can fill in, the
+        better the odds of finding it.
+
+        **Please do not attach your music.** It is not needed, and it is
+        probably not yours to publish. A file name and a length are plenty.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: And what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to get there
+      placeholder: |
+        1. Add two songs
+        2. Trim the second one to 40s
+        3. Press Make music file
+        4. The timer reads ...
+    validations:
+      required: true
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and version
+      description: Chrome's is under Help → About. "Latest" is not a version.
+      placeholder: Chrome 141 on Windows 11
+    validations:
+      required: true
+
+  - type: dropdown
+    id: opened
+    attributes:
+      label: How did you open it
+      options:
+        - The hosted page (ankurs47.github.io)
+        - index.html from my own disk
+        - A local server
+    validations:
+      required: true
+
+  - type: textarea
+    id: console
+    attributes:
+      label: Anything in the console
+      description: >-
+        F12, then the Console tab. Red text is what matters. Leave it blank if
+        there is none — that is useful to know too.
+      render: text
+
+  - type: textarea
+    id: project
+    attributes:
+      label: The project file, if you have one
+      description: >-
+        Paste the `.json` if the problem survives a reload. It holds only file
+        names, times and levels — no audio.
+      render: json
+
+  - type: checkboxes
+    id: acknowledged
+    attributes:
+      label: Before you send
+      options:
+        - label: I have read that this is a personal project with no support behind it, and that a fix is not promised.
+          required: true

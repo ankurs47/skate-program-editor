@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: How do I ...?
+    url: https://ankurs47.github.io/skate-program-editor/docs/help.html
+    about: The guide covers trimming, blending, the timer and getting the file out.
+  - name: A security problem
+    url: https://github.com/ankurs47/skate-program-editor/security/advisories/new
+    about: Report it privately here rather than in a public issue.
