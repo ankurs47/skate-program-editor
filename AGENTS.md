@@ -53,10 +53,9 @@ npm run test:mutate  # break the code on purpose, check a test notices (~4 min)
 `main` is protected: pull request required, CI must pass, applies to admins too.
 The pre-commit hook runs lint and tests; `--no-verify` skips it.
 
-With [pre-commit](https://pre-commit.com) installed it owns the hook and adds
-shellcheck, codespell and file hygiene on top — see `.pre-commit-config.yaml`.
-Without it, `.githooks/pre-commit` still gives you lint and tests.
-`npm install` picks whichever this machine can run.
+Checks before every commit come from [pre-commit](https://pre-commit.com) — see
+`.pre-commit-config.yaml`. `npm install` turns them on; without `pre-commit` on
+the machine it says so and nothing checks your commits until CI does.
 
 ## Ground rules
 

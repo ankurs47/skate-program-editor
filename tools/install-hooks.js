@@ -1,24 +1,18 @@
 #!/usr/bin/env node
 /**
- * Turn on whichever pre-commit machinery this machine can run.
+ * Turn on the pre-commit hooks.
  *
  * Run by `npm install` through the prepare script; harmless to run again.
  *
- * Two paths, because contributors arrive with different toolboxes. With the
- * pre-commit framework present it owns the hook, and you get the file-hygiene,
- * shellcheck and codespell checks as well as lint and tests. With only Node,
- * .githooks/pre-commit still gives you lint and tests, which is what this repo
- * had before and is the part that must never be optional.
- *
- * They cannot both be installed: git ignores .git/hooks entirely once
- * core.hooksPath is set, and pre-commit refuses to install while it is.
+ * There used to be a second path here — a plain git hook in .githooks that ran
+ * lint and the tests for anyone without the framework. It went because two hook
+ * systems is two things to understand and the fallback was much the weaker of
+ * them: no shellcheck, no spelling, no formatting, none of the file hygiene.
+ * Anyone who skips this still has CI, which runs the same hooks.
  */
 'use strict';
 
 const { execFileSync, spawnSync } = require('child_process');
-
-const quiet = { stdio: 'ignore' };
-const has = (cmd) => spawnSync(cmd, ['--version'], quiet).status === 0;
 
 function git(...args) {
   return execFileSync('git', args, { encoding: 'utf8' }).trim();
@@ -30,19 +24,22 @@ try {
   process.exit(0); // not a clone — nothing to install into
 }
 
-if (has('pre-commit')) {
-  try {
-    git('config', '--unset-all', 'core.hooksPath');
-  } catch (_) {
-    /* was not set */
-  }
-  const done = spawnSync('pre-commit', ['install'], { stdio: 'inherit' });
-  if (done.status === 0) process.exit(0);
-  console.error('hooks: pre-commit failed to install, falling back to .githooks');
+if (spawnSync('pre-commit', ['--version'], { stdio: 'ignore' }).status !== 0) {
+  console.log(
+    'hooks: pre-commit is not installed, so nothing checks your commits.\n' +
+      '       pip install pre-commit && npm run prepare',
+  );
+  process.exit(0); // a missing tool should not fail someone's npm install
 }
 
-git('config', 'core.hooksPath', '.githooks');
-console.log(
-  'hooks: .githooks (lint and tests). For the full set:' +
-    ' pip install pre-commit && npm run prepare',
-);
+/* pre-commit refuses to install while core.hooksPath is set, and git ignores
+   .git/hooks entirely when it is. Left over from the old fallback on any clone
+   that predates this. */
+try {
+  git('config', '--unset-all', 'core.hooksPath');
+} catch (_) {
+  /* was not set */
+}
+
+const done = spawnSync('pre-commit', ['install'], { stdio: 'inherit' });
+process.exit(done.status === 0 ? 0 : 0);
