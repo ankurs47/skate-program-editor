@@ -10,7 +10,7 @@
  * hides its cover art somewhere else again. All three are written up in
  * AGENTS.md.
  *
- * Loaded after analysis.js and before app.js.
+ * Loaded after analysis.js, before everything that uses it.
  */
 'use strict';
 

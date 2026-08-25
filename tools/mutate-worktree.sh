@@ -35,7 +35,11 @@ fi
 dir=$(mktemp -d "${TMPDIR:-/tmp}/skate-mutate.XXXXXX")
 cleanup() {
   cd "$root"
+  # If the remove fails — an interrupted run, a busy directory — the fallback
+  # takes the files but leaves git's record of the worktree behind, and it shows
+  # up in `git worktree list` as prunable for ever. Prune either way.
   git worktree remove --force "$dir" >/dev/null 2>&1 || rm -rf "$dir"
+  git worktree prune
 }
 trap cleanup EXIT INT TERM
 

@@ -1,5 +1,5 @@
 {
-  "note": "Where the program lengths in src/app.js come from, and what each source looked like when a person last checked it. See tools/check-sources.js — this records that a source has not moved, never that our times are right.",
+  "note": "Where the program lengths in src/program.js come from, and what each source looked like when a person last checked it. See tools/check-sources.js — this records that a source has not moved, never that our times are right.",
   "checked": "2026-08-24",
   "sources": [
     {

@@ -8,7 +8,7 @@
  * something the unit suite does not — a browser on the machine — and a suite
  * that fails when Chrome is missing is one people stop trusting.
  *
- * These cover the half of app.js that the unit tests cannot reach: dialogs and
+ * These cover the half of the app that the unit tests cannot reach: dialogs and
  * focus, the audio graph, key handling, and the flows that only exist as a
  * sequence of clicks. Two of the bugs fixed in #6 and #7 were found by doing
  * exactly this by hand, which is the argument for doing it automatically.
@@ -69,17 +69,19 @@ async function main() {
 
     /* ------------------------------------------------------------ startup */
 
-    await check('the page starts clean, with all three scripts loaded', async () => {
+    await check('the page starts clean, with every script loaded', async () => {
       const state = await run(`
         return {
           scripts: [...document.querySelectorAll('script[src]')]
             .map(s => s.getAttribute('src')).filter(s => !s.startsWith('http')),
-          crossFile: ['clamp', 'analyzeBeats', 'qualityKind', 'layout']
+          crossFile: ['clamp', 'analyzeBeats', 'qualityKind', 'layout', 'drawWave',
+            'playProgram', 'renderLibrary', 'renderTimeline', 'drawClipEditor',
+            'openDialog', 'refresh']
             .map(n => typeof window[n] === 'function' || typeof eval(n) === 'function'),
         };
       `);
       eq(state.scripts, SCRIPTS, 'load order: ');
-      eq(state.crossFile, [true, true, true, true], 'every cross-file name resolves: ');
+      eq(state.crossFile, new Array(11).fill(true), 'every cross-file name resolves: ');
       eq(session.page.consoleErrors(), [], 'the page logged errors on startup: ');
     });
 

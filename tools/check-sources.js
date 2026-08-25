@@ -130,7 +130,7 @@ async function main() {
     shippedLengths(),
     '',
     '### When you have checked\n',
-    'Edit `LEVELS` in `src/app.js` if anything changed, then run',
+    'Edit `LEVELS` in `src/program.js` if anything changed, then run',
     '`npm run check:sources -- --update` and commit `tools/sources.json`. Until',
     'that baseline moves this will keep asking, which is the point.',
   );

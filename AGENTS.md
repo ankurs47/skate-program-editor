@@ -15,12 +15,19 @@ plain, and jargon is treated as a bug.
 index.html       the page — stays at the root, see below
 src/analysis.js  beat detection, phrase detection, loudness — samples in, numbers out
 src/formats.js   ID3/MPEG/Ogg parsing and the Good/Fair/Low verdict
-src/app.js       state, decode, waveforms, editing, playback, render, export, wiring
+src/program.js   what a program is: clips, levels, envelopes, joins, project files
+src/canvas.js    colors read from the stylesheet, and the canvas helpers
+src/audio.js     playback scheduling, offline render, WAV/MP3 encoding
+src/library.js   decoding files, the song list, remembered file handles
+src/timeline.js  the clip strip, the ruler and the playhead
+src/editor.js    one clip up close: trims, fades, align, even out, budget
+src/dialogs.js   opening and closing modals, and trapping focus in them
+src/app.js       state, undo, theme, saving, and the wiring that joins it up
 src/style.css    theming via CSS custom properties, light and dark
 docs/            help.html — the user guide, linked from the topbar;
                  development.md; docs.css, whose color tokens copy
                  style.css's and are held to them by a test
-test/            161 checks, no dependencies — one file per script file
+test/            166 checks, no dependencies — one file per testable script
 test/dom/        browser checks and render budgets, driven over CDP
 tools/           music-get.sh and .cmd — optional YouTube downloader, not the app
 ```
@@ -69,9 +76,9 @@ the machine it says so and nothing checks your commits until CI does.
 - **Plain language in the interface.** "Make music file", not "Export". A word
   like _bitrate_, _codec_ or _render_ appearing in visible text is a defect.
   Technical detail belongs in tooltips.
-- `app.js` is a plain browser script, so its functions are global by design.
-  `no-implicit-globals` is deliberately disabled — satisfying it would mean
-  wrapping two thousand lines in an IIFE for no benefit.
+- The app is a set of plain browser scripts, so their functions are global by
+  design. `no-implicit-globals` is deliberately disabled — satisfying it would
+  mean wrapping every one of them in an IIFE for no benefit.
 
 ## How the pieces fit
 
@@ -93,25 +100,33 @@ you hear is what you get. Do not add an export-only path.
 drag to reorder, widths only roughly proportional. The scrubber below it is real
 program time, where overlapping blocks are blends. Seeking uses the scrubber.
 
-**Three files, one global scope.** `index.html` loads `analysis.js`, then
-`formats.js`, then `app.js`, and they share one scope — so app.js calls into the
-other two by name with nothing wired up. There is still no build step and no
-module system. Order matters, and a test asserts it.
+**Many files, one global scope.** `index.html` loads every `src/*.js` with a
+plain script tag, and they share a single scope — so they call into each other
+by name with nothing wired up. There is still no build step and no module
+system. Nothing runs at load except `init()` at the very end of `app.js`, so the
+load order is not load-bearing; it is kept in dependency order because it reads
+better that way, and a test asserts the page and the harness agree on it.
 
-The line between them is the browser: `analysis.js` and `formats.js` take
-samples, bytes and buffers and return numbers and descriptions, and never touch
-the DOM or program state. A test asserts _that_ too, because the split is only
-worth anything while it holds, and drift would not break anything until someone
-tried to test the thing that had drifted. Anything needing `$()`, `state` or
-`library` belongs in app.js.
+The line that matters is the browser: `analysis.js`, `formats.js` and
+`program.js` take samples, bytes, clips and settings and return numbers and
+descriptions, and never touch the DOM or program state. A test asserts that,
+because the split is only worth anything while it holds, and drift would not
+break anything until someone tried to test the thing that had drifted. Anything
+needing `$()`, `state` or `library` belongs in one of the others.
 
-**Testability.** Each file calls `init()` under a browser or exports its pure
-functions under Node. Node gives each file its own module scope rather than the
-shared one, so app.js's export block also puts the other two on `global` — that
-bridge is the only thing the split costs. Keep new pure logic out of DOM
-handlers, and add it to the export list at the bottom of whichever file it is
-in. `eslint.config.js` derives the list of cross-file names from those export
-blocks, so an export you forget shows up as `no-undef` in app.js.
+**Testability.** `app.js` calls `init()` under a browser; under Node every file
+exports its own top-level names instead. Node gives each file its own module
+scope rather than the shared one, so `app.js` requires them all and puts the
+result on `global` — that bridge is the only thing the split costs. Keep new
+pure logic out of DOM handlers, and add it to the export list at the bottom of
+whichever file it is in. `eslint.config.js` derives each file's cross-file names
+from those export blocks — every file is told about every name except its own —
+so an export you forget shows up as `no-undef` where it is used.
+
+A `let` that one file declares and another assigns is a mistake worth naming:
+the browser shares the binding but Node only copies the value, and eslint
+reports it as writing to a read-only global. Give the owning file a small
+function that does the write, and call that instead.
 
 **The browser checks are where the DOM half is tested.** `test/dom/` drives real
 Chrome over the DevTools Protocol — no dependencies, because Node 22 has a
@@ -157,13 +172,18 @@ not tested**, and the script refuses to start rather than pretend otherwise.
 The runner restores from a copy in memory, never with git — reverting with git
 is how an earlier session destroyed uncommitted work.
 
-The unit tests mirror the file split — `test/analysis.test.js`,
-`test/formats.test.js`, `test/app.test.js` — plus three that are not about any
-one source file: `assets.test.js` for the app's own wiring, `site.test.js` for
-what gets published, `repo.test.js` for rules that hold everywhere.
+The unit tests follow what can be tested without a DOM —
+`test/analysis.test.js`, `test/formats.test.js` and `test/app.test.js`, the last
+of which is mostly about `program.js` — plus three that are not about any one
+source file: `assets.test.js` for the app's own wiring, `site.test.js` for what
+gets published, `repo.test.js` for rules that hold everywhere.
 `test/harness.js` holds `check`/`eq`/`near`/`ok`; `test/run.js` only loads them
 and reports. A new test goes in the file matching the code it covers.
-Requiring `app.js` still gets everything, because it re-exports the other two.
+Requiring `app.js` still gets everything, because it re-exports the others.
+
+A check that reads source text reads `SCRIPTS`, not one file by name. This
+matters most for a check that asserts something is _absent_: pointed at a single
+file, it passes on the strength of not having looked.
 
 **Beat detection answers with a confidence, and callers must honor it.**
 `analyzeBeats()` finds a tempo and a beat grid in a window of samples;

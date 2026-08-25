@@ -691,11 +691,19 @@
     <input id="projectInput" type="file" accept="application/json,.json" hidden />
     <div id="toast" class="toast hidden" role="status" aria-live="polite" aria-atomic="true"></div>
 
-    <!-- Order matters: app.js calls into both of these by name, and they share one
-     global scope. No modules and no build step — this is still three files you
-     can open from disk. -->
+    <!-- These share one global scope and call into each other by name. Order is
+     not load-bearing — nothing here runs until app.js reaches init() — but the
+     list is kept in dependency order so it reads as one file would. No modules
+     and no build step: they can still be opened from disk. -->
     <script src="src/analysis.js"></script>
     <script src="src/formats.js"></script>
+    <script src="src/program.js"></script>
+    <script src="src/canvas.js"></script>
+    <script src="src/audio.js"></script>
+    <script src="src/library.js"></script>
+    <script src="src/timeline.js"></script>
+    <script src="src/editor.js"></script>
+    <script src="src/dialogs.js"></script>
     <script src="src/app.js"></script>
   </body>
 </html>
