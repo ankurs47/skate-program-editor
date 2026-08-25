@@ -108,7 +108,7 @@ thing that will not run.
 ## Commands
 
 ```bash
-npm test             # 167 unit, wiring and asset checks — fast, no browser
+npm test             # 168 unit, wiring and asset checks — fast, no browser
 npm run lint
 npm run check        # lint + test, which is what the pre-commit hook runs
 npm run test:net     # also re-verifies the pinned CDN hash over the network
@@ -186,7 +186,7 @@ mistake.
 
 ### Unit checks
 
-`npm test` — 167 checks across six files, no browser, under a second.
+`npm test` — 168 checks across six files, no browser, under a second.
 
 They cover the parts that are easy to get quietly wrong: timeline math with
 overlapping blends, fade and crossfade envelopes summing correctly, filename
@@ -262,6 +262,13 @@ in place if you want that.
 
 The runner restores from in-memory copies of the files, never from git. This is
 not a stylistic preference: `git checkout --` takes uncommitted work with it.
+
+A mutation anchors on a snippet of the file it patches, so it has to be written
+against the formatted text rather than the text you typed — Prettier reflows a
+ternary or rewrites a quote on the way into the commit, and an anchor written
+against the earlier shape quietly matches nothing. `repo.test.js` checks that
+every anchor still matches exactly once, which turns that from something only a
+mutation run notices into something the pre-commit hook does.
 
 The worktree cannot protect `tools/mutate-worktree.sh` itself. Bash reads a
 script by byte offset as it runs, so editing one mid-run makes it resume in the
