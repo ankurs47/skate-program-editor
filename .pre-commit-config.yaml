@@ -1,0 +1,66 @@
+# Hooks that run before every commit. Enable them once with:
+#
+#   pre-commit install
+#
+# `npm install` does that for you when pre-commit is on the machine, and falls
+# back to .githooks/pre-commit when it is not — so a contributor with only Node
+# still gets lint and tests, just not the file-hygiene and shell checks below.
+#
+# The two `local` hooks are the ones that were in the git hook all along. They
+# run the whole suite rather than the staged files, because these tests are
+# about how the files fit together: a check that every id index.html mentions
+# exists cannot be answered by looking at index.html alone.
+
+exclude: '^(docs/(screenshot|social-card)\.png|package-lock\.json)$'
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        # Markdown uses two trailing spaces as a line break; not our style here,
+        # but stripping them silently would change how a page renders.
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-merge-conflict
+      - id: check-yaml          # the workflows
+      - id: check-json          # package.json, mutations.json, sources.json
+      - id: check-executables-have-shebangs
+      - id: check-added-large-files
+        # The README screenshot is 764 KB and generated, so the usual 500 KB
+        # default would reject it on every regeneration.
+        args: [--maxkb=1024]
+
+  # shellcheck-py rather than koalaman/shellcheck-precommit: that one runs the
+  # check inside Docker, which is a heavy thing to require of someone who wants
+  # to fix a typo. This ships the same binary as a Python package.
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1-1
+    hooks:
+      - id: shellcheck
+
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.3
+    hooks:
+      - id: codespell
+        # Typos only. British spellings are a separate matter and are caught by
+        # test/repo.test.js, which knows which forms this project has settled on.
+        args: [--ignore-words=.codespell-ignore]
+
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint
+        entry: npm run --silent lint
+        language: system
+        pass_filenames: false
+        files: \.(js|cjs|mjs)$
+
+      - id: unit-tests
+        name: unit tests
+        entry: npm run --silent test
+        language: system
+        pass_filenames: false
+        always_run: true

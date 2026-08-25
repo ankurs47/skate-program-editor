@@ -26,6 +26,13 @@ jobs:
       - name: Install
         run: npm ci
 
+      # The same hooks a commit runs locally, so a contributor without the
+      # framework installed still cannot land trailing whitespace, a shell
+      # bug or a typo. It reruns lint and the unit suite as two of its hooks;
+      # the steps below stay because they carry --net and write the report.
+      - name: Pre-commit hooks
+        uses: pre-commit/action@v3.0.1
+
       - name: Lint
         run: npm run lint
 

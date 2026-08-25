@@ -42,8 +42,27 @@ cd skate-program-editor
 npm install
 ```
 
-`npm install` also points git at `.githooks`, so **lint and tests run before
-every commit**. `git commit --no-verify` skips it in an emergency.
+`npm install` turns on a pre-commit hook, so **checks run before every commit**.
+`git commit --no-verify` skips it in an emergency.
+
+Which checks depends on what you have. With [pre-commit](https://pre-commit.com)
+installed — `pip install pre-commit` — it owns the hook and you get the whole set
+in `.pre-commit-config.yaml`: whitespace and end-of-file fixes, YAML and JSON
+parsing, shellcheck over the three shell scripts, codespell, then eslint and the
+unit suite. With only Node you fall back to `.githooks/pre-commit`, which runs
+lint and the unit suite — what this repo had before, and the part that is never
+optional. `tools/install-hooks.js` picks between them; the two cannot coexist,
+because git ignores `.git/hooks` once `core.hooksPath` is set and pre-commit
+refuses to install while it is.
+
+CI runs the same hooks, so a contributor without the framework still cannot land
+trailing whitespace, a shell bug or a typo.
+
+Two shellcheck findings are suppressed in place with the reason written down
+rather than fixed, because both are deliberate: `music-get.sh` splits `$limit`
+into two words on purpose and is `/bin/sh` with no arrays to do it otherwise,
+and `mutate-worktree.sh` indents a multi-line value, which parameter expansion
+cannot do.
 
 Node 22 or later, for the global `WebSocket` the browser tests need. Chrome or
 Chromium on `PATH` for `npm run test:dom`; without one, that suite is the only

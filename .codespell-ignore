@@ -1,0 +1,5 @@
+# Words codespell would otherwise flag, one per line, lowercase.
+#
+# couldn: from couldn&rsquo;t in the HTML — codespell sees the word split at
+# the entity and reads the half. The prose is correct as written.
+couldn

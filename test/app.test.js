@@ -710,4 +710,3 @@ check('support check: passes a modern browser, blocks a hopeless one', () => {
   ok(app.unsupportedReasons().length >= 2, 'a browser with no Web Audio should be blocked');
   Object.assign(global, saved);
 });
-

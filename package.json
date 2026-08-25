@@ -13,7 +13,7 @@
     "screenshot": "node tools/screenshot.js",
     "lint": "eslint .",
     "check": "npm run lint && npm test",
-    "prepare": "git config core.hooksPath .githooks || true"
+    "prepare": "node tools/install-hooks.js"
   },
   "devDependencies": {
     "eslint": "^9.15.0"

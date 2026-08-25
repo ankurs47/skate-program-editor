@@ -1380,7 +1380,7 @@ function drawClipEditor() {
   if (!clip) return;
 
   $('editorTitle').textContent = clip.title;
-  $('editorTitle').title = clip.title;   // the heading ellipsises when it is long
+  $('editorTitle').title = clip.title;   // CSS cuts the heading short when it is long
   const entry = library.get(clip.file);
   const canvas = $('clipCanvas');
   const duration = entry && entry.buffer ? entry.duration : Math.max(clip.srcEnd, 1);

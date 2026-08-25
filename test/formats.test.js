@@ -198,4 +198,3 @@ check('oggAudioStart: says nothing rather than guessing on other containers', ()
   eq(app.oggAudioStart(bytesOf(oggPage([19]))), 0,
     'one header alone is not enough to locate the audio: ');
 });
-
