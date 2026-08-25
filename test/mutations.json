@@ -322,5 +322,32 @@
     "find": "    if (!inside) setSettingsOpen(false);",
     "replace": "    void inside;",
     "expect": "click outside did not shut it"
+  },
+  {
+    "name": "the first run is told to pick a song that is not there",
+    "guards": "the empty state offers a step that can be taken",
+    "file": "src/timeline.js",
+    "suite": "dom",
+    "find": "  $('timelineWrap').dataset.mode = state.clips.length\n    ? 'none'\n    : library.size\n      ? 'pick'\n      : 'start';",
+    "replace": "  $('timelineWrap').dataset.mode = state.clips.length ? 'none' : 'pick';",
+    "expect": "says the step that can actually be taken"
+  },
+  {
+    "name": "an empty program still offers Play",
+    "guards": "controls that can do nothing do not offer themselves",
+    "file": "src/timeline.js",
+    "suite": "dom",
+    "find": "  $('btnPlay').disabled = nothingToPlay;",
+    "replace": "  $('btnPlay').disabled = false;",
+    "expect": "says the step that can actually be taken"
+  },
+  {
+    "name": "both empty-state messages are shown at once",
+    "guards": "only the message that applies is on the page",
+    "file": "src/style.css",
+    "suite": "dom",
+    "find": "#timelineWrap[data-mode='start'] [data-when='pick'],\n#timelineWrap:not([data-mode='start']) [data-when='start'] {\n  display: none;\n}",
+    "replace": "#timelineWrap[data-mode='start'] [data-when='pick'] {\n  display: none;\n}",
+    "expect": "says the step that can actually be taken"
   }
 ]

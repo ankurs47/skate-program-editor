@@ -156,6 +156,101 @@ async function main() {
       );
     });
 
+    /* -------------------------------------------------------- empty state */
+
+    await check('an empty program says the step that can actually be taken', async () => {
+      /* "Pick a song on the left" is only an instruction if there is a song on
+         the left. With nothing added it points at an empty panel, so the first
+         run has to offer adding music instead. Both messages live in the page
+         and one is chosen between them; the risk is that the choosing stops
+         happening and whichever is written first wins for ever. */
+      const out = await run(`
+        window.__reset([]);
+        const wrap = document.getElementById('timelineWrap');
+        const shown = () => [...document.querySelectorAll('#timelineEmpty [data-when]')]
+          .filter(n => n.getClientRects().length)
+          .map(n => n.dataset.when)
+          .filter((v, i, a) => a.indexOf(v) === i);
+        const snap = () => ({
+          mode: wrap.dataset.mode,
+          shown: shown(),
+          text: document.getElementById('timelineEmpty').innerText.replace(/\\s+/g, ' ').trim(),
+          play: document.getElementById('btnPlay').disabled,
+          stop: document.getElementById('btnStop').disabled,
+          scrubHelp: document.querySelector('.scrub-help').getClientRects().length > 0,
+          height: Math.round(wrap.getBoundingClientRect().height),
+        });
+
+        const first = snap();
+
+        /* The routes out of the empty state have to be real buttons, not
+           instructions about buttons elsewhere. Both are checked by watching
+           what they reach rather than by opening a file dialog, which is not
+           something a headless browser will show. */
+        let picked = 0;
+        const realPick = window.showOpenFilePicker;
+        /* Either route into the picker counts: the File System Access API where
+           the browser has it, the hidden <input> where it does not. */
+        if (realPick) window.showOpenFilePicker = () => { picked++; return Promise.reject(new Error('none')); };
+        const fileInput = document.getElementById('fileInput');
+        const realFileClick = fileInput.click;
+        fileInput.click = () => { picked++; };
+        const projectInput = document.getElementById('projectInput');
+        let loaded = 0;
+        const realProjectClick = projectInput.click;
+        projectInput.click = () => { loaded++; };
+
+        document.getElementById('btnEmptyAdd').click();
+        document.getElementById('btnEmptyLoad').click();
+        const reached = { picked, loaded };
+
+        if (realPick) window.showOpenFilePicker = realPick;
+        fileInput.click = realFileClick;
+        projectInput.click = realProjectClick;
+
+        /* Music in the library but nothing in the program — __reset adds a clip
+           for every song it is given, which is the state after this one. */
+        window.__reset([]);
+        window.__addToLibrary('a.mp3', window.__tone(220, 30));
+        refresh();
+        const withMusic = snap();
+
+        addClip(library.get('a.mp3'));
+        refresh();
+        const withClip = snap();
+
+        return { first, withMusic, withClip, reached };
+      `);
+
+      eq(out.first.mode, 'start', 'a first run should offer adding music: ');
+      eq(out.first.shown, ['start'], 'only the first-run message belongs on a first run: ');
+      ok(
+        !/Pick a song on the left/.test(out.first.text),
+        `a first run still points at the empty panel: "${out.first.text}"`,
+      );
+      ok(out.first.play && out.first.stop, 'Play and Stop offer themselves with nothing to play');
+      ok(!out.first.scrubHelp, 'the scrubber explains itself with nothing to scrub');
+
+      ok(out.reached.picked > 0, 'Add your music reached no file picker');
+      ok(out.reached.loaded > 0, 'Load a saved project reached no project input');
+
+      eq(out.withMusic.mode, 'pick', 'with music and no clips, say how to add one: ');
+      eq(out.withMusic.shown, ['pick'], 'the first-run message outstayed the first run: ');
+      ok(
+        /Pick a song on the left/.test(out.withMusic.text),
+        `no instruction once there is a song to pick: "${out.withMusic.text}"`,
+      );
+      ok(
+        out.first.height > out.withMusic.height,
+        `the first-run card is cramped into the strip: ${out.first.height} vs ${out.withMusic.height}`,
+      );
+
+      eq(out.withClip.mode, 'none', 'the empty state outstayed the empty program: ');
+      eq(out.withClip.shown, [], 'an empty-state message is showing over a real program: ');
+      ok(!out.withClip.play, 'Play stayed off with a clip to play');
+      ok(out.withClip.scrubHelp, 'the scrubber lost its explanation');
+    });
+
     /* --------------------------------------------------------------- undo */
 
     await check('a held key is one undo step, and spares the history', async () => {

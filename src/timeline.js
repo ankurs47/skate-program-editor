@@ -106,7 +106,21 @@ function syncTimelineMetrics(parts, total) {
 function renderTimeline() {
   const wrap = $('timeline');
   const { parts, total } = layout(state.clips);
+  /* Which of the two empty states applies. "Pick a song on the left" is only
+     an instruction anyone can follow once there is a song on the left. */
   $('timelineEmpty').classList.toggle('hidden', state.clips.length > 0);
+  /* On the wrapper rather than the overlay, because the slot changes shape:
+     with no music at all there is no strip to lay anything over, so the card
+     takes its place instead of floating above an empty box. */
+  $('timelineWrap').dataset.mode = state.clips.length ? 'none' : library.size ? 'pick' : 'start';
+
+  /* Nothing to play and nothing to scrub, so neither offers itself. The
+     scrubber stays: it is drawing the target window, which is worth seeing
+     before there is a program to measure against it. */
+  const nothingToPlay = state.clips.length === 0;
+  $('btnPlay').disabled = nothingToPlay;
+  $('btnStop').disabled = nothingToPlay;
+  document.querySelector('.scrub-help').classList.toggle('hidden', nothingToPlay);
 
   const signature = timelineSignature(state.clips, parts);
   if (
