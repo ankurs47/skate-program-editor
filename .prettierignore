@@ -1,10 +1,4 @@
-# Prettier formats the JavaScript, CSS, JSON, YAML and Markdown.
-#
-# HTML is left alone deliberately: measured before deciding, it turned 1,138
-# lines into 2,376 by re-indenting markup whose structure and comments were
-# written on purpose. It has structural checks in test/assets.test.js and
-# test/site.test.js instead.
-*.html
+# Prettier formats everything here: JavaScript, CSS, HTML, JSON, YAML, Markdown.
 
 # Editor and tool settings that happen to sit in the working tree. Untracked,
 # so reformatting them would only churn someone's local file.

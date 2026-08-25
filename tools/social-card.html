@@ -1,5 +1,5 @@
 <!doctype html>
-<meta charset="utf-8">
+<meta charset="utf-8" />
 <!--
   The picture a link to this site unfurls as. Rendered to docs/social-card.png
   by tools/screenshot.js — never edited as an image, so it can be re-made when
@@ -10,33 +10,80 @@
   arithmetic, and the sides get cropped off on every platform that matters.
 -->
 <style>
-  * { box-sizing: border-box; margin: 0; }
-  body { background: #14171c; }
-  .card {
-    width: 1200px; height: 630px;
-    background: #14171c;
-    display: flex; flex-direction: column; justify-content: center;
-    padding: 0 90px; gap: 26px;
-    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-    color: #e8ebef;
-    position: relative; overflow: hidden;
+  * {
+    box-sizing: border-box;
+    margin: 0;
   }
-  .row { display: flex; align-items: center; gap: 28px; }
-  h1 { font-size: 64px; font-weight: 650; letter-spacing: -.02em; }
-  p { font-size: 31px; line-height: 1.42; color: #939caa; max-width: 900px; }
-  .tag { font-size: 24px; color: #5b8cff; font-weight: 600; }
+  body {
+    background: #14171c;
+  }
+  .card {
+    width: 1200px;
+    height: 630px;
+    background: #14171c;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 0 90px;
+    gap: 26px;
+    font-family:
+      system-ui,
+      -apple-system,
+      'Segoe UI',
+      sans-serif;
+    color: #e8ebef;
+    position: relative;
+    overflow: hidden;
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+  }
+  h1 {
+    font-size: 64px;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+  }
+  p {
+    font-size: 31px;
+    line-height: 1.42;
+    color: #939caa;
+    max-width: 900px;
+  }
+  .tag {
+    font-size: 24px;
+    color: #5b8cff;
+    font-weight: 600;
+  }
   /* a hint of the thing itself, bled off the bottom edge */
-  .wave { position: absolute; left: 0; right: 0; bottom: 0; height: 126px;
-          display: flex; align-items: flex-end; gap: 7px; padding: 0 90px 32px; opacity: .28; }
-  .wave i { flex: 1; background: #5b8cff; border-radius: 3px; }
+  .wave {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 126px;
+    display: flex;
+    align-items: flex-end;
+    gap: 7px;
+    padding: 0 90px 32px;
+    opacity: 0.28;
+  }
+  .wave i {
+    flex: 1;
+    background: #5b8cff;
+    border-radius: 3px;
+  }
 </style>
 <div class="card">
   <div class="row">
-    <img src="/src/logo.svg" width="100" height="100" alt="">
+    <img src="/src/logo.svg" width="100" height="100" alt="" />
     <h1>Skate Program Editor</h1>
   </div>
-  <p>Cut figure skating program music in your browser — trim, order, blend the joins,
-     and watch the running total against the limit for your event.</p>
+  <p>
+    Cut figure skating program music in your browser — trim, order, blend the joins, and watch the
+    running total against the limit for your event.
+  </p>
   <div class="tag">Free · No sign-up · Your music never leaves your computer</div>
   <div class="wave" id="w"></div>
 </div>
@@ -46,8 +93,8 @@
   const w = document.getElementById('w');
   for (let i = 0; i < 74; i++) {
     const t = i / 74;
-    const h = 12 + 84 * Math.abs(Math.sin(t * 7.5)) * (0.45 + 0.55 * t)
-      * (0.75 + 0.25 * Math.sin(t * 31));
+    const h =
+      12 + 84 * Math.abs(Math.sin(t * 7.5)) * (0.45 + 0.55 * t) * (0.75 + 0.25 * Math.sin(t * 31));
     w.insertAdjacentHTML('beforeend', `<i style="height:${h.toFixed(1)}px"></i>`);
   }
 </script>

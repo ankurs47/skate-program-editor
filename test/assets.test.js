@@ -45,10 +45,16 @@ check('every help button has a matching topic', () => {
 });
 
 check('outcomes are announced, and every dialog says it is one', () => {
-  /* All three modals are plain divs over a backdrop rather than <dialog>, so
-     the role, the name and the modality have to be stated by hand — and the
-     toast carries every outcome the app reports, from "Evened out 3 songs" to
-     the whole join result. */
+  /* All the modals are plain divs over a backdrop rather than <dialog>, so the
+     role, the name and the modality have to be stated by hand — and the toast
+     carries every outcome the app reports.
+
+     The attribute names are checked against the spec's spelling, not against
+     whatever the file happens to say. An American-English pass once turned
+     aria-labelledby into aria-labeledby in all four dialogs; that is not an
+     attribute, so every one of them silently lost its accessible name, and the
+     version of this check that looked for "whatever is in the file" passed
+     throughout. */
   const toast = html.match(/<div id="toast"[^>]*>/);
   ok(toast, 'the toast is missing');
   ok(
@@ -56,23 +62,28 @@ check('outcomes are announced, and every dialog says it is one', () => {
     'toasts carry every outcome message and have to be announced',
   );
 
-  const cards = [...html.matchAll(/<div class="modal-card[^"]*"([^>]*)>/g)].map((m) => m[1]);
+  ok(
+    !/aria-labeledby/.test(html),
+    'aria-labelledby is spelled with two Ls; one L is not an attribute',
+  );
+
+  const cards = [...html.matchAll(/<div\s[^>]*class="modal-card[^"]*"[^>]*>/g)].map((m) => m[0]);
   ok(cards.length >= 3, `expected three dialogs, found ${cards.length}`);
   for (const attrs of cards) {
     ok(/role="dialog"/.test(attrs), `a dialog has no role:${attrs}`);
     ok(/aria-modal="true"/.test(attrs), `a dialog is not marked modal:${attrs}`);
-    const named = attrs.match(/aria-labeledby="([\w-]+)"/);
+    const named = attrs.match(/aria-labelledby="([\w-]+)"/);
     ok(named, `a dialog has no name:${attrs}`);
-    ok(html.includes(`id="${named[1]}"`), `aria-labeledby points at a missing id: ${named[1]}`);
+    ok(html.includes(`id="${named[1]}"`), `aria-labelledby points at a missing id: ${named[1]}`);
   }
 });
 
 check('the page and the file picker both cover what the tools produce', () => {
   ok(
-    /<meta name="color-scheme" content="[^"]*dark[^"]*">/.test(html),
+    /<meta name="color-scheme" content="[^"]*dark[^"]*"\s*\/?>/.test(html),
     'without this, native selects and scrollbars stay light in dark mode',
   );
-  const picker = html.match(/<input id="fileInput"[\s\S]*?>/);
+  const picker = html.match(/<input\s[^>]*id="fileInput"[^>]*>/);
   ok(picker, 'the file picker is missing');
   for (const ext of ['.webm', '.opus']) {
     ok(
