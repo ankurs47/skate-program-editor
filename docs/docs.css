@@ -77,14 +77,23 @@
   --topbar-dim: #98a1ae;
 }
 
-* { box-sizing: border-box; }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+* {
+  box-sizing: border-box;
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font: 16px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif;
+  font:
+    16px/1.65 system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
 }
 
 /* ---- the bar across the top, matching the app's ---- */
@@ -98,11 +107,29 @@ body {
   background: var(--topbar-bg);
   color: var(--topbar-ink);
 }
-.topbar .brand { display: flex; align-items: center; gap: 9px; }
-.topbar .logo { display: block; flex: 0 0 auto; }
-.topbar h1 { font-size: 17px; margin: 0; font-weight: 600; }
-.topbar a { color: var(--topbar-ink); }
-.topbar-links { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.topbar .brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.topbar .logo {
+  display: block;
+  flex: 0 0 auto;
+}
+.topbar h1 {
+  font-size: 17px;
+  margin: 0;
+  font-weight: 600;
+}
+.topbar a {
+  color: var(--topbar-ink);
+}
+.topbar-links {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
 .topbar-link {
   display: inline-flex;
   align-items: center;
@@ -114,8 +141,13 @@ body {
   text-decoration: none;
   white-space: nowrap;
 }
-.topbar-link:hover { color: var(--topbar-ink); background: rgba(255, 255, 255, .11); }
-.topbar-link svg { display: block; }
+.topbar-link:hover {
+  color: var(--topbar-ink);
+  background: rgba(255, 255, 255, 0.11);
+}
+.topbar-link svg {
+  display: block;
+}
 
 .topbar .open-app {
   border: 1px solid var(--topbar-dim);
@@ -124,7 +156,9 @@ body {
   text-decoration: none;
   color: var(--topbar-ink);
 }
-.topbar .open-app:hover { background: rgba(255, 255, 255, .1); }
+.topbar .open-app:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
 
 /* ---- the page itself ---- */
 
@@ -134,19 +168,35 @@ body {
   padding: 32px 20px 80px;
 }
 
-h2, h3 { line-height: 1.25; }
+h2,
+h3 {
+  line-height: 1.25;
+}
 h2 {
   font-size: 25px;
-  margin: 2.2em 0 .5em;
-  padding-top: .6em;
+  margin: 2.2em 0 0.5em;
+  padding-top: 0.6em;
   border-top: 1px solid var(--line);
 }
-h3 { font-size: 18px; margin: 1.8em 0 .4em; }
-.page > h2:first-of-type { border-top: 0; }
+h3 {
+  font-size: 18px;
+  margin: 1.8em 0 0.4em;
+}
+.page > h2:first-of-type {
+  border-top: 0;
+}
 
-p, ul, ol { margin: 0 0 1em; }
-li { margin-bottom: .35em; }
-a { color: var(--accent); }
+p,
+ul,
+ol {
+  margin: 0 0 1em;
+}
+li {
+  margin-bottom: 0.35em;
+}
+a {
+  color: var(--accent);
+}
 
 .lede {
   font-size: 17px;
@@ -167,10 +217,10 @@ a { color: var(--accent); }
 .toc h2 {
   font-size: 12px;
   text-transform: uppercase;
-  letter-spacing: .07em;
+  letter-spacing: 0.07em;
   color: var(--muted);
   border: 0;
-  margin: 0 0 .7em;
+  margin: 0 0 0.7em;
   padding: 0;
 }
 .toc ul {
@@ -180,7 +230,10 @@ a { color: var(--accent); }
   margin: 0;
   padding: 0;
 }
-.toc li { margin: 0 0 .3em; break-inside: avoid; }
+.toc li {
+  margin: 0 0 0.3em;
+  break-inside: avoid;
+}
 
 /* A callout for the two things that catch people out: the times are not
    authoritative, and the project file is not the music. */
@@ -191,7 +244,9 @@ a { color: var(--accent); }
   padding: 14px 18px;
   margin: 0 0 1.4em;
 }
-.note > :last-child { margin-bottom: 0; }
+.note > :last-child {
+  margin-bottom: 0;
+}
 
 table {
   border-collapse: collapse;
@@ -199,29 +254,37 @@ table {
   margin: 0 0 1.4em;
   font-size: 15px;
 }
-th, td {
+th,
+td {
   text-align: left;
   vertical-align: top;
   padding: 8px 12px;
   border-bottom: 1px solid var(--line);
 }
-th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+th {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
 /* Only where the first column is a label. The troubleshooting table's first
    column is a sentence, and nowrap there pushes the page wider than the
    viewport on a phone. */
-.labeled td:first-child { white-space: nowrap; }
+.labeled td:first-child {
+  white-space: nowrap;
+}
 
 pre {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 14px 16px;
-  overflow-x: auto;      /* long commands scroll, rather than widening the page */
+  overflow-x: auto; /* long commands scroll, rather than widening the page */
   margin: 0 0 1.4em;
 }
 code {
   font-family: var(--mono);
-  font-size: .875em;
+  font-size: 0.875em;
 }
 :not(pre) > code {
   background: var(--panel);
@@ -259,16 +322,28 @@ kbd {
   white-space: nowrap;
   border: 1px solid transparent;
 }
-.badge.good { color: var(--good); border-color: var(--good); }
-.badge.unknown { color: var(--muted); border-color: var(--line); }
-.badge.caution { color: #8f5e0b; border-color: #8f5e0b; }
+.badge.good {
+  color: var(--good);
+  border-color: var(--good);
+}
+.badge.unknown {
+  color: var(--muted);
+  border-color: var(--line);
+}
+.badge.caution {
+  color: #8f5e0b;
+  border-color: #8f5e0b;
+}
 .badge.poor {
   color: var(--bad);
   border-color: var(--bad);
   background: color-mix(in srgb, var(--bad) 10%, transparent);
 }
 @media (prefers-color-scheme: dark) {
-  .badge.caution { color: #e0a33c; border-color: #e0a33c; }
+  .badge.caution {
+    color: #e0a33c;
+    border-color: #e0a33c;
+  }
 }
 
 footer {
@@ -280,6 +355,10 @@ footer {
 }
 
 @media (max-width: 34rem) {
-  .toc ul { columns: 1; }
-  .topbar-links { margin-left: 0; }
+  .toc ul {
+    columns: 1;
+  }
+  .topbar-links {
+    margin-left: 0;
+  }
 }

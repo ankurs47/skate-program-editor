@@ -2,5 +2,14 @@
   "printWidth": 100,
   "singleQuote": true,
   "proseWrap": "preserve",
-  "endOfLine": "lf"
+  "endOfLine": "lf",
+  "overrides": [
+    {
+      "//": "Both are valid CSS; this is convention, not correctness. All 21 strings here are already double-quoted, which is what MDN, the spec's examples and stylelint-config-standard use. singleQuote above is a JavaScript preference and should not follow the formatter into another language.",
+      "files": "*.css",
+      "options": {
+        "singleQuote": false
+      }
+    }
+  ]
 }
