@@ -23,15 +23,22 @@ const ROOT = path.join(__dirname, '..', '..');
 
 const CHROMES = [
   process.env.CHROME,
-  'google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser',
+  'google-chrome',
+  'google-chrome-stable',
+  'chromium',
+  'chromium-browser',
 ].filter(Boolean);
 
 /* Anything the page actually asks for. Served as octet-stream, an SVG is a
    download rather than an image — which is how the logo went unrendered in
    every browser check until a screenshot showed a broken-image box. */
 const TYPES = {
-  '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
-  '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json',
+  '.html': 'text/html',
+  '.js': 'text/javascript',
+  '.css': 'text/css',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.json': 'application/json',
 };
 
 /**
@@ -59,20 +66,26 @@ function serve() {
       });
       fs.createReadStream(file).pipe(res);
     });
-    server.listen(0, '127.0.0.1', () => resolve({
-      origin: `http://127.0.0.1:${server.address().port}`,
-      stop: () => new Promise((done) => server.close(done)),
-    }));
+    server.listen(0, '127.0.0.1', () =>
+      resolve({
+        origin: `http://127.0.0.1:${server.address().port}`,
+        stop: () => new Promise((done) => server.close(done)),
+      }),
+    );
   });
 }
 
 function get(url) {
   return new Promise((resolve, reject) => {
-    http.get(url, (res) => {
-      let body = '';
-      res.on('data', (c) => { body += c; });
-      res.on('end', () => resolve(body));
-    }).on('error', reject);
+    http
+      .get(url, (res) => {
+        let body = '';
+        res.on('data', (c) => {
+          body += c;
+        });
+        res.on('end', () => resolve(body));
+      })
+      .on('error', reject);
   });
 }
 
@@ -86,7 +99,8 @@ async function waitForPort(port, chrome) {
       if (chrome.exitCode !== null) {
         throw new Error(`Chrome exited with code ${chrome.exitCode} before listening`);
       }
-      if (Date.now() > deadline) throw new Error(`Chrome never opened port ${port}: ${err.message}`);
+      if (Date.now() > deadline)
+        throw new Error(`Chrome never opened port ${port}: ${err.message}`);
       await new Promise((r) => setTimeout(r, 100));
     }
   }
@@ -155,11 +169,16 @@ class Session {
   /** Everything the page logged or threw since it loaded. */
   consoleErrors() {
     return this.events
-      .filter((e) => e.method === 'Runtime.exceptionThrown'
-        || (e.method === 'Runtime.consoleAPICalled' && e.params.type === 'error'))
-      .map((e) => e.method === 'Runtime.exceptionThrown'
-        ? (e.params.exceptionDetails.exception?.description || e.params.exceptionDetails.text)
-        : e.params.args.map((a) => a.value ?? a.description).join(' '));
+      .filter(
+        (e) =>
+          e.method === 'Runtime.exceptionThrown' ||
+          (e.method === 'Runtime.consoleAPICalled' && e.params.type === 'error'),
+      )
+      .map((e) =>
+        e.method === 'Runtime.exceptionThrown'
+          ? e.params.exceptionDetails.exception?.description || e.params.exceptionDetails.text
+          : e.params.args.map((a) => a.value ?? a.description).join(' '),
+      );
   }
 }
 
@@ -179,18 +198,26 @@ async function open({ url = '/index.html' } = {}) {
   let chrome = null;
   let launched = null;
   for (const candidate of CHROMES) {
-    chrome = spawn(candidate, [
-      '--headless=new', '--disable-gpu', '--no-sandbox', '--no-first-run',
-      '--disable-extensions', '--disable-background-networking',
-      '--autoplay-policy=no-user-gesture-required',
-      /* Headless defaults to 800x600, which is below the 860px breakpoint — so
+    chrome = spawn(
+      candidate,
+      [
+        '--headless=new',
+        '--disable-gpu',
+        '--no-sandbox',
+        '--no-first-run',
+        '--disable-extensions',
+        '--disable-background-networking',
+        '--autoplay-policy=no-user-gesture-required',
+        /* Headless defaults to 800x600, which is below the 860px breakpoint — so
          without this every check ran against the one-column phone layout and
          the two-column one the app actually ships in was never exercised. */
-      '--window-size=1280,900',
-      `--user-data-dir=${profile}`,
-      `--remote-debugging-port=${port}`,
-      'about:blank',
-    ], { stdio: 'ignore' });
+        '--window-size=1280,900',
+        `--user-data-dir=${profile}`,
+        `--remote-debugging-port=${port}`,
+        'about:blank',
+      ],
+      { stdio: 'ignore' },
+    );
     launched = await new Promise((resolve) => {
       chrome.once('error', () => resolve(false));
       chrome.once('spawn', () => resolve(true));
@@ -223,9 +250,9 @@ async function open({ url = '/index.html' } = {}) {
   await page.send('Page.navigate', { url: server.origin + url });
   const deadline = Date.now() + 20000;
   for (;;) {
-    const ready = await page.evaluate(
-      'return document.readyState === "complete" && typeof layout === "function";'
-    ).catch(() => false);
+    const ready = await page
+      .evaluate('return document.readyState === "complete" && typeof layout === "function";')
+      .catch(() => false);
     if (ready) break;
     if (Date.now() > deadline) throw new Error('the editor never finished starting');
     await new Promise((r) => setTimeout(r, 50));
@@ -235,7 +262,11 @@ async function open({ url = '/index.html' } = {}) {
     page,
     origin: server.origin,
     async close() {
-      try { socket.close(); } catch (_) { /* already gone */ }
+      try {
+        socket.close();
+      } catch (_) {
+        /* already gone */
+      }
 
       /* Chrome does not exit alone — it leaves a zygote and a renderer or two
          that keep writing to the profile after the parent is gone. Waiting for
@@ -247,18 +278,28 @@ async function open({ url = '/index.html' } = {}) {
         new Promise((r) => setTimeout(() => r(false), 3000)),
       ]);
       if (!died) {
-        try { chrome.kill('SIGKILL'); } catch (_) { /* already gone */ }
+        try {
+          chrome.kill('SIGKILL');
+        } catch (_) {
+          /* already gone */
+        }
         await Promise.race([ended, new Promise((r) => setTimeout(r, 2000))]);
       }
 
-      try { await server.stop(); } catch (_) { /* already closed */ }
+      try {
+        await server.stop();
+      } catch (_) {
+        /* already closed */
+      }
 
       /* A temporary directory left behind is untidy; a failed run because of
          one is a lie about the code. This is best effort, and the operating
          system clears tmp anyway. */
       try {
         fs.rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
-      } catch (_) { /* Chrome is still holding something; not our problem */ }
+      } catch (_) {
+        /* Chrome is still holding something; not our problem */
+      }
     },
   };
 }

@@ -31,8 +31,16 @@ check('every help button has a matching topic', () => {
   const topics = [...html.matchAll(/data-help="(\w+)" data-title="([^"]+)"/g)];
   const names = new Set(topics.map((m) => m[1]));
   ok(buttons.length > 0, 'no help buttons found');
-  eq(buttons.filter((b) => !names.has(b)), [], 'buttons with no content: ');
-  eq([...names].filter((n) => !buttons.includes(n)), [], 'content with no button: ');
+  eq(
+    buttons.filter((b) => !names.has(b)),
+    [],
+    'buttons with no content: ',
+  );
+  eq(
+    [...names].filter((n) => !buttons.includes(n)),
+    [],
+    'content with no button: ',
+  );
   for (const [, , title] of topics) ok(title.trim(), 'a topic has an empty title');
 });
 
@@ -43,8 +51,10 @@ check('outcomes are announced, and every dialog says it is one', () => {
      the whole join result. */
   const toast = html.match(/<div id="toast"[^>]*>/);
   ok(toast, 'the toast is missing');
-  ok(/role="status"/.test(toast[0]) && /aria-live=/.test(toast[0]),
-    'toasts carry every outcome message and have to be announced');
+  ok(
+    /role="status"/.test(toast[0]) && /aria-live=/.test(toast[0]),
+    'toasts carry every outcome message and have to be announced',
+  );
 
   const cards = [...html.matchAll(/<div class="modal-card[^"]*"([^>]*)>/g)].map((m) => m[1]);
   ok(cards.length >= 3, `expected three dialogs, found ${cards.length}`);
@@ -58,13 +68,17 @@ check('outcomes are announced, and every dialog says it is one', () => {
 });
 
 check('the page and the file picker both cover what the tools produce', () => {
-  ok(/<meta name="color-scheme" content="[^"]*dark[^"]*">/.test(html),
-    'without this, native selects and scrollbars stay light in dark mode');
+  ok(
+    /<meta name="color-scheme" content="[^"]*dark[^"]*">/.test(html),
+    'without this, native selects and scrollbars stay light in dark mode',
+  );
   const picker = html.match(/<input id="fileInput"[\s\S]*?>/);
   ok(picker, 'the file picker is missing');
   for (const ext of ['.webm', '.opus']) {
-    ok(picker[0].includes(ext),
-      `the picker can filter out ${ext}, which is what music-get.sh downloads`);
+    ok(
+      picker[0].includes(ext),
+      `the picker can filter out ${ext}, which is what music-get.sh downloads`,
+    );
   }
 });
 
@@ -81,7 +95,8 @@ check('the analysis and format files stay free of the browser', () => {
      until someone tried to test the thing that had drifted. */
   for (const file of ['src/analysis.js', 'src/formats.js']) {
     const body = fs.readFileSync(path.join(ROOT, file), 'utf8');
-    const code = body.split('\n')
+    const code = body
+      .split('\n')
       .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
       .join('\n');
     for (const [what, pattern] of [
@@ -115,7 +130,11 @@ check('CSS braces balance', () => {
 check('every CSS custom property used is defined', () => {
   const defined = new Set([...css.matchAll(/^\s*(--[\w-]+):/gm)].map((m) => m[1]));
   const used = new Set([...css.matchAll(/var\((--[\w-]+)/g)].map((m) => m[1]));
-  eq([...used].filter((v) => !defined.has(v)), [], 'used but never defined: ');
+  eq(
+    [...used].filter((v) => !defined.has(v)),
+    [],
+    'used but never defined: ',
+  );
 });
 
 check('both color themes define the same variables', () => {
@@ -147,10 +166,14 @@ check('the theme bootstrap in the page agrees with the logic in app.js', () => {
     ok(boot[1].includes(`'${mode}'`), `the bootstrap does not handle ${mode}`);
     ok(app.includes(`'${mode}'`), `app.js does not handle ${mode}`);
   }
-  ok(/data-theme/.test(boot[1]) && /data-theme/.test(app),
-    'the two halves disagree about the attribute name');
-  ok(/\[data-theme="dark"\]/.test(css) && /\[data-theme="light"\]/.test(css),
-    'the stylesheet does not act on data-theme in both directions');
+  ok(
+    /data-theme/.test(boot[1]) && /data-theme/.test(app),
+    'the two halves disagree about the attribute name',
+  );
+  ok(
+    /\[data-theme="dark"\]/.test(css) && /\[data-theme="light"\]/.test(css),
+    'the stylesheet does not act on data-theme in both directions',
+  );
 });
 
 /* The two music-get wrappers are the same tool written twice, once for a shell
@@ -161,12 +184,12 @@ check('the music-get wrappers agree on what they do', () => {
   const sh = fs.readFileSync(path.join(ROOT, 'tools/music-get.sh'), 'utf8');
   const cmd = fs.readFileSync(path.join(ROOT, 'tools/music-get.cmd'), 'utf8');
   const flags = [
-    '--format bestaudio',   // the native stream, never re-encoded
+    '--format bestaudio', // the native stream, never re-encoded
     '--no-overwrites',
     '--no-playlist',
     '--yes-playlist',
-    '--playlist-items 1',   // one song means one song, even off a stray feed
-    '--print-to-file',      // how "did anything actually arrive" is answered
+    '--playlist-items 1', // one song means one song, even off a stray feed
+    '--print-to-file', // how "did anything actually arrive" is answered
   ];
   for (const flag of flags) {
     ok(sh.includes(flag), `music-get.sh no longer passes ${flag}`);
@@ -178,11 +201,15 @@ check('the music-get wrappers agree on what they do', () => {
     .split('\n')
     .filter((line) => !/^\s*(#|rem\b)/i.test(line))
     .join('\n');
-  ok(!/--extract-audio|--audio-format|\bffmpeg\b/i.test(code),
-    'a wrapper converts the audio; it is meant to take the stream as it is');
+  ok(
+    !/--extract-audio|--audio-format|\bffmpeg\b/i.test(code),
+    'a wrapper converts the audio; it is meant to take the stream as it is',
+  );
   ok(!/\/home\/|file:\/\/\//.test(code), 'a wrapper references a local path');
   if (process.platform !== 'win32') {
-    ok(fs.statSync(path.join(ROOT, 'tools/music-get.sh')).mode & 0o111,
-      'music-get.sh is not executable');
+    ok(
+      fs.statSync(path.join(ROOT, 'tools/music-get.sh')).mode & 0o111,
+      'music-get.sh is not executable',
+    );
   }
 });

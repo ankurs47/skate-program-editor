@@ -100,6 +100,20 @@ function reportPath(argv) {
 }
 
 module.exports = {
-  ROOT, SCRIPTS, SHIPPED, DOCS, ASSETS, app, html, css,
-  check, eq, near, ok, unclosedTags, results, writeReport, reportPath,
+  ROOT,
+  SCRIPTS,
+  SHIPPED,
+  DOCS,
+  ASSETS,
+  app,
+  html,
+  css,
+  check,
+  eq,
+  near,
+  ok,
+  unclosedTags,
+  results,
+  writeReport,
+  reportPath,
 };

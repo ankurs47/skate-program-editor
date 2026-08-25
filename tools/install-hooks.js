@@ -27,16 +27,22 @@ function git(...args) {
 try {
   git('rev-parse', '--git-dir');
 } catch (_) {
-  process.exit(0);            // not a clone — nothing to install into
+  process.exit(0); // not a clone — nothing to install into
 }
 
 if (has('pre-commit')) {
-  try { git('config', '--unset-all', 'core.hooksPath'); } catch (_) { /* was not set */ }
+  try {
+    git('config', '--unset-all', 'core.hooksPath');
+  } catch (_) {
+    /* was not set */
+  }
   const done = spawnSync('pre-commit', ['install'], { stdio: 'inherit' });
   if (done.status === 0) process.exit(0);
   console.error('hooks: pre-commit failed to install, falling back to .githooks');
 }
 
 git('config', 'core.hooksPath', '.githooks');
-console.log('hooks: .githooks (lint and tests). For the full set:'
-  + ' pip install pre-commit && npm run prepare');
+console.log(
+  'hooks: .githooks (lint and tests). For the full set:' +
+    ' pip install pre-commit && npm run prepare',
+);

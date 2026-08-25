@@ -37,11 +37,15 @@ require('./repo.test.js');
    wifi does is a test suite people stop trusting. CI runs it. */
 if (process.argv.includes('--net')) {
   check('the pinned MP3 encoder hash still matches the CDN', () => {
-    const body = execFileSync('curl', ['-sSL', '--max-time', '30', app.LAME_URL],
-      { maxBuffer: 1 << 24 });
+    const body = execFileSync('curl', ['-sSL', '--max-time', '30', app.LAME_URL], {
+      maxBuffer: 1 << 24,
+    });
     const got = `sha384-${crypto.createHash('sha384').update(body).digest('base64')}`;
-    eq(got, app.LAME_SRI,
-      'the CDN now serves different bytes; update LAME_SRI after checking why: ');
+    eq(
+      got,
+      app.LAME_SRI,
+      'the CDN now serves different bytes; update LAME_SRI after checking why: ',
+    );
   });
 }
 

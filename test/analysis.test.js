@@ -31,9 +31,11 @@ check('clamp: holds a value between its ends, whichever way round', () => {
 function rng(seed) {
   let s = seed >>> 0;
   return () => {
-    s ^= s << 13; s >>>= 0;
+    s ^= s << 13;
+    s >>>= 0;
     s ^= s >> 17;
-    s ^= s << 5; s >>>= 0;
+    s ^= s << 5;
+    s >>>= 0;
     return s / 4294967296;
   };
 }
@@ -119,8 +121,10 @@ check('beats: land on the clicks, whatever the phase', () => {
   const found = app.analyzeBeats(clickTrain(120, 12, { offset }), 44100);
   ok(found.beats.length > 15, `only ${found.beats.length} beats found`);
   for (const beat of found.beats) {
-    ok(offGrid(beat.t, 0.5, offset) < 0.02,
-      `beat at ${beat.t.toFixed(3)}s is ${(offGrid(beat.t, 0.5, offset) * 1000).toFixed(0)}ms off`);
+    ok(
+      offGrid(beat.t, 0.5, offset) < 0.02,
+      `beat at ${beat.t.toFixed(3)}s is ${(offGrid(beat.t, 0.5, offset) * 1000).toFixed(0)}ms off`,
+    );
   }
 });
 
@@ -136,10 +140,15 @@ check('beats: an accent every four bars gives a downbeat in 4', () => {
 
 check('beats: material with no pulse reports no confidence', () => {
   // The detector always returns *something*; the point is that it says so.
-  for (const [what, samples] of [['noise', noise(12)], ['a held tone', tone(12)]]) {
+  for (const [what, samples] of [
+    ['noise', noise(12)],
+    ['a held tone', tone(12)],
+  ]) {
     const found = app.analyzeBeats(samples, 44100);
-    ok(found.confidence < app.BEAT.minConfidence,
-      `${what} scored ${found.confidence.toFixed(2)}, above the ${app.BEAT.minConfidence} threshold`);
+    ok(
+      found.confidence < app.BEAT.minConfidence,
+      `${what} scored ${found.confidence.toFixed(2)}, above the ${app.BEAT.minConfidence} threshold`,
+    );
   }
 });
 
@@ -155,8 +164,12 @@ check('beats: silence and near-empty input return nothing, not NaN', () => {
 check('onsetEnvelope: measures energy arriving, and how much is playing', () => {
   const clicks = app.onsetEnvelope(clickTrain(120, 6), 44100);
   eq(clicks.rate, 44100 / app.BEAT.hop, 'one envelope sample per hop: ');
-  near(clicks.offset, (app.BEAT.hop + app.BEAT.frame / 2) / 44100, 1e-12,
-    'env[i] compares frame i+1 with i, so it belongs at that frame center: ');
+  near(
+    clicks.offset,
+    (app.BEAT.hop + app.BEAT.frame / 2) / 44100,
+    1e-12,
+    'env[i] compares frame i+1 with i, so it belongs at that frame center: ',
+  );
   ok(clicks.env.length > 400, `only ${clicks.env.length} envelope samples`);
   ok(clicks.level > 0, 'a click track has energy in it');
 
@@ -164,7 +177,10 @@ check('onsetEnvelope: measures energy arriving, and how much is playing', () => 
   let peak = 0;
   let peakAt = 0;
   for (let i = 0; i < clicks.env.length; i++) {
-    if (clicks.env[i] > peak) { peak = clicks.env[i]; peakAt = i; }
+    if (clicks.env[i] > peak) {
+      peak = clicks.env[i];
+      peakAt = i;
+    }
   }
   const t = peakAt / clicks.rate + clicks.offset;
   ok(offGrid(t, 0.5) < 0.03, `the strongest onset at ${t.toFixed(3)}s is not on a click`);
@@ -174,8 +190,7 @@ check('onsetEnvelope: measures energy arriving, and how much is playing', () => 
   const quiet = app.onsetEnvelope(new Float32Array(44100 * 4), 44100);
   eq(quiet.level, 0, 'silence has no level: ');
   for (const v of quiet.env) eq(v, 0, 'silence has no onsets: ');
-  eq(app.onsetEnvelope(new Float32Array(100), 44100).env.length, 0,
-    'too short for two frames: ');
+  eq(app.onsetEnvelope(new Float32Array(100), 44100).env.length, 0, 'too short for two frames: ');
 });
 
 check('flattenEnvelope: removes the local level and never goes negative', () => {
@@ -194,7 +209,7 @@ check('flattenEnvelope: removes the local level and never goes negative', () => 
   ok(flat[0] < 3 * 0.02, `the edge lift is ${flat[0].toFixed(3)} on a level of 3`);
 
   const spikes = new Float32Array(rate * 6);
-  for (let i = 0; i < spikes.length; i += rate) spikes[i] = 1;   // one a second
+  for (let i = 0; i < spikes.length; i += rate) spikes[i] = 1; // one a second
   const out = app.flattenEnvelope(spikes, rate);
   for (const v of out) ok(v >= 0, `rectified output went to ${v}`);
   ok(out[rate * 2] > 0, 'a real onset should survive the flattening');
@@ -284,7 +299,7 @@ function grid(bpm, opts = {}) {
 }
 
 check('join: both cuts move onto the beat', () => {
-  const a = grid(120);                       // beats every 0.5s from 0
+  const a = grid(120); // beats every 0.5s from 0
   const b = grid(120, { phase: 0.23 });
   const result = app.suggestJoin(a, 6.31, b, 4.12, { crossfade: 1.5 });
   ok(result.ok, `declined: ${result.reason}`);
@@ -303,16 +318,16 @@ check('join: the blend is a whole number of beats', () => {
 });
 
 check('join: a hard cut stays a hard cut', () => {
-  const result = app.suggestJoin(grid(120), 6.3, grid(120, { phase: 0.1 }), 4.1,
-    { crossfade: 0 });
+  const result = app.suggestJoin(grid(120), 6.3, grid(120, { phase: 0.1 }), 4.1, { crossfade: 0 });
   ok(result.ok, `declined: ${result.reason}`);
   eq(result.crossfade, 0, 'a deliberate hard cut was turned into a blend: ');
 });
 
 check('join: reported length change matches what the shifts actually do', () => {
   const before = 1.5;
-  const result = app.suggestJoin(grid(120), 6.31, grid(132, { phase: 0.4 }), 4.12,
-    { crossfade: before });
+  const result = app.suggestJoin(grid(120), 6.31, grid(132, { phase: 0.4 }), 4.12, {
+    crossfade: before,
+  });
   ok(result.ok, `declined: ${result.reason}`);
   // outgoing clip grows by endShift, incoming shrinks by startShift, and the
   // extra overlap comes off the total
@@ -340,7 +355,10 @@ check('join: never moves a cut further than the clip allows', () => {
   });
   ok(result.ok, `declined: ${result.reason}`);
   ok(result.endShift >= -0.1 && result.endShift <= 0.6, `endShift ${result.endShift} out of room`);
-  ok(result.startShift >= -0.8 && result.startShift <= 0, `startShift ${result.startShift} out of room`);
+  ok(
+    result.startShift >= -0.8 && result.startShift <= 0,
+    `startShift ${result.startShift} out of room`,
+  );
 });
 
 check('join: declines when there is no beat to snap to', () => {
@@ -356,7 +374,7 @@ check('join: declines when there is no beat to snap to', () => {
 check('join: declines when no beat is within reach', () => {
   const result = app.suggestJoin(grid(120), 6.0, grid(120), 4.0, {
     crossfade: 1.5,
-    outRoom: { min: 0.05, max: 0.09 },     // narrower than the gap between beats
+    outRoom: { min: 0.05, max: 0.09 }, // narrower than the gap between beats
   });
   eq(result.ok, false);
   eq(result.reason, 'no-room');
@@ -366,10 +384,15 @@ check('join: mismatched tempos get a short blend, not a long one', () => {
   const wide = app.suggestJoin(grid(120), 6.0, grid(120), 4.0, { crossfade: 4 });
   const clash = app.suggestJoin(grid(120), 6.0, grid(97), 4.0, { crossfade: 4 });
   ok(wide.ok && clash.ok, 'both should still return an answer');
-  ok(clash.crossfade < wide.crossfade,
-    `${clash.crossfade.toFixed(2)}s blend between clashing tempos is no shorter than ${wide.crossfade.toFixed(2)}s`);
+  ok(
+    clash.crossfade < wide.crossfade,
+    `${clash.crossfade.toFixed(2)}s blend between clashing tempos is no shorter than ${wide.crossfade.toFixed(2)}s`,
+  );
   eq(clash.reason, 'tempo-mismatch', 'the caller has to be able to say why: ');
-  ok(clash.drift <= app.BEAT.maxDrift + 1e-9, `slips ${clash.drift.toFixed(3)} beats through the blend`);
+  ok(
+    clash.drift <= app.BEAT.maxDrift + 1e-9,
+    `slips ${clash.drift.toFixed(3)} beats through the blend`,
+  );
 });
 
 check('join: half-speed against double-speed still counts as matched', () => {
@@ -380,7 +403,7 @@ check('join: half-speed against double-speed still counts as matched', () => {
 });
 
 check('join: end to end from audio, the two grids agree through the blend', () => {
-  const a = fakeBuffer(clickTrain(120, 30, { seed: 1 }));               // beats from 0
+  const a = fakeBuffer(clickTrain(120, 30, { seed: 1 })); // beats from 0
   const b = fakeBuffer(clickTrain(120, 30, { offset: 0.23, seed: 2 })); // beats from 0.23
   const cutOut = 20.17;
   const cutIn = 5.0;
@@ -417,18 +440,33 @@ check('joinRoom: a clip already shorter than the minimum still allows no move', 
 
 check('describeJoin: says what changed, and what it cost', () => {
   const base = { ok: true, reason: 'aligned', endShift: 0.8, startShift: 0, crossfade: 2 };
-  eq(app.describeJoin({ ...base, lengthDelta: 0.8 }, 2),
-    'Lined up with the beat. Program is 0.8s longer');
-  eq(app.describeJoin({ ...base, lengthDelta: -1.24 }, 2),
-    'Lined up with the beat. Program is 1.2s shorter');
-  eq(app.describeJoin({ ...base, lengthDelta: 0.01 }, 2),
-    'Lined up with the beat. Same length as before');
-  eq(app.describeJoin({ ...base, reason: 'tempo-mismatch', lengthDelta: 0 }, 2),
-    'Lined up as closely as these two speeds allow. Same length as before');
+  eq(
+    app.describeJoin({ ...base, lengthDelta: 0.8 }, 2),
+    'Lined up with the beat. Program is 0.8s longer',
+  );
+  eq(
+    app.describeJoin({ ...base, lengthDelta: -1.24 }, 2),
+    'Lined up with the beat. Program is 1.2s shorter',
+  );
+  eq(
+    app.describeJoin({ ...base, lengthDelta: 0.01 }, 2),
+    'Lined up with the beat. Same length as before',
+  );
+  eq(
+    app.describeJoin({ ...base, reason: 'tempo-mismatch', lengthDelta: 0 }, 2),
+    'Lined up as closely as these two speeds allow. Same length as before',
+  );
 });
 
 check('describeJoin: does not claim to have done anything it did not', () => {
-  const still = { ok: true, reason: 'aligned', endShift: 0, startShift: 0, crossfade: 1.5, lengthDelta: 0 };
+  const still = {
+    ok: true,
+    reason: 'aligned',
+    endShift: 0,
+    startShift: 0,
+    crossfade: 1.5,
+    lengthDelta: 0,
+  };
   eq(app.describeJoin(still, 1.5), 'This join is already on the beat');
   // a blend change on its own still counts as a change
   ok(app.describeJoin({ ...still, crossfade: 2 }, 1.5).startsWith('Lined up'));
@@ -444,7 +482,14 @@ check('describeJoin: plain language, no audio jargon', () => {
     { ok: false, reason: 'no-beat' },
     { ok: false, reason: 'no-room' },
     { ok: true, reason: 'aligned', endShift: 1, startShift: 0, crossfade: 2, lengthDelta: 1 },
-    { ok: true, reason: 'tempo-mismatch', endShift: 1, startShift: 0, crossfade: 2, lengthDelta: -1 },
+    {
+      ok: true,
+      reason: 'tempo-mismatch',
+      endShift: 1,
+      startShift: 0,
+      crossfade: 2,
+      lengthDelta: -1,
+    },
     { ok: true, reason: 'aligned', endShift: 0, startShift: 0, crossfade: 2, lengthDelta: 0 },
   ];
   for (const result of results) {
@@ -471,15 +516,17 @@ function note(out, at, hz, seconds = 1.2, level = 0.6, sampleRate = 44100) {
   for (let i = 0; i < len && start + i < out.length; i++) {
     const t = i / sampleRate;
     const decay = Math.exp(-t * 2.6) * Math.min(1, (len - i) / taper);
-    out[start + i] += level * decay * (
-      Math.sin(2 * Math.PI * hz * t)
-      + 0.4 * Math.sin(2 * Math.PI * hz * 2 * t)
-      + 0.2 * Math.sin(2 * Math.PI * hz * 3 * t));
+    out[start + i] +=
+      level *
+      decay *
+      (Math.sin(2 * Math.PI * hz * t) +
+        0.4 * Math.sin(2 * Math.PI * hz * 2 * t) +
+        0.2 * Math.sin(2 * Math.PI * hz * 3 * t));
   }
   return out;
 }
 
-const HZ = { C4: 261.63, E4: 329.63, G4: 392.00, A4: 440, D4: 293.66, F4: 349.23, B4: 493.88 };
+const HZ = { C4: 261.63, E4: 329.63, G4: 392.0, A4: 440, D4: 293.66, F4: 349.23, B4: 493.88 };
 
 /**
  * Free-tempo piano: phrases of a few notes, separated by real silences, with
@@ -497,17 +544,17 @@ const HZ = { C4: 261.63, E4: 329.63, G4: 392.00, A4: 440, D4: 293.66, F4: 349.23
 function rubato(seconds, sampleRate = 44100) {
   const out = new Float32Array(Math.round(seconds * sampleRate));
   const random = rng(20260810);
-  const scale = [261.63, 277.18, 293.66, 329.63, 349.23, 392.00, 440, 466.16, 493.88];
+  const scale = [261.63, 277.18, 293.66, 329.63, 349.23, 392.0, 440, 466.16, 493.88];
   const silences = [];
   let t = 0.4;
   while (t < seconds - 1.2) {
     const notes = 3 + Math.floor(random() * 3);
     for (let i = 0; i < notes; i++) {
       note(out, t, scale[Math.floor(random() * scale.length)], 1.1, 0.5, sampleRate);
-      if (i < notes - 1) t += 0.24 + random() * 0.62;      // within a line
+      if (i < notes - 1) t += 0.24 + random() * 0.62; // within a line
     }
-    const died = t + 1.0;                                   // the last note has decayed
-    const pause = 0.7 + random() * 1.9;                     // the breath after it
+    const died = t + 1.0; // the last note has decayed
+    const pause = 0.7 + random() * 1.9; // the breath after it
     if (died + pause < seconds) silences.push([died, died + pause]);
     t = died + pause;
   }
@@ -522,7 +569,7 @@ function outsideSilence(t, silences) {
 check('gaps: a silence in the middle of busy music scores high', () => {
   const rate = 86;
   const env = new Float32Array(rate * 10).fill(1);
-  for (let i = rate * 4; i < rate * 4.5; i++) env[i] = 0;   // half a second of nothing
+  for (let i = rate * 4; i < rate * 4.5; i++) env[i] = 0; // half a second of nothing
   const scores = app.gapScores(env, rate);
   const inTheGap = scores[Math.round(rate * 4.25)];
   const inTheMusic = scores[Math.round(rate * 8)];
@@ -556,14 +603,24 @@ check('chroma: names the notes actually being played', () => {
   const mid = chroma[Math.floor(chroma.length / 2)];
   const ranked = [...mid.keys()].sort((a, b) => mid[b] - mid[a]).slice(0, 3);
   // C is pitch class 0, E is 4, G is 7
-  eq(ranked.slice().sort((a, b) => a - b), [0, 4, 7], 'the three strongest classes: ');
-  near(mid.reduce((sum, v) => sum + v * v, 0), 1, 1e-5, 'frames are unit length: ');
+  eq(
+    ranked.slice().sort((a, b) => a - b),
+    [0, 4, 7],
+    'the three strongest classes: ',
+  );
+  near(
+    mid.reduce((sum, v) => sum + v * v, 0),
+    1,
+    1e-5,
+    'frames are unit length: ',
+  );
 });
 
 check('chroma: a single tone lands on its own pitch class', () => {
   const sampleRate = 44100;
   const tone = new Float32Array(sampleRate * 2);
-  for (let i = 0; i < tone.length; i++) tone[i] = 0.5 * Math.sin((2 * Math.PI * HZ.A4 * i) / sampleRate);
+  for (let i = 0; i < tone.length; i++)
+    tone[i] = 0.5 * Math.sin((2 * Math.PI * HZ.A4 * i) / sampleRate);
   const { chroma } = app.chromaFrames(tone, sampleRate);
   const mid = chroma[Math.floor(chroma.length / 2)];
   const loudest = [...mid.keys()].reduce((best, p) => (mid[p] > mid[best] ? p : best), 0);
@@ -594,8 +651,10 @@ check('novelty: rises where the harmony moves, stays flat inside a chord', () =>
   const sampleRate = 44100;
   const audio = new Float32Array(sampleRate * 8);
   // four seconds of C major, then four of F sharp major — as far away as it gets
-  for (let s = 0; s < 4; s += 0.5) for (const hz of [HZ.C4, HZ.E4, HZ.G4]) note(audio, s, hz, 0.6, 0.5, sampleRate);
-  for (let s = 4; s < 8; s += 0.5) for (const hz of [369.99, 466.16, 277.18]) note(audio, s, hz, 0.6, 0.5, sampleRate);
+  for (let s = 0; s < 4; s += 0.5)
+    for (const hz of [HZ.C4, HZ.E4, HZ.G4]) note(audio, s, hz, 0.6, 0.5, sampleRate);
+  for (let s = 4; s < 8; s += 0.5)
+    for (const hz of [369.99, 466.16, 277.18]) note(audio, s, hz, 0.6, 0.5, sampleRate);
 
   const { chroma, rate, offset } = app.chromaFrames(audio, sampleRate);
   const novelty = app.noveltyScores(chroma, rate);
@@ -608,23 +667,31 @@ check('phrases: found in free-tempo music that has no beat at all', () => {
   const { audio, silences } = rubato(16);
   // the premise: the beat detector should be declining this
   const beats = app.analyzeBeats(audio, 44100);
-  ok(beats.confidence < app.BEAT.minConfidence,
-    `this fixture has a beat after all (${beats.confidence.toFixed(2)}), so it tests nothing`);
+  ok(
+    beats.confidence < app.BEAT.minConfidence,
+    `this fixture has a beat after all (${beats.confidence.toFixed(2)}), so it tests nothing`,
+  );
 
   const points = app.phrasePoints(audio, 44100);
-  ok(points.length >= silences.length,
-    `only found ${points.length} breaks for ${silences.length} pauses`);
+  ok(
+    points.length >= silences.length,
+    `only found ${points.length} breaks for ${silences.length} pauses`,
+  );
 
   // every real pause is found
   for (const [from, to] of silences) {
-    ok(points.some((p) => p.t > from - 0.3 && p.t < to + 0.3),
-      `no break found in the pause from ${from.toFixed(2)}s to ${to.toFixed(2)}s`);
+    ok(
+      points.some((p) => p.t > from - 0.3 && p.t < to + 0.3),
+      `no break found in the pause from ${from.toFixed(2)}s to ${to.toFixed(2)}s`,
+    );
   }
   // and nothing is offered that is not one
   for (const p of points) {
-    ok(outsideSilence(p.t, silences) < 0.35,
-      `a break was offered at ${p.t.toFixed(2)}s, ${outsideSilence(p.t, silences).toFixed(2)}s `
-      + 'from any pause — that is in the middle of a phrase');
+    ok(
+      outsideSilence(p.t, silences) < 0.35,
+      `a break was offered at ${p.t.toFixed(2)}s, ${outsideSilence(p.t, silences).toFixed(2)}s ` +
+        'from any pause — that is in the middle of a phrase',
+    );
   }
 });
 
@@ -662,22 +729,32 @@ check('phrase join: the cut lands in a pause that is really there', () => {
   const { audio, silences } = rubato(40);
   const buffer = fakeBuffer(audio);
 
-  for (const [cutOut, cutIn] of [[16.4, 9.2], [20, 12], [27, 19]]) {
+  for (const [cutOut, cutIn] of [
+    [16.4, 9.2],
+    [20, 12],
+    [27, 19],
+  ]) {
     const result = app.suggestJoinForBuffers(buffer, cutOut, buffer, cutIn, { crossfade: 1.2 });
     ok(result.ok, `declined at ${cutOut}s: ${result.reason}`);
     const endAt = cutOut + result.endShift;
     const startAt = cutIn + result.startShift;
-    ok(outsideSilence(endAt, silences) < 0.25,
-      `outgoing cut ${endAt.toFixed(2)}s is ${outsideSilence(endAt, silences).toFixed(2)}s `
-      + 'outside any pause — it is cutting through the music');
-    ok(outsideSilence(startAt, silences) < 0.25,
-      `incoming cut ${startAt.toFixed(2)}s is ${outsideSilence(startAt, silences).toFixed(2)}s `
-      + 'outside any pause');
+    ok(
+      outsideSilence(endAt, silences) < 0.25,
+      `outgoing cut ${endAt.toFixed(2)}s is ${outsideSilence(endAt, silences).toFixed(2)}s ` +
+        'outside any pause — it is cutting through the music',
+    );
+    ok(
+      outsideSilence(startAt, silences) < 0.25,
+      `incoming cut ${startAt.toFixed(2)}s is ${outsideSilence(startAt, silences).toFixed(2)}s ` +
+        'outside any pause',
+    );
     // the incoming side aims at where the music picks up, so it should sit in
     // the later part of its pause rather than at the front of it
     const pause = silences.find(([from, to]) => startAt > from - 0.25 && startAt < to + 0.25);
-    ok(startAt > (pause[0] + pause[1]) / 2,
-      `incoming cut ${startAt.toFixed(2)}s opens with silence: the pause runs to ${pause[1].toFixed(2)}s`);
+    ok(
+      startAt > (pause[0] + pause[1]) / 2,
+      `incoming cut ${startAt.toFixed(2)}s opens with silence: the pause runs to ${pause[1].toFixed(2)}s`,
+    );
   }
 });
 
@@ -697,11 +774,16 @@ check('phrase join: the outgoing clip stops in the lull, the incoming starts aft
 check('phrase join: a short blend is lengthened, a hard cut is left alone', () => {
   const points = app.phrasePoints(rubato(16).audio, 44100);
   const blended = app.suggestPhraseJoin(points, 7.3, points, 4.1, { crossfade: 0.6 });
-  ok(blended.crossfade >= app.PHRASE.minBlend,
-    `a ${blended.crossfade}s blend is exposed with no beat to carry it`);
+  ok(
+    blended.crossfade >= app.PHRASE.minBlend,
+    `a ${blended.crossfade}s blend is exposed with no beat to carry it`,
+  );
   const hard = app.suggestPhraseJoin(points, 7.3, points, 4.1, { crossfade: 0 });
   eq(hard.crossfade, 0, 'a deliberate hard cut must survive: ');
-  const capped = app.suggestPhraseJoin(points, 7.3, points, 4.1, { crossfade: 0.6, maxCrossfade: 1 });
+  const capped = app.suggestPhraseJoin(points, 7.3, points, 4.1, {
+    crossfade: 0.6,
+    maxCrossfade: 1,
+  });
   ok(capped.crossfade <= 1, 'the blend cannot outlast the clip');
 });
 
@@ -709,8 +791,7 @@ check('phrase join: reported length change matches the shifts', () => {
   const points = app.phrasePoints(rubato(16).audio, 44100);
   const before = 1.5;
   const result = app.suggestPhraseJoin(points, 7.3, points, 4.1, { crossfade: before });
-  near(result.lengthDelta,
-    result.endShift - result.startShift - (result.crossfade - before), 1e-9);
+  near(result.lengthDelta, result.endShift - result.startShift - (result.crossfade - before), 1e-9);
 });
 
 check('phrase join: declines rather than inventing a break', () => {
@@ -734,7 +815,8 @@ check('the join button falls back to phrasing whenever the beat path declines', 
   // depending on how the detector happens to judge a synthetic fixture.
   const buffer = fakeBuffer(rubato(40).audio);
   const forced = app.suggestJoinForBuffers(buffer, 14.5, buffer, 23, {
-    crossfade: 1.5, minConfidence: 1,
+    crossfade: 1.5,
+    minConfidence: 1,
   });
   ok(forced.ok, `declined: ${forced.reason}`);
   eq(forced.reason, 'phrase');
@@ -742,12 +824,17 @@ check('the join button falls back to phrasing whenever the beat path declines', 
 
 check('the join button falls back to phrasing on free-tempo music', () => {
   const buffer = fakeBuffer(rubato(40).audio);
-  for (const [cutOut, cutIn] of [[14.5, 23], [21, 9.5]]) {
+  for (const [cutOut, cutIn] of [
+    [14.5, 23],
+    [21, 9.5],
+  ]) {
     // the premise, per window: the beat path has to be the one declining
     for (const at of [cutOut, cutIn]) {
       const w = app.windowAround(buffer, at);
-      ok(app.analyzeBeats(w.samples, w.sampleRate).confidence < app.BEAT.minConfidence,
-        `the window at ${at}s reads as having a beat, so this tests nothing`);
+      ok(
+        app.analyzeBeats(w.samples, w.sampleRate).confidence < app.BEAT.minConfidence,
+        `the window at ${at}s reads as having a beat, so this tests nothing`,
+      );
     }
     const result = app.suggestJoinForBuffers(buffer, cutOut, buffer, cutIn, { crossfade: 1.5 });
     ok(result.ok, `declined: ${result.reason}`);
@@ -767,14 +854,20 @@ check('beats: a grid mostly nobody plays is not a pulse', () => {
   const sparse = app.analyzeBeats(rubato(14).audio, 44100);
   const steady = app.analyzeBeats(clickTrain(120, 14, { accent: 4 }), 44100);
 
-  ok(sparse.coverage < app.BEAT.minCoverage,
-    `sparse piano covers ${sparse.coverage.toFixed(2)} of its grid, which is not sparse`);
+  ok(
+    sparse.coverage < app.BEAT.minCoverage,
+    `sparse piano covers ${sparse.coverage.toFixed(2)} of its grid, which is not sparse`,
+  );
   ok(steady.coverage > 0.9, `a drum track covers only ${steady.coverage.toFixed(2)} of its grid`);
-  ok(steady.confidence > 0.5,
-    `the damper must not touch rhythmic music, which scored ${steady.confidence.toFixed(2)}`);
-  ok(sparse.confidence < steady.confidence / 2,
-    `sparse piano at ${sparse.confidence.toFixed(2)} is not clearly below `
-    + `a drum track at ${steady.confidence.toFixed(2)}`);
+  ok(
+    steady.confidence > 0.5,
+    `the damper must not touch rhythmic music, which scored ${steady.confidence.toFixed(2)}`,
+  );
+  ok(
+    sparse.confidence < steady.confidence / 2,
+    `sparse piano at ${sparse.confidence.toFixed(2)} is not clearly below ` +
+      `a drum track at ${steady.confidence.toFixed(2)}`,
+  );
 });
 
 check('the join button still prefers the beat when there is one', () => {
@@ -785,20 +878,35 @@ check('the join button still prefers the beat when there is one', () => {
 });
 
 check('describeJoin: says which of the two things it did', () => {
-  const phrase = { ok: true, reason: 'phrase', endShift: 0.8, startShift: 0, crossfade: 2, lengthDelta: 0 };
-  eq(app.describeJoin(phrase, 2),
-    'No steady beat here, so the cut moved to where the phrase ends. Same length as before');
-  eq(app.describeJoin({ ...phrase, endShift: 0, startShift: 0 }, 2),
-    'This join is already at a natural break');
-  eq(app.describeJoin({ ok: false, reason: 'no-phrase' }, 1.5),
-    'Could not find a natural break in the music, so nothing changed');
+  const phrase = {
+    ok: true,
+    reason: 'phrase',
+    endShift: 0.8,
+    startShift: 0,
+    crossfade: 2,
+    lengthDelta: 0,
+  };
+  eq(
+    app.describeJoin(phrase, 2),
+    'No steady beat here, so the cut moved to where the phrase ends. Same length as before',
+  );
+  eq(
+    app.describeJoin({ ...phrase, endShift: 0, startShift: 0 }, 2),
+    'This join is already at a natural break',
+  );
+  eq(
+    app.describeJoin({ ok: false, reason: 'no-phrase' }, 1.5),
+    'Could not find a natural break in the music, so nothing changed',
+  );
 });
 
 check('monoWindow: averages channels and clamps to the buffer', () => {
   const left = new Float32Array([1, 1, 1, 1]);
   const right = new Float32Array([0, 0, 0, 0]);
   const stereo = {
-    sampleRate: 2, length: 4, numberOfChannels: 2,
+    sampleRate: 2,
+    length: 4,
+    numberOfChannels: 2,
     getChannelData: (c) => (c === 0 ? left : right),
   };
   const mid = app.monoWindow(stereo, 0.5, 1.5);
@@ -822,7 +930,10 @@ function sine(hz, seconds, amplitude, sampleRate = 44100) {
 function join(...parts) {
   const out = new Float32Array(parts.reduce((n, p) => n + p.length, 0));
   let at = 0;
-  for (const part of parts) { out.set(part, at); at += part.length; }
+  for (const part of parts) {
+    out.set(part, at);
+    at += part.length;
+  }
   return out;
 }
 
@@ -834,8 +945,11 @@ check('K-weighting: the derivation reproduces the published 48 kHz table', () =>
   // 44100, so they are derived — and this is what says the derivation is right.
   const { shelf, highpass } = app.kWeighting(48000);
   const published = {
-    b0: 1.53512485958697, b1: -2.69169618940638, b2: 1.19839281085285,
-    a1: -1.69065929318241, a2: 0.73248077421585,
+    b0: 1.53512485958697,
+    b1: -2.69169618940638,
+    b2: 1.19839281085285,
+    a1: -1.69065929318241,
+    a2: 0.73248077421585,
   };
   for (const [name, value] of Object.entries(published)) {
     near(shelf[name], value, 1e-12, `shelf ${name}: `);
@@ -857,8 +971,12 @@ check('loudness: a 1 kHz tone reads its own level', () => {
   // gain and the offset cancel, so the meter agrees with the arithmetic.
   for (const amplitude of [0.1, 0.5, 0.02]) {
     const tone = sine(997, 5, amplitude);
-    near(app.loudnessOf([tone, tone], 44100), stereoSineLevel(amplitude), 0.05,
-      `amplitude ${amplitude}: `);
+    near(
+      app.loudnessOf([tone, tone], 44100),
+      stereoSineLevel(amplitude),
+      0.05,
+      `amplitude ${amplitude}: `,
+    );
   }
 });
 
@@ -875,7 +993,10 @@ check('loudness: weighted, so bass counts for less and treble for more', () => {
   const level = (hz) => app.loudnessOf([sine(hz, 5, 0.1), sine(hz, 5, 0.1)], 44100);
   const reference = level(997);
   ok(level(40) < reference - 4, `40 Hz should read well below 1 kHz, got ${level(40).toFixed(1)}`);
-  ok(level(10000) > reference + 2, `10 kHz should read above 1 kHz, got ${level(10000).toFixed(1)}`);
+  ok(
+    level(10000) > reference + 2,
+    `10 kHz should read above 1 kHz, got ${level(10000).toFixed(1)}`,
+  );
 });
 
 check('loudness: mono is measured the way it will be played', () => {
@@ -887,7 +1008,7 @@ check('loudness: mono is measured the way it will be played', () => {
 
 check('loudness: silence at the end does not drag the reading down', () => {
   const tone = sine(997, 10, 0.1);
-  const hush = sine(997, 30, 1e-5);          // audible only to a meter
+  const hush = sine(997, 30, 1e-5); // audible only to a meter
   const alone = app.loudnessOf([tone, tone], 44100);
   const withTail = app.loudnessOf([join(tone, hush), join(tone, hush)], 44100);
   near(withTail, alone, 0.1, 'the absolute gate should ignore the tail: ');
@@ -903,8 +1024,12 @@ check('loudness: a quiet passage does not drag the reading down either', () => {
   const loud = sine(997, 10, 0.1);
   const soft = sine(997, 10, 0.1 * Math.pow(10, -30 / 20));
   const measured = app.loudnessOf([join(loud, soft), join(loud, soft)], 44100);
-  near(measured, app.loudnessOf([loud, loud], 44100), 0.15,
-    'the relative gate should keep the reading on the body of the music: ');
+  near(
+    measured,
+    app.loudnessOf([loud, loud], 44100),
+    0.15,
+    'the relative gate should keep the reading on the body of the music: ',
+  );
 });
 
 check('loudness: agrees with an independent meter', () => {
@@ -932,10 +1057,10 @@ check('loudness: agrees with an independent meter', () => {
       const w = random() * 2 - 1;
       b[0] = 0.99886 * b[0] + w * 0.0555179;
       b[1] = 0.99332 * b[1] + w * 0.0750759;
-      b[2] = 0.96900 * b[2] + w * 0.1538520;
-      b[3] = 0.86650 * b[3] + w * 0.3104856;
-      b[4] = 0.55000 * b[4] + w * 0.5329522;
-      b[5] = -0.7616 * b[5] - w * 0.0168980;
+      b[2] = 0.969 * b[2] + w * 0.153852;
+      b[3] = 0.8665 * b[3] + w * 0.3104856;
+      b[4] = 0.55 * b[4] + w * 0.5329522;
+      b[5] = -0.7616 * b[5] - w * 0.016898;
       out[i] = (b[0] + b[1] + b[2] + b[3] + b[4] + b[5] + b[6] + w * 0.5362) * 0.11 * amplitude;
       b[6] = w * 0.115926;
     }
@@ -968,7 +1093,12 @@ check('loudness: measuring does not alter the audio it measures', () => {
 
 check('peakOf: the largest sample anywhere, across every channel', () => {
   near(app.peakOf([new Float32Array([0.1, -0.7, 0.3])]), 0.7, 1e-7, 'negative peaks count: ');
-  near(app.peakOf([new Float32Array([0.1]), new Float32Array([0.9])]), 0.9, 1e-7, 'both channels: ');
+  near(
+    app.peakOf([new Float32Array([0.1]), new Float32Array([0.9])]),
+    0.9,
+    1e-7,
+    'both channels: ',
+  );
   eq(app.peakOf([]), 0);
 });
 
@@ -985,8 +1115,8 @@ check('gains: matched clips end up matched, and as loud as the peaks allow', () 
   // The dynamic clip runs out of headroom first, so it sets the level and its
   // peak lands exactly on the ceiling.
   const measures = [
-    { loudness: -24, peak: 0.7 },    // crest 20.9 dB — the constraint
-    { loudness: -10, peak: 0.99 },   // crest 9.9 dB
+    { loudness: -24, peak: 0.7 }, // crest 20.9 dB — the constraint
+    { loudness: -10, peak: 0.99 }, // crest 9.9 dB
   ];
   const { gains, loudness } = app.solveGains(measures, { ceiling: -1 });
   const after = measures.map((m, i) => m.loudness + 20 * Math.log10(gains[i]));
@@ -997,7 +1127,10 @@ check('gains: matched clips end up matched, and as loud as the peaks allow', () 
 });
 
 check('gains: already matched clips are only trimmed for headroom', () => {
-  const measures = [{ loudness: -14, peak: 0.9 }, { loudness: -14, peak: 0.9 }];
+  const measures = [
+    { loudness: -14, peak: 0.9 },
+    { loudness: -14, peak: 0.9 },
+  ];
   const { gains } = app.solveGains(measures);
   near(gains[0], gains[1], 1e-12, 'equal input, equal output: ');
 });
@@ -1020,8 +1153,10 @@ check('gains: nothing clips, whatever it is handed', () => {
     const measures = plausibleMeasures(random, 1 + Math.floor(random() * 5));
     const { gains } = app.solveGains(measures);
     measures.forEach((m, i) => {
-      ok(m.peak * gains[i] <= limit + 1e-9,
-        `clip ${i} of ${JSON.stringify(measures)} peaks at ${(m.peak * gains[i]).toFixed(4)}`);
+      ok(
+        m.peak * gains[i] <= limit + 1e-9,
+        `clip ${i} of ${JSON.stringify(measures)} peaks at ${(m.peak * gains[i]).toFixed(4)}`,
+      );
     });
   }
 });
@@ -1030,14 +1165,21 @@ check('gains: one freak clip cannot pull the rest down without limit', () => {
   // A cut that is mostly quiet with a single crash in it sits 38 dB below its
   // own peak. It cannot be matched without clipping whatever we do — the point
   // of the cap is that it cannot take the other songs down with it either.
-  const ordinary = [{ loudness: -12, peak: 0.9 }, { loudness: -14, peak: 0.85 }];
+  const ordinary = [
+    { loudness: -12, peak: 0.9 },
+    { loudness: -14, peak: 0.85 },
+  ];
   const freak = { loudness: -40, peak: Math.pow(10, -2 / 20) };
   const { loudness, short } = app.solveGains([...ordinary, freak]);
 
   const uncapped = app.LOUDNESS.ceiling - 38;
   ok(loudness > uncapped + 10, `the outlier still set the level (${loudness.toFixed(1)})`);
-  near(loudness, app.LOUDNESS.ceiling - app.LOUDNESS.maxCrest, 1e-9,
-    'the cap should be what decides the level: ');
+  near(
+    loudness,
+    app.LOUDNESS.ceiling - app.LOUDNESS.maxCrest,
+    1e-9,
+    'the cap should be what decides the level: ',
+  );
   eq(short, [2], 'and the outlier is the one left short: ');
 });
 
@@ -1049,7 +1191,10 @@ check('gains: an absurd target is still not allowed to clip', () => {
 });
 
 check('gains: near-silence is boosted only so far, and says so', () => {
-  const measures = [{ loudness: -20, peak: 0.8 }, { loudness: -60, peak: 0.001 }];
+  const measures = [
+    { loudness: -20, peak: 0.8 },
+    { loudness: -60, peak: 0.001 },
+  ];
   const { gains, short } = app.solveGains(measures);
   eq(short, [1], 'the clip that fell short should be named: ');
   near(20 * Math.log10(gains[1]), app.LOUDNESS.maxBoost, 1e-9, 'held at the boost limit: ');
@@ -1058,7 +1203,7 @@ check('gains: near-silence is boosted only so far, and says so', () => {
 check('gains: an unmeasurable clip is left alone and does not spoil the rest', () => {
   const measures = [
     { loudness: -20, peak: 0.8 },
-    { loudness: -Infinity, peak: 0 },          // a silent clip
+    { loudness: -Infinity, peak: 0 }, // a silent clip
     { loudness: -26, peak: 0.5 },
   ];
   const { gains } = app.solveGains(measures);
@@ -1106,8 +1251,10 @@ check('level slider: its range covers every gain the solver can produce', () => 
     const measures = plausibleMeasures(random, 2 + Math.floor(random() * 4));
     for (const gain of app.solveGains(measures).gains) {
       const db = app.gainToDb(gain);
-      ok(db >= app.LEVEL_SLIDER.min - 1e-9 && db <= app.LEVEL_SLIDER.max + 1e-9,
-        `${db.toFixed(1)} dB is outside the slider for ${JSON.stringify(measures)}`);
+      ok(
+        db >= app.LEVEL_SLIDER.min - 1e-9 && db <= app.LEVEL_SLIDER.max + 1e-9,
+        `${db.toFixed(1)} dB is outside the slider for ${JSON.stringify(measures)}`,
+      );
     }
   }
 });
@@ -1121,22 +1268,32 @@ check('level slider: the HTML range matches the constant the code works from', (
     ok(found, `the slider has no ${attribute}`);
     eq(Number(found[1]), expected, `slider ${attribute}: `);
   }
-  ok(app.MAX_GAIN >= app.dbToGain(app.LEVEL_SLIDER.max),
-    'the clamp is tighter than the slider, so the top of the slider would not stick');
+  ok(
+    app.MAX_GAIN >= app.dbToGain(app.LEVEL_SLIDER.max),
+    'the clamp is tighter than the slider, so the top of the slider would not stick',
+  );
 });
 
 check('describeLevels: counts what happened, and owns up to what did not', () => {
   eq(app.describeLevels({ matched: 3, short: 0, unmeasured: 0 }), 'Evened out 3 songs');
   eq(app.describeLevels({ matched: 1, short: 0, unmeasured: 0 }), 'Evened out 1 song');
-  eq(app.describeLevels({ matched: 2, short: 1, unmeasured: 0 }),
-    'Evened out 2 songs — one could not come all the way up, so it stays quieter than the rest');
-  eq(app.describeLevels({ matched: 2, short: 0, unmeasured: 1 }),
-    'Evened out 2 songs — one could not be measured and was left as it was');
-  eq(app.describeLevels({ matched: 2, short: 2, unmeasured: 3 }),
-    'Evened out 2 songs — 2 could not come all the way up, so they stay quieter '
-    + 'than the rest, and 3 could not be measured and were left as they were');
-  eq(app.describeLevels({ matched: 0, short: 0, unmeasured: 2 }),
-    'Could not measure these songs, so nothing changed');
+  eq(
+    app.describeLevels({ matched: 2, short: 1, unmeasured: 0 }),
+    'Evened out 2 songs — one could not come all the way up, so it stays quieter than the rest',
+  );
+  eq(
+    app.describeLevels({ matched: 2, short: 0, unmeasured: 1 }),
+    'Evened out 2 songs — one could not be measured and was left as it was',
+  );
+  eq(
+    app.describeLevels({ matched: 2, short: 2, unmeasured: 3 }),
+    'Evened out 2 songs — 2 could not come all the way up, so they stay quieter ' +
+      'than the rest, and 3 could not be measured and were left as they were',
+  );
+  eq(
+    app.describeLevels({ matched: 0, short: 0, unmeasured: 2 }),
+    'Could not measure these songs, so nothing changed',
+  );
 });
 
 check('describeLevels: plain language, no audio jargon', () => {

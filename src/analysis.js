@@ -42,19 +42,19 @@ function clamp(v, lo, hi) {
    a browser. */
 
 const BEAT = {
-  frame: 1024,          // FFT size for the onset envelope, ~23 ms at 44100
-  hop: 512,             // ~12 ms between envelope samples
+  frame: 1024, // FFT size for the onset envelope, ~23 ms at 44100
+  hop: 512, // ~12 ms between envelope samples
   minBpm: 60,
   maxBpm: 200,
-  centerBpm: 120,       // tempo prior, so 90 is preferred over 45 or 180
-  spreadOctaves: 0.9,   // width of that prior
-  compression: 100,     // γ in log(1 + γ|X|): lets quiet onsets count too
-  smoothing: 0.4,       // seconds of moving average removed from the envelope
-  window: 12,           // seconds of audio analyzed around a cut
-  minConfidence: 0.3,   // below this we decline rather than guess
-  minOnsets: 0.05,      // flux, as a share of frame magnitude, for "notes start here"
-  minCoverage: 0.5,     // share of the grid's beats that must actually be played
-  maxDrift: 0.125,      // acceptable beat slip through a blend, in beats
+  centerBpm: 120, // tempo prior, so 90 is preferred over 45 or 180
+  spreadOctaves: 0.9, // width of that prior
+  compression: 100, // γ in log(1 + γ|X|): lets quiet onsets count too
+  smoothing: 0.4, // seconds of moving average removed from the envelope
+  window: 12, // seconds of audio analyzed around a cut
+  minConfidence: 0.3, // below this we decline rather than guess
+  minOnsets: 0.05, // flux, as a share of frame magnitude, for "notes start here"
+  minCoverage: 0.5, // share of the grid's beats that must actually be played
+  maxDrift: 0.125, // acceptable beat slip through a blend, in beats
 };
 
 /* Running means over a signal turn up three times in the analysis below — the
@@ -92,8 +92,12 @@ function fftInPlace(re, im) {
     for (; j & bit; bit >>= 1) j ^= bit;
     j ^= bit;
     if (i < j) {
-      let t = re[i]; re[i] = re[j]; re[j] = t;
-      t = im[i]; im[i] = im[j]; im[j] = t;
+      let t = re[i];
+      re[i] = re[j];
+      re[j] = t;
+      t = im[i];
+      im[i] = im[j];
+      im[j] = t;
     }
   }
   for (let len = 2; len <= n; len <<= 1) {
@@ -212,9 +216,8 @@ function onsetEnvelope(samples, sampleRate) {
 function flattenEnvelope(env, rate) {
   const blurred = new Float32Array(env.length);
   for (let i = 0; i < env.length; i++) {
-    blurred[i] = 0.25 * (i > 0 ? env[i - 1] : 0)
-      + 0.5 * env[i]
-      + 0.25 * (i + 1 < env.length ? env[i + 1] : 0);
+    blurred[i] =
+      0.25 * (i > 0 ? env[i - 1] : 0) + 0.5 * env[i] + 0.25 * (i + 1 < env.length ? env[i + 1] : 0);
   }
 
   const local = movingAverage(blurred, Math.max(1, Math.round((rate * BEAT.smoothing) / 2)));
@@ -250,7 +253,10 @@ function bestPhaseFor(env, period) {
   for (let s = 0; s < steps; s++) {
     const candidate = (s / steps) * period;
     const value = combScore(env, period, candidate);
-    if (value > score) { score = value; phase = candidate; }
+    if (value > score) {
+      score = value;
+      phase = candidate;
+    }
   }
   return { phase, score };
 }
@@ -281,7 +287,10 @@ function estimateTempoLag(env, rate) {
     const bpm = (60 * rate) / lag;
     const octaves = Math.log2(bpm / BEAT.centerBpm) / BEAT.spreadOctaves;
     const score = (sum / (env.length - lag)) * Math.exp(-0.5 * octaves * octaves);
-    if (score > best) { best = score; bestLag = lag; }
+    if (score > best) {
+      best = score;
+      bestLag = lag;
+    }
   }
   return bestLag;
 }
@@ -320,8 +329,8 @@ function combBaseline(env, rate, period) {
   const maxLag = Math.min(env.length - 2, (rate * 60) / BEAT.minBpm);
   if (maxLag <= minLag) return 0;
 
-  const related = (lag) => [1 / 3, 0.5, 2 / 3, 1, 1.5, 2, 3]
-    .some((m) => Math.abs(lag / (period * m) - 1) < 0.08);
+  const related = (lag) =>
+    [1 / 3, 0.5, 2 / 3, 1, 1.5, 2, 3].some((m) => Math.abs(lag / (period * m) - 1) < 0.08);
 
   const probes = 24;
   const scores = [];
@@ -329,7 +338,7 @@ function combBaseline(env, rate, period) {
     const lag = minLag + ((maxLag - minLag) * i) / (probes - 1);
     if (!related(lag)) scores.push(bestPhaseFor(env, lag).score);
   }
-  if (scores.length < 4) return 0;   // nothing unrelated left to compare against
+  if (scores.length < 4) return 0; // nothing unrelated left to compare against
   return scores.reduce((a, b) => a + b, 0) / scores.length;
 }
 
@@ -350,7 +359,10 @@ function findBar(beats) {
     for (let offset = 0; offset < meter; offset++) {
       let sum = 0;
       let n = 0;
-      for (let i = offset; i < beats.length; i += meter) { sum += beats[i].strength; n++; }
+      for (let i = offset; i < beats.length; i += meter) {
+        sum += beats[i].strength;
+        n++;
+      }
       const score = (n ? sum / n / mean : 0) * (meter === 3 ? 0.9 : 1);
       if (score > best.score) best = { meter, offset, score };
     }
@@ -391,7 +403,9 @@ function analyzeBeats(samples, sampleRate) {
   if (beats.length < 2) return nothing;
 
   const bar = findBar(beats);
-  beats.forEach((beat, i) => { beat.downbeat = (i - bar.offset) % bar.meter === 0; });
+  beats.forEach((beat, i) => {
+    beat.downbeat = (i - bar.offset) % bar.meter === 0;
+  });
 
   // A grid can fit anything. Three things have to hold before we believe it.
   //
@@ -416,9 +430,10 @@ function analyzeBeats(samples, sampleRate) {
     bpm: 60 / period,
     period,
     // Third, the grid has to fit better than an unrelated one.
-    confidence: clamp((fit.score / baseline - 1) / 2, 0, 1)
-      * clamp(onsets / BEAT.minOnsets, 0, 1)
-      * clamp(coverage / BEAT.minCoverage, 0, 1),
+    confidence:
+      clamp((fit.score / baseline - 1) / 2, 0, 1) *
+      clamp(onsets / BEAT.minOnsets, 0, 1) *
+      clamp(coverage / BEAT.minCoverage, 0, 1),
     coverage,
     meter: bar.meter,
     beats,
@@ -472,8 +487,16 @@ function reachablePoints(points, cut, room, maxShift, key) {
  */
 function declineJoin(reason, crossfade, extra = {}) {
   return {
-    ok: false, reason, endShift: 0, startShift: 0, crossfade,
-    lengthDelta: 0, drift: 0, tempoMismatch: 0, confidence: 0, bpm: [0, 0],
+    ok: false,
+    reason,
+    endShift: 0,
+    startShift: 0,
+    crossfade,
+    lengthDelta: 0,
+    drift: 0,
+    tempoMismatch: 0,
+    confidence: 0,
+    bpm: [0, 0],
     ...extra,
   };
 }
@@ -483,9 +506,11 @@ function suggestJoin(out, cutOut, inc, cutIn, opts = {}) {
   const minConfidence = opts.minConfidence ?? BEAT.minConfidence;
   const confidence = Math.min(out.confidence || 0, inc.confidence || 0);
 
-  const decline = (reason) => declineJoin(reason, crossfade, {
-    confidence, bpm: [out.bpm || 0, inc.bpm || 0],
-  });
+  const decline = (reason) =>
+    declineJoin(reason, crossfade, {
+      confidence,
+      bpm: [out.bpm || 0, inc.bpm || 0],
+    });
 
   if (!out.beats || !inc.beats || out.beats.length < 2 || inc.beats.length < 2) {
     return decline('no-beat');
@@ -498,7 +523,10 @@ function suggestJoin(out, cutOut, inc, cutIn, opts = {}) {
   let tempoMismatch = Infinity;
   for (const m of [1, 2, 0.5]) {
     const err = Math.abs((inc.period * m) / out.period - 1);
-    if (err < tempoMismatch) { tempoMismatch = err; ratio = m; }
+    if (err < tempoMismatch) {
+      tempoMismatch = err;
+      ratio = m;
+    }
   }
 
   // With unequal tempos the two grids drift apart across the overlap. This is
@@ -516,9 +544,8 @@ function suggestJoin(out, cutOut, inc, cutIn, opts = {}) {
   // the overlap starts off the grid however well the cuts themselves are
   // placed. A hard cut stays a hard cut — that is a deliberate edit, not a
   // mistake to fix.
-  const maxOverlap = driftPerSecond > 0
-    ? Math.min(maxCrossfade, BEAT.maxDrift / driftPerSecond)
-    : maxCrossfade;
+  const maxOverlap =
+    driftPerSecond > 0 ? Math.min(maxCrossfade, BEAT.maxDrift / driftPerSecond) : maxCrossfade;
   let blends = [0];
   if (crossfade > 0) {
     blends = [...new Set([1, 2, out.meter, out.meter * 2])]
@@ -533,11 +560,11 @@ function suggestJoin(out, cutOut, inc, cutIn, opts = {}) {
   // a second of movement; keeping the program's length is worth slightly less
   // than that, because the timer is visible and easy to correct elsewhere.
   const cost = (endShift, startShift, blend, lengthDelta, a, b) =>
-    (0.8 * (Math.abs(endShift) + Math.abs(startShift))) / maxShift
-    + 0.7 * Math.abs(lengthDelta)
-    + 1.0 * ((a.downbeat ? 0 : 1) + (b.downbeat ? 0 : 1))
-    + (0.3 * Math.abs(blend - crossfade)) / Math.max(crossfade, 1)
-    + (1.5 * blend * driftPerSecond) / BEAT.maxDrift;
+    (0.8 * (Math.abs(endShift) + Math.abs(startShift))) / maxShift +
+    0.7 * Math.abs(lengthDelta) +
+    1.0 * ((a.downbeat ? 0 : 1) + (b.downbeat ? 0 : 1)) +
+    (0.3 * Math.abs(blend - crossfade)) / Math.max(crossfade, 1) +
+    (1.5 * blend * driftPerSecond) / BEAT.maxDrift;
 
   let best = null;
   for (const a of outs) {
@@ -608,20 +635,20 @@ function beatsAround(buffer, at, opts = {}) {
    declines. Pure, like the rest of the analysis. */
 
 const PHRASE = {
-  frame: 4096,          // ~10.8 Hz bins at 44100 — fine enough to tell semitones apart
-  hop: 2048,            // ~46 ms
-  quiet: 0.12,          // seconds; how wide a "nothing is happening" moment is
-  context: 1.6,         // seconds of surrounding music a lull is judged against
-  novelty: 1.5,         // seconds either side compared for a change of harmony
-  minLull: 0.4,         // seconds; shorter than this is a gap between notes, not a breath
-  maxLull: 2,           // seconds; longer than this is a section break, not a breath
-  smooth: 0.15,         // seconds of moving average before looking for peaks
-  separation: 0.6,      // seconds; two breaths closer together than this are one
-  minScore: 0.35,       // below this a candidate is not really a break at all
-  minBlend: 2,          // seconds; a short blend is exposed with no beat to carry it
-  chromaLow: 200,       // Hz; below this the bins are too coarse to name a note
-  chromaHigh: 3000,     // Hz; above this it is mostly harmonics and noise
-  gapWeight: 0.8,       // the rest is novelty
+  frame: 4096, // ~10.8 Hz bins at 44100 — fine enough to tell semitones apart
+  hop: 2048, // ~46 ms
+  quiet: 0.12, // seconds; how wide a "nothing is happening" moment is
+  context: 1.6, // seconds of surrounding music a lull is judged against
+  novelty: 1.5, // seconds either side compared for a change of harmony
+  minLull: 0.4, // seconds; shorter than this is a gap between notes, not a breath
+  maxLull: 2, // seconds; longer than this is a section break, not a breath
+  smooth: 0.15, // seconds of moving average before looking for peaks
+  separation: 0.6, // seconds; two breaths closer together than this are one
+  minScore: 0.35, // below this a candidate is not really a break at all
+  minBlend: 2, // seconds; a short blend is exposed with no beat to carry it
+  chromaLow: 200, // Hz; below this the bins are too coarse to name a note
+  chromaHigh: 3000, // Hz; above this it is mostly harmonics and noise
+  gapWeight: 0.8, // the rest is novelty
 };
 
 /**
@@ -873,9 +900,7 @@ function suggestPhraseJoin(out, cutOut, inc, cutIn, opts = {}) {
 
   // With no beat, a blend has nothing to drift out of — and a short one over
   // free tempo is the most exposed a join can be. A hard cut stays a hard cut.
-  const blend = crossfade > 0
-    ? Math.min(Math.max(crossfade, PHRASE.minBlend), maxCrossfade)
-    : 0;
+  const blend = crossfade > 0 ? Math.min(Math.max(crossfade, PHRASE.minBlend), maxCrossfade) : 0;
 
   let best = null;
   for (const a of outs) {
@@ -883,9 +908,10 @@ function suggestPhraseJoin(out, cutOut, inc, cutIn, opts = {}) {
     for (const b of incs) {
       const startShift = b.resumes - cutIn;
       const lengthDelta = endShift - startShift - (blend - crossfade);
-      const cost = 1.2 * ((1 - a.score) + (1 - b.score))
-        + (0.8 * (Math.abs(endShift) + Math.abs(startShift))) / maxShift
-        + 0.7 * Math.abs(lengthDelta);
+      const cost =
+        1.2 * (1 - a.score + (1 - b.score)) +
+        (0.8 * (Math.abs(endShift) + Math.abs(startShift))) / maxShift +
+        0.7 * Math.abs(lengthDelta);
       if (!best || cost < best.cost) best = { cost, endShift, startShift, lengthDelta, a, b };
     }
   }
@@ -924,13 +950,21 @@ function suggestJoinForBuffers(outBuffer, cutOut, incBuffer, cutIn, opts = {}) {
   const b = windowAround(incBuffer, cutIn, opts);
 
   const beat = suggestJoin(
-    analyzeBeats(a.samples, a.sampleRate), a.cut,
-    analyzeBeats(b.samples, b.sampleRate), b.cut, opts);
+    analyzeBeats(a.samples, a.sampleRate),
+    a.cut,
+    analyzeBeats(b.samples, b.sampleRate),
+    b.cut,
+    opts,
+  );
   if (beat.ok || beat.reason !== 'no-beat') return beat;
 
   return suggestPhraseJoin(
-    phrasePoints(a.samples, a.sampleRate), a.cut,
-    phrasePoints(b.samples, b.sampleRate), b.cut, opts);
+    phrasePoints(a.samples, a.sampleRate),
+    a.cut,
+    phrasePoints(b.samples, b.sampleRate),
+    b.cut,
+    opts,
+  );
 }
 
 /**
@@ -942,15 +976,18 @@ function suggestJoinForBuffers(outBuffer, cutOut, incBuffer, cutIn, opts = {}) {
  */
 function describeJoin(result, wasCrossfade) {
   if (!result.ok) {
-    return {
-      'no-room': 'Not enough song either side to move the cut, so nothing changed',
-      'no-beat': 'No steady beat to line up with here, so nothing changed',
-    }[result.reason] || 'Could not find a natural break in the music, so nothing changed';
+    return (
+      {
+        'no-room': 'Not enough song either side to move the cut, so nothing changed',
+        'no-beat': 'No steady beat to line up with here, so nothing changed',
+      }[result.reason] || 'Could not find a natural break in the music, so nothing changed'
+    );
   }
 
-  const changed = Math.abs(result.endShift) >= 0.05
-    || Math.abs(result.startShift) >= 0.05
-    || Math.abs(result.crossfade - wasCrossfade) >= 0.05;
+  const changed =
+    Math.abs(result.endShift) >= 0.05 ||
+    Math.abs(result.startShift) >= 0.05 ||
+    Math.abs(result.crossfade - wasCrossfade) >= 0.05;
   if (!changed) {
     return result.reason === 'phrase'
       ? 'This join is already at a natural break'
@@ -958,15 +995,17 @@ function describeJoin(result, wasCrossfade) {
   }
 
   const delta = result.lengthDelta;
-  const length = Math.abs(delta) < 0.05
-    ? 'Same length as before'
-    : `Program is ${Math.abs(delta).toFixed(1)}s ${delta > 0 ? 'longer' : 'shorter'}`;
-  const lead = {
-    'tempo-mismatch': 'Lined up as closely as these two speeds allow',
-    // Saying which of the two things happened matters: it says the music
-    // has no steady beat, which is why the advice for it is different.
-    phrase: 'No steady beat here, so the cut moved to where the phrase ends',
-  }[result.reason] || 'Lined up with the beat';
+  const length =
+    Math.abs(delta) < 0.05
+      ? 'Same length as before'
+      : `Program is ${Math.abs(delta).toFixed(1)}s ${delta > 0 ? 'longer' : 'shorter'}`;
+  const lead =
+    {
+      'tempo-mismatch': 'Lined up as closely as these two speeds allow',
+      // Saying which of the two things happened matters: it says the music
+      // has no steady beat, which is why the advice for it is different.
+      phrase: 'No steady beat here, so the cut moved to where the phrase ends',
+    }[result.reason] || 'Lined up with the beat';
   return `${lead}. ${length}`;
 }
 
@@ -985,17 +1024,17 @@ function describeJoin(result, wasCrossfade) {
    Pure: takes channels of samples, returns numbers. */
 
 const LOUDNESS = {
-  block: 0.4,            // seconds per measurement block
-  step: 0.1,             // block spacing, so blocks overlap by 75%
-  absoluteGate: -70,     // LUFS; below this a block is silence, not quiet music
-  relativeGate: -10,     // LU below the ungated mean
-  offset: -0.691,        // BS.1770 calibration, so 1 kHz reads its own level
-  ceiling: -1,           // dBFS left free, because sample peaks understate the real ones
+  block: 0.4, // seconds per measurement block
+  step: 0.1, // block spacing, so blocks overlap by 75%
+  absoluteGate: -70, // LUFS; below this a block is silence, not quiet music
+  relativeGate: -10, // LU below the ungated mean
+  offset: -0.691, // BS.1770 calibration, so 1 kHz reads its own level
+  ceiling: -1, // dBFS left free, because sample peaks understate the real ones
   // Quiet classical masters really do sit 25 dB below a pop single, so this has
   // to be generous or the very case the feature exists for gets refused. Its
   // job is only to decline near-silence, which needs far more than this.
-  maxBoost: 24,          // dB
-  maxCrest: 22,          // dB of peak above loudness; beyond this a clip is an outlier
+  maxBoost: 24, // dB
+  maxCrest: 22, // dB of peak above loudness; beyond this a clip is an outlier
 };
 
 /**
@@ -1172,7 +1211,7 @@ function solveGains(measures, opts = {}) {
 
   const short = [];
   const gains = measures.map((m, i) => {
-    if (!measured(m)) return 1;                 // nothing to measure — leave it alone
+    if (!measured(m)) return 1; // nothing to measure — leave it alone
     const wanted = loudness - m.loudness;
     // Two things stop a clip reaching the target: its own peaks would go over
     // the ceiling, or it is so quiet that we would be raising hiss rather than
@@ -1211,14 +1250,18 @@ function describeLevels({ matched, short, unmeasured }) {
   if (!matched) return 'Could not measure these songs, so nothing changed';
   const notes = [];
   if (short) {
-    notes.push(short === 1
-      ? 'one could not come all the way up, so it stays quieter than the rest'
-      : `${short} could not come all the way up, so they stay quieter than the rest`);
+    notes.push(
+      short === 1
+        ? 'one could not come all the way up, so it stays quieter than the rest'
+        : `${short} could not come all the way up, so they stay quieter than the rest`,
+    );
   }
   if (unmeasured) {
-    notes.push(unmeasured === 1
-      ? 'one could not be measured and was left as it was'
-      : `${unmeasured} could not be measured and were left as they were`);
+    notes.push(
+      unmeasured === 1
+        ? 'one could not be measured and was left as it was'
+        : `${unmeasured} could not be measured and were left as they were`,
+    );
   }
   const head = `Evened out ${matched} song${matched === 1 ? '' : 's'}`;
   return notes.length ? `${head} — ${notes.join(', and ')}` : head;
@@ -1229,13 +1272,39 @@ function describeLevels({ matched, short, unmeasured }) {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     clamp,
-    movingAverage, frameCount,
-    BEAT, fftInPlace, onsetEnvelope, flattenEnvelope, estimateTempoLag,
-    analyzeBeats, suggestJoin, monoWindow, beatsAround, suggestJoinForBuffers,
+    movingAverage,
+    frameCount,
+    BEAT,
+    fftInPlace,
+    onsetEnvelope,
+    flattenEnvelope,
+    estimateTempoLag,
+    analyzeBeats,
+    suggestJoin,
+    monoWindow,
+    beatsAround,
+    suggestJoinForBuffers,
     describeJoin,
-    PHRASE, gapScores, energyEnvelope, chromaFrames, chromaDistance, noveltyScores,
-    phrasePoints, suggestPhraseJoin, windowAround,
-    LOUDNESS, kWeighting, biquad, loudnessOf, peakOf, measureClip, solveGains,
-    gainToDb, dbToGain, levelPercent, describeLevels, LEVEL_SLIDER,
+    PHRASE,
+    gapScores,
+    energyEnvelope,
+    chromaFrames,
+    chromaDistance,
+    noveltyScores,
+    phrasePoints,
+    suggestPhraseJoin,
+    windowAround,
+    LOUDNESS,
+    kWeighting,
+    biquad,
+    loudnessOf,
+    peakOf,
+    measureClip,
+    solveGains,
+    gainToDb,
+    dbToGain,
+    levelPercent,
+    describeLevels,
+    LEVEL_SLIDER,
   };
 }

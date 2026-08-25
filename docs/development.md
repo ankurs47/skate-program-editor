@@ -189,7 +189,7 @@ flows that only exist as a sequence of clicks.
 
 It also holds **render budgets**: assertions that dragging a slider resolves no
 styles, creates no elements and coalesces its waveform drawing to one batch a
-frame. Those are *counts*, and counts are assertable. Wall-clock timings are
+frame. Those are _counts_, and counts are assertable. Wall-clock timings are
 collected and reported but never asserted, because they are not comparable
 between a laptop and a CI runner — a number that moves for reasons unrelated to
 the change is not evidence.
@@ -204,13 +204,13 @@ mutation the tests do not notice is reported as `SURVIVED`, and it means a test
 that cannot fail — which is worse than no test, because it reads like coverage.
 
 This found two real ones. The audition check asserted that gain nodes were
-*created*, which stayed true when the audition bypassed them; it now walks the
+_created_, which stayed true when the audition bypassed them; it now walks the
 actual graph. And a check on the busy state could not fail because headless
 Chrome always paints; it now stubs `requestAnimationFrame` to never fire.
 
 Each mutation carries a `guards` line saying what property it defends and an
 `expect` string naming the failure it should produce. If the mutation applies but
-the *expected* failure does not appear, it is reported `STALE` — the code moved
+the _expected_ failure does not appear, it is reported `STALE` — the code moved
 and the mutation is now testing something else. Stale counts as a failure.
 
 **It runs in a throwaway git worktree**, built from HEAD by
@@ -276,7 +276,7 @@ These are the ones that will get a change rejected, and they are the same list
   repository in plain text. Placeholders use generic examples like
   `my 2026 junior long program`.
 - **Plain language in the interface.** "Make music file", not "Export". A word
-  like *bitrate*, *codec* or *render* appearing in visible text is a defect;
+  like _bitrate_, _codec_ or _render_ appearing in visible text is a defect;
   technical detail belongs in a tooltip.
 - **Feature-detect, never sniff the protocol.** An earlier version of the
   documentation asserted the File System Access API was unavailable from

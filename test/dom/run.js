@@ -113,12 +113,18 @@ async function main() {
         localStorage.removeItem('skate.musicPanel');
         return { before, after, back };
       `);
-      ok(out.after.w > out.before.w, `collapsing gave the workspace no room: ${out.before.w} -> ${out.after.w}`);
+      ok(
+        out.after.w > out.before.w,
+        `collapsing gave the workspace no room: ${out.before.w} -> ${out.after.w}`,
+      );
       eq(out.after.heads, out.before.heads, 'a panel header disappeared with the sidebar: ');
       eq(out.after.listShown, false, 'the music list is still on screen when collapsed: ');
       eq(out.after.stored, 'collapsed', 'the choice is remembered: ');
-      eq([out.before.expanded, out.after.expanded, out.back.expanded],
-        ['true', 'false', 'true'], 'aria-expanded: ');
+      eq(
+        [out.before.expanded, out.after.expanded, out.back.expanded],
+        ['true', 'false', 'true'],
+        'aria-expanded: ',
+      );
       eq(out.back.w, out.before.w, 'expanding again did not restore the width: ');
       /* The button is the only way back, so it must not move when it is used —
          collapsed it is the one thing left on screen, and a control that shifts
@@ -141,8 +147,11 @@ async function main() {
         __id('startDialog').classList.add('hidden');
         return { before, afterEscape, afterBackdrop };
       `);
-      eq(result, { before: true, afterEscape: true, afterBackdrop: true },
-        'the startup dialog must not be dismissable: ');
+      eq(
+        result,
+        { before: true, afterEscape: true, afterBackdrop: true },
+        'the startup dialog must not be dismissable: ',
+      );
     });
 
     /* --------------------------------------------------------------- undo */
@@ -290,8 +299,11 @@ async function main() {
           notPlaying: playing === null,
         };
       `);
-      eq(result, { open: true, clipsUnchanged: true, trimUnchanged: true, notPlaying: true },
-        'editing keys reached the program behind the dialog: ');
+      eq(
+        result,
+        { open: true, clipsUnchanged: true, trimUnchanged: true, notPlaying: true },
+        'editing keys reached the program behind the dialog: ',
+      );
     });
 
     await check('focus is trapped in the dialog and handed back on Escape', async () => {
@@ -377,7 +389,7 @@ async function main() {
           __id('exportDialog').classList.add('hidden');
         }
       `);
-      eq(result, { warned: false, files: 1}, 'a clean program must not be nagged: ');
+      eq(result, { warned: false, files: 1 }, 'a clean program must not be nagged: ');
     });
 
     /* ------------------------------------------------------------ library */
@@ -398,10 +410,16 @@ async function main() {
         removeFromLibrary('a.mp3');
         return { before, after, stillThere: library.has('a.mp3') && inUse };
       `);
-      eq(result.before.map((b) => b.removable), [false, false, true],
-        'only the unused file should be removable: ');
-      eq(result.after.find((b) => b.file === 'b.mp3').removable, true,
-        'taking a clip out should free its file: ');
+      eq(
+        result.before.map((b) => b.removable),
+        [false, false, true],
+        'only the unused file should be removable: ',
+      );
+      eq(
+        result.after.find((b) => b.file === 'b.mp3').removable,
+        true,
+        'taking a clip out should free its file: ',
+      );
       ok(result.stillThere, 'a file still in the program was removed anyway');
     });
 
@@ -466,13 +484,24 @@ async function main() {
           window.applyEnvelope = realEnvelope;
         }
       `);
-      eq(result.path,
+      eq(
+        result.path,
         ['AudioBufferSourceNode', 'GainNode', 'GainNode', 'AudioDestinationNode'],
-        'the source must reach the output through a level node and a fade node: ');
+        'the source must reach the output through a level node and a fade node: ',
+      );
       near(result.level, result.wanted, 1e-6, 'the level node must carry the clip gain: ');
       ok(result.envelopeOnChain, 'the fade envelope was applied to a node that is not in the path');
       eq(result.skip, 6, 'starting six seconds in: ');
-      eq(result.shape, [[0, 0], [3, 1], [14, 1], [18, 0]], 'the fade shape: ');
+      eq(
+        result.shape,
+        [
+          [0, 0],
+          [3, 1],
+          [14, 1],
+          [18, 0],
+        ],
+        'the fade shape: ',
+      );
     });
 
     await check('playing a join stops before the end of the program', async () => {
@@ -495,8 +524,15 @@ async function main() {
         return { armed, plain };
       `);
       eq(result.armed.from, result.armed.joinAt - 4, 'four seconds of lead-in: ');
-      eq(result.armed.until, result.armed.joinAt + 2 + 4, 'the tail runs from the end of the blend: ');
-      ok(result.armed.until < result.armed.total, 'the preview should stop before the program does');
+      eq(
+        result.armed.until,
+        result.armed.joinAt + 2 + 4,
+        'the tail runs from the end of the blend: ',
+      );
+      ok(
+        result.armed.until < result.armed.total,
+        'the preview should stop before the program does',
+      );
       eq(result.plain.stopAt, result.armed.total, 'ordinary play must still run to the end: ');
     });
 
@@ -529,8 +565,14 @@ async function main() {
       eq(result.duringDisabled, true, 'and refuse a second click: ');
       eq(result.afterLabel, 'Even out the volume', 'and go back afterwards: ');
       eq(result.afterDisabled, false);
-      ok(result.elapsed < 10000, `withBusy took ${result.elapsed}ms — it may be waiting on a frame`);
-      ok(result.gainsChanged.some((g) => g !== 1), 'evening out did nothing');
+      ok(
+        result.elapsed < 10000,
+        `withBusy took ${result.elapsed}ms — it may be waiting on a frame`,
+      );
+      ok(
+        result.gainsChanged.some((g) => g !== 1),
+        'evening out did nothing',
+      );
     });
 
     await check('the work still runs when frames never come', async () => {
@@ -639,14 +681,23 @@ async function main() {
         rememberedNames.clear();
         return { noneRemembered, someRemembered, allRemembered, supported: canRememberFiles() };
       `);
-      ok(result.supported, 'Chrome should support this; the check below covers browsers that do not');
+      ok(
+        result.supported,
+        'Chrome should support this; the check below covers browsers that do not',
+      );
       eq(result.noneRemembered.missing, ['kept.mp3', 'lost.mp3']);
       eq(result.noneRemembered.notice, true, 'missing files must still be announced: ');
-      eq(result.noneRemembered.reconnect, false,
-        'nothing is remembered, so there is nothing to offer: ');
+      eq(
+        result.noneRemembered.reconnect,
+        false,
+        'nothing is remembered, so there is nothing to offer: ',
+      );
       eq(result.someRemembered.reconnect, true);
-      eq(result.someRemembered.label, 'Open 1 of them again',
-        'when only some can come back, say so rather than promising all: ');
+      eq(
+        result.someRemembered.label,
+        'Open 1 of them again',
+        'when only some can come back, say so rather than promising all: ',
+      );
       eq(result.allRemembered.label, 'Open the music again');
     });
 
@@ -724,8 +775,10 @@ async function main() {
       for (const ext of ['.mp3', '.wav', '.webm', '.opus']) {
         ok(accepted.includes(ext), `the picker does not offer ${ext}`);
       }
-      ok(result.matches,
-        'the picker list and the drop filter disagree — they are built from one list');
+      ok(
+        result.matches,
+        'the picker list and the drop filter disagree — they are built from one list',
+      );
     });
 
     /* -------------------------------------------------------------- drops */
@@ -897,15 +950,26 @@ async function main() {
         forcedStyleReads: result.styleReads,
         timelineWaveDraws: result.timelineWaves,
         blockingMs: result.blockingMs,
-        wasElements: 1140, wasStyleReads: 480, wasWaveDraws: 240, wasBlockingMs: 35.9,
+        wasElements: 1140,
+        wasStyleReads: 480,
+        wasWaveDraws: 240,
+        wasBlockingMs: 35.9,
       };
-      eq(result.created, 0,
-        'sixty input events built elements — the strip is being rebuilt again: ');
-      eq(result.styleReads, 0,
-        'the stylesheet was read during drawing; the color cache is not being used: ');
-      ok(result.timelineWaves <= result.clips * 4,
-        `${result.timelineWaves} waveform draws for ${result.clips} clips over sixty events — `
-        + 'they are meant to coalesce to about one batch a frame (it was 240)');
+      eq(
+        result.created,
+        0,
+        'sixty input events built elements — the strip is being rebuilt again: ',
+      );
+      eq(
+        result.styleReads,
+        0,
+        'the stylesheet was read during drawing; the color cache is not being used: ',
+      );
+      ok(
+        result.timelineWaves <= result.clips * 4,
+        `${result.timelineWaves} waveform draws for ${result.clips} clips over sixty events — ` +
+          'they are meant to coalesce to about one batch a frame (it was 240)',
+      );
     });
 
     await check('a refresh that changes nothing rebuilds nothing', async () => {
@@ -949,7 +1013,9 @@ async function main() {
         elementsCreated: result.created,
         forcedStyleReads: result.styleReads,
         blockingMs: result.blockingMs,
-        wasElements: 1530, wasStyleReads: 750, wasBlockingMs: 30.1,
+        wasElements: 1530,
+        wasStyleReads: 750,
+        wasBlockingMs: 30.1,
       };
       eq(result.created, 0, 'thirty idle refreshes built elements (it was 1530): ');
       eq(result.styleReads, 0, 'and read the stylesheet (it was 750): ');
@@ -1066,8 +1132,10 @@ async function main() {
 
         // With the system asking for dark, auto and dark agree and light does not.
         eq(out.auto.bg, out.dark.bg, 'auto did not follow the system into dark: ');
-        ok(out.light.bg !== out.dark.bg,
-          `choosing light did not beat a system set to dark: both painted ${out.light.bg}`);
+        ok(
+          out.light.bg !== out.dark.bg,
+          `choosing light did not beat a system set to dark: both painted ${out.light.bg}`,
+        );
         eq(out.backToAuto.bg, out.dark.bg, 'going back to auto did not follow the system: ');
       } finally {
         await session.page.send('Emulation.setEmulatedMedia', { features: [] });
@@ -1088,8 +1156,10 @@ async function main() {
                  width: img.naturalWidth, height: img.naturalHeight };
       `);
       eq(out.found, true, 'no logo in the topbar: ');
-      ok(out.width > 0 && out.height > 0,
-        `the logo at ${out.src} did not decode: ${out.width}x${out.height}`);
+      ok(
+        out.width > 0 && out.height > 0,
+        `the logo at ${out.src} did not decode: ${out.width}x${out.height}`,
+      );
     });
 
     await check('the settings menu opens, closes, and says what is stored', async () => {
@@ -1191,7 +1261,9 @@ async function main() {
     // Shutting the browser down must never decide whether the run passed, and
     // must never swallow the report — a cleanup failure once hid fifteen
     // results and reported only itself.
-    try { await session.close(); } catch (err) {
+    try {
+      await session.close();
+    } catch (err) {
       console.error(`  (the browser did not shut down cleanly: ${err.message})`);
     }
   }
@@ -1203,13 +1275,20 @@ async function main() {
   if (at >= 0 && process.argv[at + 1]) {
     const file = process.argv[at + 1];
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, `${JSON.stringify({
-      suite: 'browser',
-      passed,
-      failed: failures.length,
-      failures: failures.map((f) => f.split('\n')[0]),
-      metrics,
-    }, null, 2)}\n`);
+    fs.writeFileSync(
+      file,
+      `${JSON.stringify(
+        {
+          suite: 'browser',
+          passed,
+          failed: failures.length,
+          failures: failures.map((f) => f.split('\n')[0]),
+          metrics,
+        },
+        null,
+        2,
+      )}\n`,
+    );
   }
 
   process.exit(failures.length ? 1 : 0);
