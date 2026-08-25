@@ -108,7 +108,7 @@ thing that will not run.
 ## Commands
 
 ```bash
-npm test             # 168 unit, wiring and asset checks — fast, no browser
+npm test             # 185 unit, wiring and asset checks — fast, no browser
 npm run lint
 npm run check        # lint + test, which is what the pre-commit hook runs
 npm run test:net     # also re-verifies the pinned CDN hash over the network
@@ -151,12 +151,14 @@ docs/
   social-card.png     what a link to the site unfurls as
   development.md      this file
   docs.css
+  program.skate.schema.json   the format, for other tools to check against
 test/
   harness.js          check/eq/near/ok, and where the shipped files are
   run.js              loads the test files and reports the totals
   analysis.test.js    beats, phrases, loudness
   formats.test.js     container and codec parsing, the quality verdict
   app.test.js         layout, envelopes, undo, the project file
+  fixtures/           a saved project, asserted field by field
   assets.test.js      wiring, and the app's own files
   site.test.js        the guide, the logo, and how a link to this looks
   repo.test.js        what must never ship, and how everything is spelled
@@ -166,6 +168,17 @@ test/
   summary.js          renders the CI pull-request comment
 tools/                the YouTube download wrappers
 ```
+
+The project file is the app's one lasting output, so two rules hold around it.
+Fields the app does not recognize are preserved, top level and per song, which
+is what lets another tool write into the same file. And the key names the schema
+documents belong to the editor: a tool that is not the editor should keep its
+own fields under a key named for itself, because preservation cannot stop two
+tools that both chose `notes` from overwriting each other.
+
+`notes` is free text nothing reads. Worth knowing that the app suggests keeping
+projects in git, so treat anything written there as published — which is also
+why there is no field for a skater's name.
 
 `analysis.js`, `formats.js` and `program.js` are the parts that can be tested
 without a DOM, and a test asserts they stay that way: one `document.`, one
@@ -186,7 +199,7 @@ mistake.
 
 ### Unit checks
 
-`npm test` — 168 checks across six files, no browser, under a second.
+`npm test` — 185 checks across six files, no browser, under a second.
 
 They cover the parts that are easy to get quietly wrong: timeline math with
 overlapping blends, fade and crossfade envelopes summing correctly, filename
@@ -214,7 +227,7 @@ refactor rather than before.
 
 ### Browser checks
 
-`npm run test:dom` — 36 checks in real headless Chrome, driven over the DevTools
+`npm run test:dom` — 38 checks in real headless Chrome, driven over the DevTools
 Protocol. No dependency: Node 22 has a global `WebSocket`, and Chrome speaks CDP
 over one.
 

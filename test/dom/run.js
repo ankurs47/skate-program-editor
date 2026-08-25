@@ -22,7 +22,7 @@ const path = require('path');
 const { open } = require('./browser.js');
 const { SETUP } = require('./fixtures.js');
 // The one list of script files, so this cannot drift from what the page loads.
-const { SCRIPTS } = require('../harness.js');
+const { app, SCRIPTS } = require('../harness.js');
 
 let passed = 0;
 const failures = [];
@@ -249,6 +249,148 @@ async function main() {
       eq(out.withClip.shown, [], 'an empty-state message is showing over a real program: ');
       ok(!out.withClip.play, 'Play stayed off with a clip to play');
       ok(out.withClip.scrubHelp, 'the scrubber lost its explanation');
+    });
+
+    await check('a note is saved with the program and comes back with it', async () => {
+      /* The one field here nothing else reads. It still has to survive a save,
+         restore on reload, sit inside undo the way the program name does, and
+         go away with the program it belonged to. */
+      const out = await run(`
+        window.__reset([['a.mp3', window.__tone(220, 30)]]);
+        const box = document.getElementById('notesBox');
+        const area = document.getElementById('programNotes');
+
+        const closedToStart = { open: box.open, value: area.value };
+
+        // Typed, not assigned: the input event is what the app listens for.
+        area.value = 'coach wants the slow part longer';
+        area.dispatchEvent(new Event('input', { bubbles: true }));
+        const typed = { state: state.notes, stored: JSON.parse(localStorage.getItem('skate.program.v1')).notes };
+
+        // Reopening the saved project brings it back, and shows it.
+        box.open = false;
+        loadProject(JSON.parse(localStorage.getItem('skate.program.v1')));
+        const reopened = { open: box.open, value: area.value, state: state.notes };
+
+        // A second burst of typing, then undo, restores the first.
+        area.value = 'and a cleaner cut into the finish';
+        area.dispatchEvent(new Event('input', { bubbles: true }));
+        endUndoRun();
+        undo();
+        const undone = { state: state.notes, value: area.value };
+
+        startNewProgram();
+        const fresh = { state: state.notes, value: area.value, open: box.open };
+
+        return { closedToStart, typed, reopened, undone, fresh };
+      `);
+
+      eq(
+        out.closedToStart,
+        { open: false, value: '' },
+        'a program with no note should say nothing: ',
+      );
+      eq(out.typed.state, 'coach wants the slow part longer', 'typing did not reach the program: ');
+      eq(out.typed.stored, 'coach wants the slow part longer', 'the note was not saved: ');
+      eq(
+        out.reopened.state,
+        'coach wants the slow part longer',
+        'the note did not survive a reload: ',
+      );
+      eq(
+        out.reopened.value,
+        'coach wants the slow part longer',
+        'the note did not reach the box: ',
+      );
+      ok(out.reopened.open, 'a project carrying a note opened with it hidden');
+      eq(out.undone.state, 'coach wants the slow part longer', 'undo did not put the note back: ');
+      eq(out.undone.value, 'coach wants the slow part longer', 'undo did not reach the box: ');
+      eq(out.fresh, { state: '', value: '', open: false }, 'a new program kept the old note: ');
+    });
+
+    await check('a song shows what its file says about itself', async () => {
+      /* The tags are read from bytes the browser hands over once and then takes
+         away, so the only place this can be checked end to end is here. The
+         panel is built from text out of somebody's file, which is why it is
+         asserted as text rather than as markup. */
+      const out = await run(`
+        window.__reset([]);
+        const ctx = new AudioContext();
+        const buf = ctx.createBuffer(2, ctx.sampleRate * 20, ctx.sampleRate);
+        library.set('track03.m4a', {
+          name: 'track03.m4a', buffer: buf, peaks: computePeaks(buf), duration: 20,
+          bytes: 700000, quality: { kind: 'good', label: 'Good', detail: '' },
+          fingerprint: 'x', state: 'ready',
+          tags: { title: 'Adagio in G minor', composer: 'Tomaso Albinoni', year: '1958' },
+        });
+        libraryShape = null;
+        renderLibrary();
+
+        const item = document.querySelector('#libraryList li');
+        const info = [...item.querySelectorAll('button')].find(b => b.textContent === 'Info');
+        const panel = () => item.querySelector('.lib-tags');
+        const shut = { expanded: info.getAttribute('aria-expanded'), hidden: panel().hidden };
+        info.click();
+        const open = {
+          expanded: info.getAttribute('aria-expanded'),
+          hidden: panel().hidden,
+          text: panel().innerText.replace(/\\s+/g, ' ').trim(),
+        };
+
+        /* Rebuilding the list must not shut a panel somebody opened — the list
+           is redrawn whenever anything in it changes. */
+        libraryShape = null;
+        renderLibrary();
+        const survived = document.querySelector('#libraryList .lib-tags').hidden;
+
+        const heading = document.querySelector('#libraryList .lib-title').textContent;
+        const fileLine = document.querySelector('#libraryList .lib-file').textContent;
+
+        // A song with nothing to say offers no button at all.
+        library.set('bare.mp3', {
+          name: 'bare.mp3', buffer: buf, peaks: computePeaks(buf), duration: 20,
+          bytes: 1000, quality: { kind: 'good', label: 'Good', detail: '' },
+          fingerprint: 'y', state: 'ready', tags: {},
+        });
+        libraryShape = null;
+        renderLibrary();
+        const bare = [...document.querySelectorAll('#libraryList li')][1];
+        const bareHasInfo = [...bare.querySelectorAll('button')].some(b => b.textContent === 'Info');
+
+        const rights = item.querySelector('.lib-rights').href;
+
+        return { shut, open, survived, heading, fileLine, bareHasInfo, rights,
+                 bareHeading: bare.querySelector('.lib-title').textContent };
+      `);
+
+      eq(out.shut, { expanded: 'false', hidden: true }, 'the panel should start shut: ');
+      eq(out.open.expanded, 'true', 'the button did not say it had opened: ');
+      eq(out.open.hidden, false, 'the panel stayed hidden: ');
+      ok(/Adagio in G minor/.test(out.open.text), `no title in the panel: "${out.open.text}"`);
+      // Case-insensitive: the labels are uppercased by the stylesheet, and a
+      // check on what the panel says should not depend on how it is styled.
+      ok(/Composer Tomaso Albinoni/i.test(out.open.text), `no composer: "${out.open.text}"`);
+      ok(/1958/.test(out.open.text), `no year: "${out.open.text}"`);
+      eq(out.survived, false, 'redrawing the list shut a panel that was open: ');
+
+      eq(out.heading, 'Adagio in G minor', 'the song is still named after its file: ');
+      eq(out.fileLine, 'track03.m4a', 'the file name has to stay visible: ');
+
+      const link = new URL(out.rights);
+      eq(link.origin + link.pathname, app.CLICKNCLEAR_SEARCH, 'the rights link moved: ');
+      eq(link.searchParams.get('search'), 'Adagio in G minor', 'it does not look up this song: ');
+      eq(link.searchParams.get('entity'), 'tracks');
+      /* A real search URL from the site also carries a label filter and a year
+         range. Either would quietly hide most of what a song might match, so
+         nothing beyond what is being looked for belongs here. */
+      eq(
+        [...link.searchParams.keys()].sort(),
+        ['entity', 'search'],
+        'the link narrows the search: ',
+      );
+
+      ok(!out.bareHasInfo, 'a song with nothing to say still offered an Info button');
+      eq(out.bareHeading, 'bare.mp3', 'a song with no title should show its file name: ');
     });
 
     /* --------------------------------------------------------------- undo */

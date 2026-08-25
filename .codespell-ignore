@@ -9,3 +9,7 @@ couldn
 # aria-labeledby across four dialogs, which is not an attribute at all, so
 # every one of them lost its accessible name and nothing noticed.
 labelledby
+
+# tye: the ID3v2.2 frame that holds the year, spelled TYE in the spec. The
+# three-character names are all abbreviations and several read as typos.
+tye

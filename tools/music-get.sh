@@ -6,8 +6,14 @@
 #
 # This is a thin wrapper around yt-dlp, which does all the real work. It saves
 # the audio exactly as it already exists on the other end — nothing is
-# converted and nothing is re-encoded, so ffmpeg is not needed and no quality
-# is thrown away before you have even started cutting.
+# converted and nothing is re-encoded, so no quality is thrown away before you
+# have even started cutting.
+#
+# It does ask yt-dlp to write the title, artist and so on into the file, which
+# saves typing them onto an entry form later and is what the editor reads to
+# name a song. That step wants ffmpeg, but it only writes tags: the audio comes
+# out byte for byte the same. Without ffmpeg yt-dlp says so and still saves the
+# music, untagged.
 #
 # The Windows equivalent is music-get.cmd next to this file. Keep the two in
 # step: same options, same defaults, same messages.
@@ -118,6 +124,7 @@ for url do
   # shellcheck disable=SC2086
   yt-dlp \
     --format bestaudio \
+    --embed-metadata \
     --no-overwrites \
     $playlist $limit \
     --output "$out_dir/%(title)s.%(ext)s" \

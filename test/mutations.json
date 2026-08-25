@@ -76,8 +76,8 @@
     "guards": "a project can tell whether it has the right music",
     "file": "src/program.js",
     "suite": "unit",
-    "find": "    files: Array.isArray(data.files) ? data.files.filter((f) => f && f.name) : [],",
-    "replace": "    files: [],",
+    "find": "  const songs = (Array.isArray(doc.songs) ? doc.songs : [])\n    .filter((song) => song && typeof song === 'object' && songName(song.name))\n    .map((song) => ({ ...song, name: songName(song.name) }));",
+    "replace": "  const songs = [];",
     "expect": "records what each song was"
   },
   {
@@ -349,5 +349,149 @@
     "find": "#timelineWrap[data-mode=\"start\"] [data-when=\"pick\"],\n#timelineWrap:not([data-mode=\"start\"]) [data-when=\"start\"] {\n  display: none;\n}",
     "replace": "#timelineWrap[data-mode=\"start\"] [data-when=\"pick\"] {\n  display: none;\n}",
     "expect": "says the step that can actually be taken"
+  },
+  {
+    "name": "a field another tool wrote is erased on save",
+    "guards": "a save in one app does not delete what another recorded",
+    "file": "src/app.js",
+    "suite": "unit",
+    "find": "    ...state.carried,\n  };",
+    "replace": "  };",
+    "expect": "never heard of survives a save"
+  },
+  {
+    "name": "a recorded source is erased on save",
+    "guards": "what a song record already said survives being written back",
+    "file": "src/app.js",
+    "suite": "unit",
+    "find": "        ...stored,\n        name,",
+    "replace": "        name,",
+    "expect": "never heard of survives a save"
+  },
+  {
+    "name": "a project from a newer version is read anyway",
+    "guards": "a file this app cannot understand is refused, not guessed at",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "  if (version > FORMAT_VERSION) {",
+    "replace": "  if (false) {",
+    "expect": "version from the future is refused"
+  },
+  {
+    "name": "the ids a project file names are thrown away",
+    "guards": "anything referring to a clip still means the same clip after a save",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "  let id = typeof wanted === 'string' && wanted ? wanted : uid();",
+    "replace": "  let id = uid();",
+    "expect": "clip id survives being saved"
+  },
+  {
+    "name": "a repeated clip id is trusted",
+    "guards": "two clips can never share an id, whatever the file says",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "  while (taken.has(id)) id = uid();",
+    "replace": "  void taken;",
+    "expect": "every clip gets its own id"
+  },
+  {
+    "name": "the file stops pointing at the schema",
+    "guards": "a hand-edited project is validated by the editor opening it",
+    "file": "src/app.js",
+    "suite": "unit",
+    "find": "    $schema: SCHEMA_URL,",
+    "replace": "    $schema: 'https://example.invalid/schema.json',",
+    "expect": "schema that is published"
+  },
+  {
+    "name": "a note is typed but never saved",
+    "guards": "a note survives being written",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "  $('programNotes').oninput = (e) => {\n    pushUndo('program-notes');\n    state.notes = e.target.value;\n    save();\n  };",
+    "replace": "  $('programNotes').oninput = (e) => {\n    void e;\n  };",
+    "expect": "note is saved with the program"
+  },
+  {
+    "name": "a project opens with its note hidden",
+    "guards": "a note that was written is read",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "  if (state.notes) $('notesBox').open = true;",
+    "replace": "  void 0;",
+    "expect": "note is saved with the program"
+  },
+  {
+    "name": "a project load folds into the gesture before it",
+    "guards": "undo never lands in a program that was never on screen",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "  endUndoRun();\n  state.name = read.name;",
+    "replace": "  state.name = read.name;",
+    "expect": "note is saved with the program"
+  },
+  {
+    "name": "a stray null in the clips takes the page down",
+    "guards": "opening a file never throws, whatever is in it",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "      .filter((c) => c && typeof c === 'object' && songName(c.song))\n",
+    "replace": "",
+    "expect": "makes opening it throw"
+  },
+  {
+    "name": "a trim from a file is trusted to be a number",
+    "guards": "a program always has a length",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "  return typeof value === 'number' && isFinite(value) && value > 0 ? value : 0;",
+    "replace": "  return value;",
+    "expect": "makes opening it throw"
+  },
+  {
+    "name": "a clip keeps whatever path its song name carried",
+    "guards": "a name from a file can never point outside the project",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "        file: songName(c.song),",
+    "replace": "        file: c.song,",
+    "expect": "never be a path"
+  },
+  {
+    "name": "a song stops carrying what it is called",
+    "guards": "the title of the music is a fact about the song",
+    "file": "src/app.js",
+    "suite": "unit",
+    "find": "        title: songTitle(\n          { title: stored.title || (entry && entry.tags && entry.tags.title) },\n          name,\n        ),",
+    "replace": "        title: name,",
+    "expect": "belongs to the song"
+  },
+  {
+    "name": "a file stops being asked what it is called",
+    "guards": "the title, composer and rights a file carries reach the screen",
+    "file": "src/library.js",
+    "suite": "dom",
+    "find": "      entry.tags = readTags(bytes);",
+    "replace": "      entry.tags = {};",
+    "expect": "says about itself"
+  },
+  {
+    "name": "the song list ignores the title in the file",
+    "guards": "a song is named by what it is, not by what the file was called",
+    "file": "src/library.js",
+    "suite": "dom",
+    "find": "    const named = (entry.tags && entry.tags.title) || '';",
+    "replace": "    const named = '';",
+    "expect": "says about itself"
+  },
+  {
+    "name": "the rights link carries the filters from the sample URL",
+    "guards": "a rights search is not narrowed to one label and one span of years",
+    "file": "src/library.js",
+    "suite": "dom",
+    "find": "      rights.href = `${CLICKNCLEAR_SEARCH}?entity=tracks&search=${encodeURIComponent(named || entry.name.replace(/\\.[^.]+$/, ''))}`;",
+    "replace": "      rights.href = `${CLICKNCLEAR_SEARCH}?direction=desc&entity=tracks&labels=89&yearRange=1012-2022&search=${encodeURIComponent(named || entry.name.replace(/\\.[^.]+$/, ''))}`;",
+    "expect": "says about itself"
   }
 ]

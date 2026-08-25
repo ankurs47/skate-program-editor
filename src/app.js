@@ -30,6 +30,17 @@ const state = {
   // arrives can be checked against the one the edit was built from. Empty for a
   // program built in this sitting, where the question does not arise.
   expectedFiles: new Map(),
+  /* Top-level keys from the project file this app does not understand — from a
+     desktop shell, or a later version of the format. Held so `project` can put
+     them back, because a save here must never erase what another tool wrote. */
+  carried: {},
+  // How the finished file was last made, when the project records it.
+  exportSettings: null,
+  /* Free text nothing here reads or writes yet, and the folder a desktop app
+     keeps the audio in. Both are held so a project that carries them keeps
+     carrying them. */
+  notes: '',
+  mediaDir: '',
 };
 
 const library = new Map(); // file name -> {name, buffer, peaks, duration, state}
@@ -255,6 +266,7 @@ let undoRun = { tag: null, at: 0 };
 function undoSnapshot() {
   return JSON.stringify({
     name: state.name,
+    notes: state.notes,
     level: state.level,
     targetSeconds: state.targetSeconds,
     toleranceSeconds: state.toleranceSeconds,
@@ -315,6 +327,7 @@ function takeRedo() {
 function applySnapshot(json) {
   const saved = JSON.parse(json);
   state.name = saved.name;
+  state.notes = saved.notes || '';
   state.level = saved.level;
   state.targetSeconds = saved.targetSeconds;
   state.toleranceSeconds = saved.toleranceSeconds;
@@ -323,6 +336,7 @@ function applySnapshot(json) {
     state.selected = state.clips.length ? state.clips[state.clips.length - 1].id : null;
   }
   $('programName').value = state.name;
+  syncNotes();
   syncLevelPicker();
   refresh();
 }
@@ -350,7 +364,7 @@ function addClip(entry) {
   const clip = {
     id: uid(),
     file: entry.name,
-    title: entry.name.replace(/\.[^.]+$/, ''),
+    title: songTitle({ title: entry.tags && entry.tags.title }, entry.name),
     srcStart: 0,
     srcEnd: entry.duration,
     fadeIn: state.clips.length === 0 ? 1.0 : 0,
@@ -433,52 +447,99 @@ async function withBusy(button, work) {
 
 /* ------------------------------------------------------------ persistence */
 
-/** One record per song the program uses, for the project file. */
-function usedFiles() {
+/**
+ * What to record about each song the program uses.
+ *
+ * Starts from what the project file already said about it — a source a desktop
+ * shell recorded, and anything else this app has never heard of — and writes the
+ * measured fields over the top. Rebuilding the record from scratch instead is
+ * how a field another tool wrote gets erased by the next save here.
+ *
+ * A song with nothing but a name is dropped, because there is nothing useful to
+ * say about it. A song with only a source is kept: not yet decoded is a normal
+ * state, and it is exactly the record that lets the file be found again.
+ */
+function usedSongs() {
   const names = [...new Set(state.clips.map((c) => c.file))];
   return names
     .map((name) => {
+      const stored = state.expectedFiles.get(name) || {};
       const entry = library.get(name);
-      const known = entry && entry.fingerprint ? entry : state.expectedFiles.get(name);
+      const measured = entry && entry.fingerprint ? entry : stored;
       return {
+        ...stored,
         name,
-        bytes: known && known.bytes ? known.bytes : null,
-        seconds:
-          known && known.duration
-            ? Number(known.duration.toFixed(2))
-            : (known && known.seconds) || null,
-        fingerprint: (known && known.fingerprint) || null,
+        /* What the project already said wins over what the file says: a title
+           set by hand or by a desktop shell is a decision, and a tag is a
+           guess the file came with. */
+        title: songTitle(
+          { title: stored.title || (entry && entry.tags && entry.tags.title) },
+          name,
+        ),
+        bytes: measured.bytes || null,
+        seconds: measured.duration
+          ? Number(measured.duration.toFixed(2))
+          : measured.seconds || null,
+        fingerprint: measured.fingerprint || null,
       };
     })
-    .filter((f) => f.fingerprint); // nothing useful to say about the rest
+    .filter((song) => Object.keys(song).some((key) => key !== 'name' && song[key] != null));
 }
 
+/**
+ * The program as a document, in the words the interface uses.
+ *
+ * Song, start, end, blend, decibels — not the names the drawing and audio code
+ * carries internally. The file is read and edited by hand, so the plain-language
+ * rule that applies to everything on screen applies to it too.
+ */
 function project() {
   const level = findLevel(state.level);
   return {
+    // First, so it is the first thing an editor sees and the first thing a
+    // person opening the file reads.
+    $schema: SCHEMA_URL,
+    format: FORMAT,
+    version: FORMAT_VERSION,
     name: state.name,
-    level: state.level,
-    // Denormalized on purpose: if the rulebook table changes, an old project
-    // still knows the length it was actually built to.
-    levelLabel: level ? level.label : 'Custom',
-    targetSeconds: state.targetSeconds,
-    toleranceSeconds: state.toleranceSeconds,
+    event: {
+      level: state.level,
+      // Denormalized on purpose: if the rulebook table changes, an old project
+      // still knows the length it was actually built to.
+      label: level ? level.label : 'Custom',
+      targetSeconds: state.targetSeconds,
+      toleranceSeconds: state.toleranceSeconds,
+    },
     /* What each song was, so opening this later can tell whether it has been
        handed the right one. Not where it was: a browser will not say where a
-       file lives, and a handle to one cannot be written to a file. Kept beside
-       the clips rather than on them, since several clips often cut up a single
-       song and the answer is about the song. */
-    files: usedFiles(),
+       file lives, and a handle to one cannot be written to a file. A desktop
+       shell can, and records it here as a source. */
+    songs: usedSongs(),
     clips: state.clips.map((c) => ({
-      file: c.file,
-      title: c.title,
-      srcStart: Number(c.srcStart.toFixed(3)),
-      srcEnd: Number(c.srcEnd.toFixed(3)),
+      id: c.id,
+      song: c.file,
+      /* Only when the clip is called something other than its song. Three clips
+         cut from one song repeating its name three times says nothing, and
+         renaming the song would then mean editing every one of them. */
+      ...(c.title && c.title !== songTitle(state.expectedFiles.get(c.file), c.file)
+        ? { title: c.title }
+        : {}),
+      start: Number(c.srcStart.toFixed(3)),
+      end: Number(c.srcEnd.toFixed(3)),
       fadeIn: Number((c.fadeIn || 0).toFixed(2)),
       fadeOut: Number((c.fadeOut || 0).toFixed(2)),
-      crossfade: Number((c.crossfade || 0).toFixed(2)),
-      gain: Number(clipGain(c).toFixed(3)),
+      blend: Number((c.crossfade || 0).toFixed(2)),
+      /* Clamped to the slider's own range on the way out as well, so the file
+         never carries a level the interface cannot show or the reader would
+         clamp on the way back in. */
+      gainDb: Number(clamp(gainToDb(clipGain(c)), LEVEL_SLIDER.min, LEVEL_SLIDER.max).toFixed(2)),
     })),
+    ...(state.exportSettings ? { export: state.exportSettings } : {}),
+    ...(state.notes ? { notes: state.notes } : {}),
+    ...(state.mediaDir ? { mediaDir: state.mediaDir } : {}),
+    /* Last, so a key this app has never heard of is put back where it was found
+       rather than overwriting one it does understand. */
+    ...state.carried,
   };
 }
 
@@ -492,12 +553,32 @@ function save() {
 
 function loadProject(data) {
   const read = readProject(data);
+  /* A version this app does not understand is the one thing not guessed at.
+     Reading it anyway would produce a program that looks plausible and is
+     wrong, which is worse than not opening it. */
+  if (read.unsupported) {
+    toast(
+      `This project was saved by a newer version of the editor. ` +
+        `Update the app, or open it where it was made.`,
+      6000,
+    );
+    return false;
+  }
+  /* Whatever gesture was in progress is over: a different program is being
+     opened. Without this, typing before a load and typing after it fold into
+     one undo step that spans two programs, and undoing lands somewhere that
+     was never on screen. */
+  endUndoRun();
   state.name = read.name;
   state.level = read.level;
   state.targetSeconds = read.targetSeconds;
   state.toleranceSeconds = read.toleranceSeconds;
   state.clips = read.clips;
-  state.expectedFiles = new Map(read.files.map((f) => [f.name, f]));
+  state.expectedFiles = new Map(read.songs.map((s) => [s.name, s]));
+  state.carried = read.carried;
+  state.exportSettings = read.exportSettings;
+  state.notes = read.notes;
+  state.mediaDir = read.mediaDir;
   state.selected = state.clips.length ? state.clips[0].id : null;
   if (read.retargeted) {
     toast(
@@ -507,10 +588,12 @@ function loadProject(data) {
     );
   }
   $('programName').value = state.name;
+  syncNotes();
   syncLevelPicker();
   refresh();
 
   // The persistent notice above the timeline does the telling now.
+  return true;
 }
 
 /**
@@ -552,6 +635,16 @@ function resetProgram() {
   state.selected = null;
   state.cursor = 0;
   state.playPosition = 0;
+  /* Everything the last project said about its songs goes too. Kept, a new
+     program with a song of the same name would inherit the old one's record of
+     it — its fingerprint, and where a shell said it came from. */
+  state.expectedFiles.clear();
+  state.carried = {};
+  state.exportSettings = null;
+  state.notes = '';
+  state.mediaDir = '';
+  $('programNotes').value = '';
+  $('notesBox').open = false;
   $('playhead').textContent = '0:00.0';
   try {
     localStorage.removeItem(STORE_KEY);
@@ -584,6 +677,7 @@ function startNewProgram() {
   }
 
   $('programName').value = state.name;
+  syncNotes();
   syncLevelPicker();
   allowStartDismissal(); // the choice has been made
   $('startDialog').classList.add('hidden');
@@ -699,6 +793,17 @@ function applyLevel(id) {
 
 /* ----------------------------------------------------------------- wiring */
 
+/**
+ * Put the note on screen, and open the disclosure when there is one to read.
+ *
+ * Only ever opens. Closing here would shut the box under someone who had opened
+ * it to write, since every keystroke saves and comes back through this.
+ */
+function syncNotes() {
+  $('programNotes').value = state.notes;
+  if (state.notes) $('notesBox').open = true;
+}
+
 function syncLevelPicker() {
   const select = $('targetLength');
   const custom = $('customLength');
@@ -712,11 +817,19 @@ function bind() {
   buildLevelPicker();
 
   $('programName').value = state.name;
+  syncNotes();
   // Tagged, so a name being typed is one undo step rather than one per letter.
   // The snapshot is taken before the assignment, so it holds the old name.
   $('programName').oninput = (e) => {
     pushUndo('program-name');
     state.name = e.target.value;
+    save();
+  };
+
+  // The same shape as the name above, for the same reason.
+  $('programNotes').oninput = (e) => {
+    pushUndo('program-notes');
+    state.notes = e.target.value;
     save();
   };
 
@@ -1174,7 +1287,7 @@ if (typeof document !== 'undefined') {
     removeClip,
     moveClip,
     withBusy,
-    usedFiles,
+    usedSongs,
     project,
     save,
     loadProject,

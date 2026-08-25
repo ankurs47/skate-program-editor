@@ -10,6 +10,7 @@
 const fs = require('fs');
 const path = require('path');
 const { app, check, eq, near, ok, ROOT, SCRIPTS } = require('./harness.js');
+const { validate } = require('./schema.js');
 
 /* ------------------------------------------------------------ 1. the math */
 
@@ -460,25 +461,31 @@ check('project file: the document holds exactly the fields it is documented to',
     () => {
       const doc = app.project();
       eq(Object.keys(doc).sort(), [
+        '$schema',
         'clips',
-        'files',
-        'level',
-        'levelLabel',
+        'event',
+        'format',
         'name',
-        'targetSeconds',
-        'toleranceSeconds',
+        'songs',
+        'version',
       ]);
+      eq(Object.keys(doc.event).sort(), ['label', 'level', 'targetSeconds', 'toleranceSeconds']);
+      /* No title: this clip is called what its song is called, so saying so
+         again would be noise. A clip with a label of its own writes one. */
       eq(Object.keys(doc.clips[0]).sort(), [
-        'crossfade',
+        'blend',
+        'end',
         'fadeIn',
         'fadeOut',
-        'file',
-        'gain',
-        'srcEnd',
-        'srcStart',
-        'title',
+        'gainDb',
+        'id',
+        'song',
+        'start',
       ]);
-      eq(doc.levelLabel, 'Juvenile', 'the label is denormalized so an old file still reads: ');
+      eq(Object.keys(doc.songs[0]).sort(), ['bytes', 'fingerprint', 'name', 'seconds', 'title']);
+      eq(doc.format, app.FORMAT, 'the marker says what kind of document this is: ');
+      eq(doc.version, app.FORMAT_VERSION);
+      eq(doc.event.label, 'Juvenile', 'the label is denormalized so an old file still reads: ');
     },
   );
 });
@@ -489,19 +496,19 @@ check('project file: records what each song was, since it cannot record where', 
      it can save is what the audio was, which is what makes "this is a different
      song with the same name" answerable. */
   const read = app.readProject({
-    clips: [{ file: 'one.mp3', srcStart: 0, srcEnd: 30 }],
-    files: [{ name: 'one.mp3', bytes: 4096, seconds: 212.5, fingerprint: 'abc123' }],
+    clips: [{ song: 'one.mp3', start: 0, end: 30 }],
+    songs: [{ name: 'one.mp3', bytes: 4096, seconds: 212.5, fingerprint: 'abc123' }],
   });
-  eq(read.files.length, 1);
-  eq(read.files[0].fingerprint, 'abc123');
-  eq(read.files[0].seconds, 212.5);
+  eq(read.songs.length, 1);
+  eq(read.songs[0].fingerprint, 'abc123');
+  eq(read.songs[0].seconds, 212.5);
 
-  // Older projects have no such section, and must not be treated as claiming
-  // anything about the songs.
-  eq(app.readProject({ clips: [] }).files, [], 'a project written before this: ');
-  eq(app.readProject({ clips: [], files: 'nonsense' }).files, [], 'a damaged one: ');
+  // A hand-written project has no such section, and must not be treated as
+  // claiming anything about the songs.
+  eq(app.readProject({ clips: [] }).songs, [], 'a project without one: ');
+  eq(app.readProject({ clips: [], songs: 'nonsense' }).songs, [], 'a damaged one: ');
   eq(
-    app.readProject({ clips: [], files: [{ bytes: 1 }] }).files,
+    app.readProject({ clips: [], songs: [{ bytes: 1 }] }).songs,
     [],
     'an entry with no name identifies nothing: ',
   );
@@ -605,9 +612,7 @@ check('project file: a level whose length has changed reopens as custom', () => 
   const level = app.allLevels()[0];
   const read = app.readProject({
     name: 'last season',
-    level: level.id,
-    targetSeconds: level.seconds + 25,
-    toleranceSeconds: 10,
+    event: { level: level.id, targetSeconds: level.seconds + 25, toleranceSeconds: 10 },
     clips: [],
   });
   eq(read.targetSeconds, level.seconds + 25, 'the stored time wins: ');
@@ -624,41 +629,675 @@ check('project file: an older or damaged file opens with usable defaults', () =>
   eq(empty.clips, []);
   ok(empty.targetSeconds > 0 && empty.toleranceSeconds > 0, 'defaults have to be usable');
 
-  // Files written before levels existed carry no gain at all.
-  const old = app.readProject({ clips: [{ file: 'chosen song.mp3', srcStart: 1, srcEnd: 50 }] });
-  eq(old.clips[0].gain, 1, 'a missing gain means "as recorded", not silent: ');
-  eq(old.clips[0].title, 'chosen song', 'a title is taken from the file name: ');
-  eq([old.clips[0].fadeIn, old.clips[0].fadeOut, old.clips[0].crossfade], [0, 0, 0]);
+  // A hand-written file says only what it has to.
+  const bare = app.readProject({ clips: [{ song: 'chosen song.mp3', start: 1, end: 50 }] });
+  eq(bare.clips[0].gain, 1, 'a missing level means "as recorded", not silent: ');
+  eq(bare.clips[0].title, 'chosen song', 'a title is taken from the song name: ');
+  eq([bare.clips[0].fadeIn, bare.clips[0].fadeOut, bare.clips[0].crossfade], [0, 0, 0]);
 });
 
 check('project file: hand-edited nonsense cannot blow the speakers', () => {
   const read = app.readProject({
     clips: [
-      { file: 'a.mp3', gain: 9999 },
-      { file: 'b.mp3', gain: -3 },
-      { file: 'c.mp3', gain: 'loud' },
-      { file: 'd.mp3', gain: 0 },
+      { song: 'a.mp3', gainDb: 9999 },
+      { song: 'b.mp3', gainDb: -9999 },
+      { song: 'c.mp3', gainDb: 'loud' },
+      { song: 'd.mp3' },
     ],
   });
+  const slider = app.LEVEL_SLIDER;
   eq(
-    read.clips.map((c) => c.gain),
-    [app.MAX_GAIN, 1, 1, 0],
-    'clamped, defaulted, defaulted, and a deliberate zero kept: ',
+    read.clips.map((c) => Number(c.gain.toFixed(4))),
+    [
+      Number(app.dbToGain(slider.max).toFixed(4)),
+      Number(app.dbToGain(slider.min).toFixed(4)),
+      1,
+      1,
+    ],
+    'clamped both ways, then defaulted twice to "as recorded": ',
   );
+  for (const clip of read.clips) {
+    ok(clip.gain <= app.MAX_GAIN, `a level past what the app allows got through: ${clip.gain}`);
+  }
   for (const clip of read.clips) {
     ok(Number.isFinite(clip.srcStart) && Number.isFinite(clip.srcEnd), 'trims went non-numeric');
   }
 });
 
 check('project file: every clip gets its own id, however the file was written', () => {
-  // Selection and removal are by id, so two clips sharing one would take each
-  // other out. The file does not carry ids at all — they are made on load.
+  /* Selection and removal are by id, so two clips sharing one would take each
+     other out. A file may supply ids — that is what lets anything else refer to
+     a clip — but it is not trusted to have made them unique. */
   const read = app.readProject({
-    clips: [{ file: 'a.mp3' }, { file: 'a.mp3' }, { file: 'a.mp3' }],
+    clips: [{ song: 'a.mp3' }, { song: 'a.mp3' }, { song: 'a.mp3' }],
   });
   const ids = read.clips.map((c) => c.id);
   eq(new Set(ids).size, ids.length, 'duplicate clip ids: ');
   for (const id of ids) ok(id && typeof id === 'string', `unusable id ${JSON.stringify(id)}`);
+
+  // Ids that the file supplies are kept, so a reference to a clip survives.
+  const given = app.readProject({
+    clips: [
+      { song: 'a.mp3', id: 'opening' },
+      { song: 'b.mp3', id: 'finale' },
+    ],
+  });
+  eq(
+    given.clips.map((c) => c.id),
+    ['opening', 'finale'],
+    'the ids the file gave were thrown away: ',
+  );
+
+  // Repeats and unusable ones are replaced rather than trusted.
+  const messy = app.readProject({
+    clips: [
+      { song: 'a.mp3', id: 'same' },
+      { song: 'b.mp3', id: 'same' },
+      { song: 'c.mp3', id: '' },
+      { song: 'd.mp3', id: 42 },
+    ],
+  });
+  const messyIds = messy.clips.map((c) => c.id);
+  eq(messyIds[0], 'same', 'the first to claim an id keeps it: ');
+  eq(new Set(messyIds).size, 4, 'a repeated or unusable id was trusted: ');
+  for (const id of messyIds) ok(id && typeof id === 'string', `unusable id ${JSON.stringify(id)}`);
+});
+
+check('project file: a clip id survives being saved and opened again', () => {
+  /* The point of ids in the file: anything that refers to a clip — a note, a
+     marker, another tool — still refers to the same clip after a save. */
+  const read = app.readProject({
+    clips: [
+      { song: 'a.mp3', id: 'opening', start: 0, end: 30 },
+      { song: 'b.mp3', id: 'finale', start: 0, end: 20 },
+    ],
+  });
+  withProgram(
+    {
+      name: 'x',
+      level: 'usfs-juv',
+      targetSeconds: 135,
+      toleranceSeconds: 10,
+      clips: read.clips,
+    },
+    () => {
+      const again = app.readProject(app.project());
+      eq(
+        again.clips.map((c) => c.id),
+        ['opening', 'finale'],
+        'ids did not survive the round trip: ',
+      );
+    },
+  );
+});
+
+check('project file: a note and a media folder are carried, not acted on', () => {
+  /* Neither is read by anything in the browser: there is no folder here, and
+     nothing writes a note yet. They are named fields rather than unknown ones
+     so they are documented and validated — but the test that matters is the
+     same either way, that a project carrying them keeps carrying them. */
+  const read = app.readProject({
+    format: app.FORMAT,
+    version: app.FORMAT_VERSION,
+    name: 'x',
+    event: { level: 'usfs-juv', targetSeconds: 135, toleranceSeconds: 10 },
+    notes: 'coach wants more of the slow part',
+    mediaDir: 'media',
+    clips: [{ song: 'a.mp3', start: 0, end: 30 }],
+  });
+  eq(read.notes, 'coach wants more of the slow part');
+  eq(read.mediaDir, 'media');
+
+  withProgram(
+    {
+      name: read.name,
+      level: read.level,
+      targetSeconds: read.targetSeconds,
+      toleranceSeconds: read.toleranceSeconds,
+      clips: read.clips,
+    },
+    () => {
+      const saved = { notes: app.state.notes, mediaDir: app.state.mediaDir };
+      app.state.notes = read.notes;
+      app.state.mediaDir = read.mediaDir;
+      try {
+        const doc = app.project();
+        eq(doc.notes, 'coach wants more of the slow part', 'the note was dropped: ');
+        eq(doc.mediaDir, 'media', 'the media folder was dropped: ');
+      } finally {
+        app.state.notes = saved.notes;
+        app.state.mediaDir = saved.mediaDir;
+      }
+    },
+  );
+
+  // A project that says nothing does not gain empty fields it never had.
+  const bare = app.readProject({ clips: [] });
+  eq([bare.notes, bare.mediaDir], ['', ''], 'absent should read as empty: ');
+  withProgram({ name: 'x', level: 'usfs-juv', targetSeconds: 135, clips: [] }, () => {
+    const doc = app.project();
+    ok(!('notes' in doc) && !('mediaDir' in doc), 'empty fields were written out anyway');
+  });
+});
+
+check('project file: the $schema it writes is the schema that is published', () => {
+  /* The app writes a URL into every project file so an editor can validate it.
+     A URL that has drifted from where the file actually sits does not fail —
+     it 404s quietly and the validation simply stops happening. */
+  const schema = JSON.parse(
+    fs.readFileSync(path.join(ROOT, 'docs/program.skate.schema.json'), 'utf8'),
+  );
+  /* Read out of a document the app actually produced, not out of the constant.
+     Asserting the constant leaves the writing of it untested — the mutation
+     that pointed a saved file somewhere else survived exactly that way. */
+  withProgram({ name: 'x', level: 'usfs-juv', targetSeconds: 135, clips: [] }, () => {
+    const written = app.project().$schema;
+    eq(written, schema.$id, 'the written $schema and the schema $id disagree: ');
+    const site = 'https://ankurs47.github.io/skate-program-editor/';
+    ok(written.startsWith(site), `the schema URL is not on this site: ${written}`);
+    eq(
+      written.slice(site.length),
+      'docs/program.skate.schema.json',
+      'the URL does not point at where the file is published: ',
+    );
+  });
+});
+
+check('project file: a field this app has never heard of survives a save', () => {
+  /* A desktop shell writes into the same file — where a song came from, what
+     wrote it last — and more of that is coming. Rebuilding the document from
+     only the keys this app knows would erase every one of them on the next
+     save, silently, and only for people using both. */
+  const written = {
+    format: app.FORMAT,
+    version: app.FORMAT_VERSION,
+    name: 'from a shell',
+    event: { level: 'usfs-juv', targetSeconds: 135, toleranceSeconds: 10 },
+    songs: [
+      {
+        name: 'one.mp3',
+        bytes: 4096,
+        seconds: 30,
+        fingerprint: 'abc123',
+        source: { kind: 'youtube', url: 'https://example.invalid/watch?v=x' },
+        somethingNewerStillWrote: { deep: [1, 2] },
+      },
+    ],
+    clips: [{ song: 'one.mp3', start: 0, end: 30 }],
+    writtenBy: { app: 'skate-desktop', version: '0.1.0' },
+    aFieldFromTheFuture: 'keep me',
+  };
+
+  const read = app.readProject(written);
+  withProgram(
+    {
+      name: read.name,
+      level: read.level,
+      targetSeconds: read.targetSeconds,
+      toleranceSeconds: read.toleranceSeconds,
+      clips: read.clips,
+    },
+    () => {
+      const saved = app.state.expectedFiles;
+      const carried = app.state.carried;
+      app.state.expectedFiles = new Map(read.songs.map((s) => [s.name, s]));
+      app.state.carried = read.carried;
+      try {
+        const out = app.project();
+        eq(out.aFieldFromTheFuture, 'keep me', 'a top-level field was dropped: ');
+        eq(out.writtenBy, written.writtenBy, 'the shell stamp was dropped: ');
+        eq(out.songs[0].source, written.songs[0].source, 'the source was dropped: ');
+        eq(
+          out.songs[0].somethingNewerStillWrote,
+          written.songs[0].somethingNewerStillWrote,
+          'an unknown per-song field was dropped: ',
+        );
+        eq(out.songs[0].fingerprint, 'abc123', 'and the fields it does know still round trip: ');
+        eq(out.format, app.FORMAT, 'a carried key must not overwrite one this app owns: ');
+      } finally {
+        app.state.expectedFiles = saved;
+        app.state.carried = carried;
+      }
+    },
+  );
+});
+
+check('project file: a version from the future is refused, not guessed at', () => {
+  /* Everything else here falls back rather than failing, because a hand-edited
+     file should not be rejected over a number that can be clamped. A version
+     this app does not know is the opposite case: its fields may mean something
+     other than what they say, so reading it would produce a program that looks
+     right and is not. */
+  const ahead = app.readProject({
+    format: app.FORMAT,
+    version: app.FORMAT_VERSION + 1,
+    name: 'from a newer editor',
+    clips: [{ song: 'a.mp3', start: 0, end: 30 }],
+  });
+  ok(ahead.unsupported, 'a newer version was read anyway');
+  eq(ahead.unsupported.version, app.FORMAT_VERSION + 1);
+  eq(ahead.unsupported.understands, app.FORMAT_VERSION, 'the caller has to say what it can read: ');
+  eq(ahead.clips, undefined, 'nothing may be handed back from a file it cannot read: ');
+
+  // The version this app writes, and an absent one, both open normally.
+  ok(!app.readProject({ version: app.FORMAT_VERSION, clips: [] }).unsupported);
+  ok(!app.readProject({ clips: [] }).unsupported, 'a file with no version at all: ');
+});
+
+check('project file: the worked example still opens the way it reads', () => {
+  /* A saved file of the real format, asserted field by field. From the moment
+     anything else writes one of these, changing the format by accident has to
+     fail here rather than in someone's project folder. */
+  const doc = JSON.parse(
+    fs.readFileSync(path.join(ROOT, 'test/fixtures/program.skate.json'), 'utf8'),
+  );
+  const read = app.readProject(doc);
+  ok(!read.unsupported, 'the fixture does not open');
+  eq(read.name, 'my 2027 junior long');
+  eq(read.level, 'usfs-jr');
+  eq(read.targetSeconds, 210);
+  eq(read.toleranceSeconds, 10);
+  eq(read.songs.length, 3);
+  eq(read.clips.length, 3);
+  eq(read.songs[0].source.kind, 'youtube', 'a recorded source has to survive being read: ');
+  eq(
+    read.clips[0].title,
+    'Opening Theme — Live at the Proms',
+    'a clip with no label of its own takes the song\u2019s title: ',
+  );
+  eq(read.clips[1].title, 'the slow part', 'a clip labeled for the program keeps its label: ');
+  eq(read.clips[1].crossfade, 1.8, 'blend in the file is the crossfade in memory: ');
+  eq(read.clips[0].srcStart, 6, 'start in the file is the source trim in memory: ');
+  eq(
+    read.clips.map((c) => c.id),
+    ['opening', 'slow', 'finish'],
+    'the ids the file names have to survive being read: ',
+  );
+  eq(read.mediaDir, 'media');
+  ok(read.notes.length > 0, 'the note in the fixture was dropped');
+  near(
+    read.clips[1].gain,
+    app.dbToGain(-1.7),
+    1e-9,
+    'decibels in the file, a multiplier in memory',
+  );
+
+  // And the program it describes lands where the file says it should.
+  near(app.layout(read.clips).total, 208.8, 0.05, 'the example program has changed length');
+});
+
+check('project file: the published schema describes what the app actually writes', () => {
+  /* The schema is maintained by hand and shipped for other tools to validate
+     against, so the way it fails is by quietly describing a format that has
+     moved on. Comparing it with a real document from `project()` is what stops
+     that: a renamed field breaks here rather than in whatever reads it. */
+  const schema = JSON.parse(
+    fs.readFileSync(path.join(ROOT, 'docs/program.skate.schema.json'), 'utf8'),
+  );
+  withProgram(
+    {
+      name: 'x',
+      level: 'usfs-juv',
+      targetSeconds: 135,
+      toleranceSeconds: 10,
+      clips: [
+        {
+          id: 'a',
+          file: 'a.mp3',
+          title: 'a',
+          srcStart: 0,
+          srcEnd: 1,
+          fadeIn: 0,
+          fadeOut: 0,
+          crossfade: 0,
+          gain: 1,
+        },
+      ],
+    },
+    () => {
+      const saved = app.state.expectedFiles;
+      app.state.expectedFiles = new Map([['a.mp3', { name: 'a.mp3', fingerprint: 'f' }]]);
+      try {
+        const doc = app.project();
+        const undeclared = (obj, sub, where) =>
+          Object.keys(obj)
+            .filter((key) => !sub.properties[key])
+            .map((key) => `${where}.${key}`);
+
+        eq(undeclared(doc, schema, ''), [], 'written but not in the schema: ');
+        eq(
+          undeclared(doc.event, schema.properties.event, 'event'),
+          [],
+          'written but not in the schema: ',
+        );
+        eq(
+          undeclared(doc.clips[0], schema.properties.clips.items, 'clips[]'),
+          [],
+          'written but not in the schema: ',
+        );
+        eq(
+          undeclared(doc.songs[0], schema.properties.songs.items, 'songs[]'),
+          [],
+          'written but not in the schema: ',
+        );
+
+        const missing = schema.required.filter((key) => !(key in doc));
+        eq(missing, [], 'the schema requires fields the app does not write: ');
+
+        /* The one rule the schema states that is also a boundary elsewhere: a
+           host resolves a song name inside a project folder, so a separator in
+           one would be a way out of it. */
+        const namePattern = new RegExp(schema.properties.songs.items.properties.name.pattern);
+        for (const song of doc.songs) {
+          ok(namePattern.test(song.name), `a song name the schema rejects: ${song.name}`);
+        }
+        ok(
+          schema.additionalProperties === true,
+          'the schema must not forbid the unknown fields the format promises to keep',
+        );
+      } finally {
+        app.state.expectedFiles = saved;
+      }
+    },
+  );
+});
+
+/** The shipped schema, and a program shaped like a real one to check against it. */
+const SCHEMA = JSON.parse(
+  fs.readFileSync(path.join(ROOT, 'docs/program.skate.schema.json'), 'utf8'),
+);
+
+check('project file: what the app writes validates against the published schema', () => {
+  /* The schema is shipped for other tools to trust. Checking the fixture alone
+     would only prove the fixture was written carefully; this checks a document
+     the app itself produced, which is the one anybody will actually be handed. */
+  withProgram(
+    {
+      name: 'my 2027 junior long',
+      level: 'usfs-jr',
+      targetSeconds: 210,
+      toleranceSeconds: 10,
+      clips: [
+        {
+          id: 'opening',
+          file: 'one.mp3',
+          title: 'opening',
+          srcStart: 4.7615,
+          srcEnd: 77.0824,
+          fadeIn: 1.5,
+          fadeOut: 0,
+          crossfade: 0,
+          gain: 1,
+        },
+        {
+          id: 'finale',
+          file: 'two.mp3',
+          title: 'finale',
+          srcStart: 0,
+          srcEnd: 60.5,
+          fadeIn: 0,
+          fadeOut: 2.5,
+          crossfade: 1.8,
+          gain: app.dbToGain(-8),
+        },
+      ],
+    },
+    () => {
+      const saved = app.state.expectedFiles;
+      const notes = app.state.notes;
+      app.state.expectedFiles = new Map([
+        ['one.mp3', { name: 'one.mp3', bytes: 4096, seconds: 212.5, fingerprint: 'abc' }],
+        [
+          'two.mp3',
+          {
+            name: 'two.mp3',
+            bytes: 8192,
+            seconds: 180,
+            fingerprint: 'def',
+            source: { kind: 'youtube', url: 'https://example.invalid/watch?v=x' },
+          },
+        ],
+      ]);
+      app.state.notes = 'coach wants the slow part longer';
+      try {
+        eq(
+          validate(app.project(), SCHEMA),
+          [],
+          'the app wrote a document its own schema rejects: ',
+        );
+      } finally {
+        app.state.expectedFiles = saved;
+        app.state.notes = notes;
+      }
+    },
+  );
+});
+
+check('project file: the worked example validates against the published schema', () => {
+  const doc = JSON.parse(
+    fs.readFileSync(path.join(ROOT, 'test/fixtures/program.skate.json'), 'utf8'),
+  );
+  eq(validate(doc, SCHEMA), [], 'the fixture no longer fits the schema: ');
+});
+
+check('project file: every key the app writes is one the reader knows', () => {
+  /* A key `project` writes that `readProject` does not list is read back as a
+     carried key, and from the next save on the carried copy overwrites whatever
+     the app computed — the field freezes at the first value it ever had, and
+     nothing looks wrong. Adding a field to one list and forgetting the other is
+     the whole of the mistake, so the two are compared. */
+  withProgram(
+    {
+      name: 'x',
+      level: 'usfs-juv',
+      targetSeconds: 135,
+      toleranceSeconds: 10,
+      clips: [{ id: 'a', file: 'a.mp3', title: 'a', srcStart: 0, srcEnd: 1, gain: 1 }],
+    },
+    () => {
+      const saved = { notes: app.state.notes, mediaDir: app.state.mediaDir };
+      const exports_ = app.state.exportSettings;
+      // Everything optional turned on at once, so no key can hide by being absent.
+      app.state.notes = 'a note';
+      app.state.mediaDir = 'media';
+      app.state.exportSettings = { format: 'mp3', bitrate: 320 };
+      try {
+        const written = Object.keys(app.project());
+        eq(
+          written.filter((key) => !app.KNOWN_KEYS.includes(key)),
+          [],
+          'written by project() but not listed in KNOWN_KEYS, so it will freeze: ',
+        );
+      } finally {
+        app.state.notes = saved.notes;
+        app.state.mediaDir = saved.mediaDir;
+        app.state.exportSettings = exports_;
+      }
+    },
+  );
+});
+
+check('project file: a title belongs to the song, and a clip may differ', () => {
+  /* What the music is called is a fact about the song. What a slice of it is
+     called in the program is a different thing, and usually not needed: three
+     clips cut from one song repeating its name says nothing, and renaming the
+     song would mean editing all three. So a clip writes a title only when it
+     has one of its own. */
+  const read = app.readProject({
+    songs: [{ name: 'one.m4a', title: 'Adagio in G minor' }, { name: 'two.m4a' }],
+    clips: [
+      { song: 'one.m4a', start: 0, end: 30 },
+      { song: 'one.m4a', start: 40, end: 60, title: 'the quiet bit' },
+      { song: 'two.m4a', start: 0, end: 10 },
+    ],
+  });
+  eq(read.clips[0].title, 'Adagio in G minor', "a clip takes its song's title: ");
+  eq(read.clips[1].title, 'the quiet bit', 'a labeled clip keeps its label: ');
+  eq(read.clips[2].title, 'two', 'with no title anywhere, the file name without its extension: ');
+
+  withProgram(
+    {
+      name: 'x',
+      level: 'usfs-juv',
+      targetSeconds: 135,
+      toleranceSeconds: 10,
+      clips: read.clips,
+    },
+    () => {
+      const saved = app.state.expectedFiles;
+      app.state.expectedFiles = new Map(read.songs.map((s) => [s.name, s]));
+      try {
+        const doc = app.project();
+        eq(doc.songs[0].title, 'Adagio in G minor', 'the song lost its title: ');
+        eq(doc.songs[1].title, 'two', 'a song with no title of its own gets the file name: ');
+        ok(!('title' in doc.clips[0]), 'a clip repeated the title of its own song');
+        eq(doc.clips[1].title, 'the quiet bit', 'a labeled clip lost its label: ');
+        ok(!('title' in doc.clips[2]), 'a clip repeated the title of its own song');
+      } finally {
+        app.state.expectedFiles = saved;
+      }
+    },
+  );
+});
+
+check('project file: saving twice in a row changes nothing', () => {
+  /* The property that makes a format safe to keep in git: opening a project and
+     saving it without touching anything has to leave the file alone. Anything
+     that rounds, reorders or re-derives differently on the way back out shows
+     up here as a diff nobody made. */
+  const first = JSON.parse(
+    fs.readFileSync(path.join(ROOT, 'test/fixtures/program.skate.json'), 'utf8'),
+  );
+
+  const saveOnce = (doc) => {
+    const read = app.readProject(doc);
+    const kept = {
+      name: app.state.name,
+      level: app.state.level,
+      targetSeconds: app.state.targetSeconds,
+      toleranceSeconds: app.state.toleranceSeconds,
+      clips: app.state.clips,
+      notes: app.state.notes,
+      mediaDir: app.state.mediaDir,
+      carried: app.state.carried,
+      exportSettings: app.state.exportSettings,
+      expectedFiles: app.state.expectedFiles,
+    };
+    Object.assign(app.state, {
+      name: read.name,
+      level: read.level,
+      targetSeconds: read.targetSeconds,
+      toleranceSeconds: read.toleranceSeconds,
+      clips: read.clips,
+      notes: read.notes,
+      mediaDir: read.mediaDir,
+      carried: read.carried,
+      exportSettings: read.exportSettings,
+      expectedFiles: new Map(read.songs.map((s) => [s.name, s])),
+    });
+    try {
+      return app.project();
+    } finally {
+      Object.assign(app.state, kept);
+    }
+  };
+
+  const once = saveOnce(first);
+  const twice = saveOnce(once);
+  const a = JSON.stringify(once, null, 2).split('\n');
+  const b = JSON.stringify(twice, null, 2).split('\n');
+  const differs = a.findIndex((line, i) => line !== b[i]);
+  ok(
+    differs === -1 && a.length === b.length,
+    `a save changed the file at line ${differs + 1}:\n` +
+      `      first save:  ${a[differs]}\n` +
+      `      second save: ${b[differs]}`,
+  );
+  eq(validate(once, SCHEMA), [], 'a saved document does not fit the schema: ');
+});
+
+check('project file: nothing a file can contain makes opening it throw', () => {
+  /* Every project anybody has goes through readProject, including hand-edited
+     ones and — once anything else writes these — ones this app did not make. It
+     must always come back with something usable. A file that is wrong should
+     look wrong on screen, never take the page down. */
+  const hostile = [
+    ['nothing at all', undefined],
+    ['null', null],
+    ['a string', 'nope'],
+    ['a number', 42],
+    ['an array', [1, 2, 3]],
+    ['clips that are not an array', { clips: { a: 1 } }],
+    ['a null clip', { clips: [null] }],
+    ['a clip that is a string', { clips: ['x'] }],
+    ['a clip that is an array', { clips: [[]] }],
+    ['event that is not an object', { event: 'x', clips: [] }],
+    ['songs holding a null', { clips: [], songs: [null, { name: 'a.mp3' }] }],
+    ['songs that are strings', { clips: [], songs: ['a.mp3'] }],
+    ['a song with no name', { clips: [], songs: [{ bytes: 1 }] }],
+    /* Parsed rather than written: 1e999 as a literal is a lint error, and a
+       file is where one of these actually comes from. It arrives as Infinity. */
+    ['numbers past what a double holds', JSON.parse('{"clips":[{"song":"a.mp3","start":1e999}]}')],
+    ['negative trims', { clips: [{ song: 'a.mp3', start: -5, end: -1 }] }],
+    ['a fade that is a string', { clips: [{ song: 'a.mp3', fadeIn: 'lots' }] }],
+    ['a prototype key', JSON.parse('{"clips":[],"__proto__":{"polluted":1}}')],
+    ['deep nonsense', { clips: [], songs: [{ name: 'a.mp3', source: { kind: { deep: [1] } } }] }],
+  ];
+
+  for (const [label, doc] of hostile) {
+    let read = null;
+    try {
+      read = app.readProject(doc);
+    } catch (e) {
+      ok(false, `opening ${label} threw: ${e.message}`);
+      continue;
+    }
+    ok(read && typeof read === 'object', `opening ${label} gave back nothing usable`);
+    if (read.unsupported) continue;
+    ok(Array.isArray(read.clips), `${label}: clips came back as ${typeof read.clips}`);
+    ok(Array.isArray(read.songs), `${label}: songs came back as ${typeof read.songs}`);
+    ok(read.targetSeconds > 0, `${label}: the target length came back unusable`);
+    for (const clip of read.clips) {
+      const numbers = [clip.srcStart, clip.srcEnd, clip.fadeIn, clip.fadeOut, clip.crossfade];
+      ok(
+        numbers.every((n) => typeof n === 'number' && isFinite(n) && n >= 0),
+        `${label}: a clip came back with ${JSON.stringify(numbers)}`,
+      );
+      ok(clip.file && typeof clip.file === 'string', `${label}: a clip names no song`);
+    }
+    ok(isFinite(app.layout(read.clips).total), `${label}: the program has no length`);
+  }
+  ok({}.polluted === undefined, 'a project file reached Object.prototype');
+});
+
+check('project file: a song name can never be a path', () => {
+  /* A project holds names, and a desktop app resolves each one inside the
+     folder holding the project. A name carrying `../` would be a way out of
+     that folder, so it is reduced here as well — the app doing the resolving
+     should not be the only thing in the way. Reduced on both sides, so the clip
+     still points at the song it came in with. */
+  for (const [written, expected] of [
+    ['../../etc/passwd', 'passwd'],
+    ['/etc/passwd', 'passwd'],
+    ['C:\\music\\a.mp3', 'a.mp3'],
+    ['media/opening.mp3', 'opening.mp3'],
+    ['plain.mp3', 'plain.mp3'],
+  ]) {
+    const read = app.readProject({
+      clips: [{ song: written, start: 0, end: 30 }],
+      songs: [{ name: written, fingerprint: 'f' }],
+    });
+    eq(read.clips[0].file, expected, `a clip kept a path: ${written} -> `);
+    eq(read.songs[0].name, expected, `a song kept a path: ${written} -> `);
+    eq(read.clips[0].file, read.songs[0].name, 'the clip and its song stopped agreeing: ');
+  }
+
+  // A name that is nothing but dots points at no file at all.
+  for (const nothing of ['..', '.', '', 'media/', '../']) {
+    const read = app.readProject({ clips: [{ song: nothing }], songs: [{ name: nothing }] });
+    eq(read.clips.length, 0, `${JSON.stringify(nothing)} was read as a song: `);
+    eq(read.songs.length, 0, `${JSON.stringify(nothing)} was recorded as a song: `);
+  }
 });
 
 /* ------------------------------------------------------------- 1e. undo */
@@ -694,7 +1333,14 @@ check('undo: a snapshot holds the length being worked to, not only the clips', (
     },
     () => {
       const held = JSON.parse(app.undoSnapshot());
-      eq(Object.keys(held).sort(), ['clips', 'level', 'name', 'targetSeconds', 'toleranceSeconds']);
+      eq(Object.keys(held).sort(), [
+        'clips',
+        'level',
+        'name',
+        'notes',
+        'targetSeconds',
+        'toleranceSeconds',
+      ]);
       eq(held.name, 'my long program');
       eq(held.level, 'usfs-jr');
       eq(held.targetSeconds, 210);

@@ -1,0 +1,236 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ankurs47.github.io/skate-program-editor/docs/program.skate.schema.json",
+  "title": "Skate program",
+  "description": "A figure skating program: which songs, cut where, blended how, against the length allowed for an event. Written by the Skate Program Editor and by any desktop shell around it.",
+  "type": "object",
+  "required": ["format", "version", "name", "event", "songs", "clips"],
+  "$comment": "additionalProperties is true everywhere on purpose. A second app may add fields this schema has never heard of, and both apps are required to preserve fields they do not understand. A schema that forbade them would contradict the format's own rule. The key names described here belong to the editor; a tool that is not the editor should keep its own fields under a key named for itself, so two tools adding the same idea do not overwrite each other.",
+  "additionalProperties": true,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Points at this schema, so an editor validates the file and completes field names while it is being edited by hand. Written by the app; harmless to remove."
+    },
+    "format": {
+      "const": "skate-program",
+      "description": "Fixed marker, so a stray .json is recognized as not one of these before anything is read from it."
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Bumped only for a change an older reader would get wrong. A reader that does not understand this number must refuse the file and say so, never load it partially."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What the skater calls this program, e.g. 'my 2027 junior long'."
+    },
+    "event": {
+      "type": "object",
+      "description": "What is being skated, and therefore how long the program is allowed to be.",
+      "required": ["level", "targetSeconds", "toleranceSeconds"],
+      "additionalProperties": true,
+      "properties": {
+        "level": {
+          "type": "string",
+          "pattern": "^(custom|(isu|usfs)-[a-z0-9-]+)$",
+          "description": "An id from the app's level table, or 'custom'. Matched by shape rather than listed exhaustively: the rulebook tables change between seasons, and freezing them here would make the schema wrong every autumn.",
+          "examples": ["usfs-jr", "isu-sr-fs", "isu-id-jr-rd", "custom"]
+        },
+        "label": {
+          "type": "string",
+          "description": "How the level read when this program was built, e.g. 'Junior \u2014 3:30 \u00b110s'. Denormalised deliberately: if the rulebook number changes, this program still knows the length it was actually built to."
+        },
+        "targetSeconds": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "The length being aimed at. Wins over the level table on read, for the reason above."
+        },
+        "toleranceSeconds": {
+          "type": "number",
+          "minimum": 0,
+          "description": "How far either side of the target still counts, e.g. 10."
+        }
+      }
+    },
+    "songs": {
+      "type": "array",
+      "description": "What each song was, so opening this later can tell whether it has been handed the right one \u2014 and, where a shell recorded it, where it came from. An array rather than an object keyed by name so the order is stable and the file diffs well.",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "additionalProperties": true,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^/\\\\]+$",
+            "description": "The file name alone, never a path. A host resolves it inside the project's media folder, so a separator here would be a way out of that folder.",
+            "examples": ["opening theme.m4a"]
+          },
+          "title": {
+            "type": "string",
+            "description": "What the music is called, for a person reading rather than a file system \u2014 often better than what the file ended up being named. A desktop app knows it from wherever it fetched the song. Absent means the file name without its extension."
+          },
+          "bytes": {
+            "type": ["integer", "null"],
+            "minimum": 0,
+            "description": "Size of the audio file, for spotting a different copy of the same song."
+          },
+          "seconds": {
+            "type": ["number", "null"],
+            "exclusiveMinimum": 0,
+            "description": "Decoded duration."
+          },
+          "fingerprint": {
+            "type": ["string", "null"],
+            "description": "A cheap hash of the decoded audio. Null while the song has been recorded but not yet decoded \u2014 which is a normal state, not a reason to drop the entry."
+          },
+          "source": {
+            "type": "object",
+            "description": "Where this song came from. Written by a desktop shell; read by anything that wants to offer the song again when the file is missing.",
+            "required": ["kind"],
+            "additionalProperties": true,
+            "properties": {
+              "kind": {
+                "type": "string",
+                "description": "Left open rather than enumerated, so a kind this schema has not heard of validates instead of failing.",
+                "examples": ["youtube", "purchase", "cd", "file"]
+              },
+              "url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "title": {
+                "type": "string",
+                "description": "The title at the source, which is often not the file name."
+              },
+              "channel": {
+                "type": "string"
+              },
+              "addedAt": {
+                "type": "string",
+                "format": "date"
+              },
+              "format": {
+                "type": "string",
+                "description": "What was actually fetched, for judging quality later.",
+                "examples": ["251 opus 160k"]
+              },
+              "note": {
+                "type": "string",
+                "description": "Free text, for anything the fields above cannot say."
+              }
+            }
+          }
+        }
+      }
+    },
+    "clips": {
+      "type": "array",
+      "description": "The program, in order. Each clip is a slice of one song; where it lands in the finished program follows from the clips before it and their blends, and is never stored.",
+      "items": {
+        "type": "object",
+        "required": ["song", "start", "end"],
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A stable name for this clip, so anything else can refer to it \u2014 a note, a marker, a tool that annotates a program. Kept when it is unique within the file and made up otherwise, because selecting and removing clips is by id and two clips sharing one would take each other out."
+          },
+          "song": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The name of an entry in songs[]. The schema cannot check that it matches one; the app does, and says so when it does not."
+          },
+          "title": {
+            "type": "string",
+            "description": "What to call this slice of the song in the interface, when it is called something other than the song itself. Absent means the song's title, which is the usual case: three clips cut from one song do not each need to repeat its name."
+          },
+          "start": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Seconds into the song where this clip begins."
+          },
+          "end": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Seconds into the song where it ends. Must be at least 0.1s after start \u2014 a rule the schema cannot express and the app enforces on read."
+          },
+          "fadeIn": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Seconds of fade at the start of the clip."
+          },
+          "fadeOut": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Seconds of fade at the end of the clip."
+          },
+          "blend": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Seconds this clip overlaps the one before it. Zero for the first clip, and clamped to fit both clips on read. Called blend because that is what the interface calls it."
+          },
+          "gainDb": {
+            "type": "number",
+            "minimum": -24,
+            "maximum": 24,
+            "description": "Level in decibels, matching the slider, whose range this is. 0 is the song as recorded and -24 is treated as silence. The app clamps anything outside rather than refusing the file, so this range is what the interface can produce, not a rule the reader enforces."
+          }
+        }
+      }
+    },
+    "export": {
+      "type": "object",
+      "description": "How the finished file was last made. Kept per project so two programs for two events do not fight over one setting.",
+      "additionalProperties": true,
+      "properties": {
+        "format": {
+          "enum": ["mp3", "wav"]
+        },
+        "bitrate": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "description": "kbps. Meaningful for mp3 only.",
+          "examples": [320]
+        },
+        "fileName": {
+          "type": "string",
+          "description": "What the last exported file was called."
+        }
+      }
+    },
+    "writtenBy": {
+      "type": "object",
+      "description": "Which app last wrote this file \u2014 the first thing worth knowing when a project opens oddly.",
+      "additionalProperties": true,
+      "properties": {
+        "app": {
+          "type": "string",
+          "examples": ["skate-program-editor", "skate-desktop"]
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date",
+      "description": "For telling two copies apart on a shared drive."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Free text for whatever the fields here cannot say \u2014 what a coach asked for, what to try next. Nothing reads it. Note that the app suggests keeping project files in git, so treat anything written here as published."
+    },
+    "mediaDir": {
+      "type": "string",
+      "pattern": "^[^/\\\\]+$",
+      "description": "The folder holding the audio, relative to this file, for a desktop app that owns a project folder. A plain name with no separators, so it cannot point outside the project. Absent means the app decides.",
+      "examples": ["media"]
+    }
+  }
+}

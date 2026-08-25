@@ -191,6 +191,259 @@ function oggAudioStart(bytes) {
   return packets >= 2 ? pos : 0;
 }
 
+/* ------------------------------------------------------------------- tags */
+
+/**
+ * What a file says about itself, in the words a skater would use.
+ *
+ * Competition entry forms ask for the title and often the composer, and a file
+ * called `track03.mp3` will not tell you either. Each container keeps this
+ * somewhere different, so there is a reader per container and one name for each
+ * idea across all three.
+ *
+ * Never throws and never insists: a file with no tags, half-written tags, or
+ * tags in an encoding this does not know comes back with whatever could be read
+ * and nothing else. A wrong guess about a title is cosmetic; refusing to open
+ * somebody's music over one would not be.
+ */
+
+/* ID3v2.3 and 2.4 name frames with four characters, 2.2 with three. Only the
+   fields worth showing someone are listed — a tag can hold dozens. */
+const ID3_FRAMES = {
+  TIT2: 'title',
+  TPE1: 'artist',
+  TALB: 'album',
+  TCOM: 'composer',
+  TPE3: 'conductor',
+  TPUB: 'publisher',
+  /* The two that answer "who would I ask about using this". An ISRC names one
+     specific recording rather than the song, which is what a rights database or
+     a licensing agency will want; the copyright line usually names the label
+     that owns it. */
+  TSRC: 'isrc',
+  TCOP: 'copyright',
+  TDRC: 'year', // 2.4
+  TYER: 'year', // 2.3
+  TT2: 'title', // and the 2.2 spellings of the same
+  TP1: 'artist',
+  TAL: 'album',
+  TCM: 'composer',
+  TP3: 'conductor',
+  TPB: 'publisher',
+  TRC: 'isrc',
+  TCR: 'copyright',
+  TYE: 'year',
+};
+
+/* Vorbis comments and MP4 atoms name the same ideas their own way. The MP4 keys
+   begin with a copyright sign, which is part of the name rather than a typo. */
+const VORBIS_FIELDS = {
+  TITLE: 'title',
+  ARTIST: 'artist',
+  ALBUM: 'album',
+  COMPOSER: 'composer',
+  CONDUCTOR: 'conductor',
+  ORGANIZATION: 'publisher',
+  LABEL: 'publisher',
+  ISRC: 'isrc',
+  COPYRIGHT: 'copyright',
+  DATE: 'year',
+};
+const MP4_FIELDS = {
+  '©nam': 'title',
+  '©ART': 'artist',
+  '©alb': 'album',
+  '©wrt': 'composer',
+  '©day': 'year',
+  '©pub': 'publisher',
+  '©cpy': 'copyright',
+  cprt: 'copyright',
+};
+
+/** The order to show these in, and what to call each one on screen. */
+const TAG_LABELS = [
+  ['title', 'Title'],
+  ['artist', 'Artist'],
+  ['composer', 'Composer'],
+  ['conductor', 'Conductor'],
+  ['album', 'Album'],
+  ['publisher', 'Label'],
+  ['year', 'Year'],
+  ['copyright', 'Copyright'],
+  ['isrc', 'ISRC'],
+];
+
+/** Text out of a byte range, in whichever encoding the tag claims. */
+function tagText(bytes, from, to, encoding) {
+  const labels = ['latin1', 'utf-16', 'utf-16be', 'utf-8'];
+  const length = Math.max(0, Math.min(to, bytes.byteLength) - from);
+  if (from < 0 || length <= 0) return '';
+  try {
+    const text = new TextDecoder(labels[encoding] || 'utf-8').decode(
+      new Uint8Array(bytes, from, length),
+    );
+    // A NUL ends the text; padding, or a second value, may follow it.
+    return text.split('\u0000')[0].trim();
+  } catch (_) {
+    return '';
+  }
+}
+
+/** The fields of an ID3v2 tag at the start of the file. */
+function readId3Tags(bytes) {
+  const total = id3Size(bytes);
+  if (!total) return {};
+  const view = new DataView(bytes);
+  const major = view.getUint8(3);
+  const short = major <= 2; // 2.2 has three-character names and no flag bytes
+  const headerLength = short ? 6 : 10;
+  const found = {};
+
+  let at = 10;
+  const end = Math.min(total, bytes.byteLength);
+  while (at + headerLength <= end) {
+    let name = '';
+    for (let i = 0; i < (short ? 3 : 4); i++) name += String.fromCharCode(view.getUint8(at + i));
+    if (!/^[A-Z0-9]+$/.test(name)) break; // padding, or the end of the frames
+
+    let size;
+    if (short) {
+      size = (view.getUint8(at + 3) << 16) | (view.getUint8(at + 4) << 8) | view.getUint8(at + 5);
+    } else if (major >= 4) {
+      // 2.4 writes frame sizes seven bits at a time, as the tag header does
+      size =
+        (view.getUint8(at + 4) << 21) |
+        (view.getUint8(at + 5) << 14) |
+        (view.getUint8(at + 6) << 7) |
+        view.getUint8(at + 7);
+    } else {
+      size = view.getUint32(at + 4);
+    }
+    if (size <= 0 || at + headerLength + size > end) break;
+
+    const field = ID3_FRAMES[name];
+    if (field && !found[field]) {
+      const body = at + headerLength;
+      const text = tagText(bytes, body + 1, body + size, view.getUint8(body));
+      if (text) found[field] = text;
+    }
+    at += headerLength + size;
+  }
+  return found;
+}
+
+/** The fields of a Vorbis comment header, which Ogg Vorbis and Opus both use. */
+function readVorbisTags(bytes) {
+  const view = new DataView(bytes);
+  const marker = (at, text) => {
+    if (at + text.length > view.byteLength) return false;
+    for (let i = 0; i < text.length; i++) {
+      if (view.getUint8(at + i) !== text.charCodeAt(i)) return false;
+    }
+    return true;
+  };
+
+  /* The comment header is the second packet, which may begin part way into a
+     page. Found by its own marker rather than by reassembling packets. */
+  let at = -1;
+  const search = Math.min(view.byteLength, 65536);
+  for (let i = 0; i < search; i++) {
+    if (marker(i, 'OpusTags')) {
+      at = i + 8;
+      break;
+    }
+    if (marker(i, 'vorbis')) {
+      at = i + 7;
+      break;
+    }
+  }
+  if (at < 0) return {};
+
+  const found = {};
+  if (at + 8 > view.byteLength) return found;
+  at += 4 + view.getUint32(at, true); // the vendor string, which is not a field
+  if (at + 4 > view.byteLength) return found;
+  let count = view.getUint32(at, true);
+  at += 4;
+  // A comment header can run past the end of what is here. Whatever is readable
+  // is read, and the rest is simply not known.
+  while (count-- > 0 && at + 4 <= view.byteLength) {
+    const length = view.getUint32(at, true);
+    at += 4;
+    if (length <= 0 || at + length > view.byteLength) break;
+    const comment = tagText(bytes, at, at + length, 3);
+    const split = comment.indexOf('=');
+    if (split > 0) {
+      const field = VORBIS_FIELDS[comment.slice(0, split).toUpperCase()];
+      const value = comment.slice(split + 1).trim();
+      if (field && value && !found[field]) found[field] = value;
+    }
+    at += length;
+  }
+  return found;
+}
+
+/** The fields of an MP4 metadata list, which m4a and aac files carry. */
+function readMp4Tags(bytes) {
+  const view = new DataView(bytes);
+  const boxName = (at) => {
+    let text = '';
+    for (let i = 4; i < 8; i++) text += String.fromCharCode(view.getUint8(at + i));
+    return text;
+  };
+  const found = {};
+
+  /* Only the path down to the metadata list is walked. `meta` is the odd one:
+     four bytes of version and flags sit between it and its children. */
+  const walk = (from, to, depth) => {
+    let at = from;
+    while (at + 8 <= to && depth < 6) {
+      let size = view.getUint32(at);
+      let body = at + 8;
+      if (size === 1) {
+        if (at + 16 > to) return;
+        size = view.getUint32(at + 12); // a 64-bit size, of which this is the half that fits
+        body = at + 16;
+      }
+      if (size < 8 || at + size > to) return;
+      const box = boxName(at);
+      if (box === 'moov' || box === 'udta' || box === 'ilst') {
+        walk(body, at + size, depth + 1);
+      } else if (box === 'meta') {
+        walk(body + 4, at + size, depth + 1);
+      } else if (MP4_FIELDS[box] && !found[MP4_FIELDS[box]]) {
+        // the value sits in a `data` box, after its type and its locale
+        if (body + 16 <= at + size && boxName(body) === 'data') {
+          const text = tagText(bytes, body + 16, at + size, 3);
+          if (text) found[MP4_FIELDS[box]] = text;
+        }
+      }
+      at += size;
+    }
+  };
+  walk(0, view.byteLength, 0);
+  return found;
+}
+
+/**
+ * Whatever the file says about itself, from whichever container it is in.
+ *
+ * Every reader is tried rather than choosing one from the extension: files are
+ * routinely named wrongly, and an MP3 with an ID3 tag inside a `.m4a` should
+ * still give up its title. The first reader that finds anything wins.
+ */
+function readTags(bytes) {
+  for (const read of [readId3Tags, readMp4Tags, readVorbisTags]) {
+    try {
+      const found = read(bytes);
+      if (Object.keys(found).length) return found;
+    } catch (_) {
+      /* a malformed tag is not a reason to refuse the music */
+    }
+  }
+  return {};
+}
+
 /**
  * A short identity for a file's audio, so a project can tell whether the song
  * it has been handed is the one it was built from.
@@ -346,6 +599,11 @@ if (typeof module !== 'undefined' && module.exports) {
     codecOf,
     id3Size,
     oggAudioStart,
+    readTags,
+    readId3Tags,
+    readVorbisTags,
+    readMp4Tags,
+    TAG_LABELS,
     readMpegFrame,
     parseFrameHeader,
     qualityKind,

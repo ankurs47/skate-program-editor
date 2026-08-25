@@ -335,50 +335,219 @@ function joinRoom(clip, entry, side) {
     : { min: Math.min(0, -clip.srcStart), max: Math.max(0, clipDuration(clip) - keep) };
 }
 
+/* What a project file is called and which shape of it this app understands.
+   The marker is checked before anything else is read, so a stray .json is
+   recognized as not one of these rather than half-loaded as an empty program.
+   The version is bumped only for a change an older reader would get wrong. */
+const FORMAT = 'skate-program';
+const FORMAT_VERSION = 1;
+
+/* Written into every project file so an editor validates it and completes field
+   names while it is being edited by hand. A test holds this to the schema's own
+   $id, because a URL that has drifted is one that quietly 404s. */
+const SCHEMA_URL = 'https://ankurs47.github.io/skate-program-editor/docs/program.skate.schema.json';
+
+/* The keys this reader knows. Anything else in a file — written by a desktop
+   shell, or by a version after this one — is carried through untouched rather
+   than dropped, so saving in one app never silently erases what another
+   recorded. `readProject` collects them and `project` puts them back.
+
+   Every key `project` writes has to appear here. One that does not is read back
+   as a carried key, and from the next save onwards the carried copy overwrites
+   whatever the app computed — the field silently freezes at the first value it
+   ever had. A check in app.test.js holds the two lists together. */
+const KNOWN_KEYS = [
+  '$schema',
+  'format',
+  'version',
+  'name',
+  'event',
+  'songs',
+  'clips',
+  'export',
+  'notes',
+  'mediaDir',
+];
+
+/** The keys of `from` that `known` does not list. */
+function unknownKeys(from, known) {
+  const rest = {};
+  for (const key of Object.keys(from || {})) {
+    if (!known.includes(key)) rest[key] = from[key];
+  }
+  return rest;
+}
+
+/**
+ * What to call a song, for a person reading rather than a file system.
+ *
+ * The song's own title when it has one — a desktop shell knows it from wherever
+ * it fetched the music, and it is usually better than what the file ended up
+ * being called. Otherwise the file name without its extension, which is all the
+ * app can work out on its own.
+ */
+function songTitle(song, name) {
+  const given = song && typeof song.title === 'string' ? song.title.trim() : '';
+  return given || name.replace(/\.[^.]+$/, '');
+}
+
+/**
+ * The file name a song record names, with any path taken off it.
+ *
+ * A project holds names, never locations, and a desktop app resolves each one
+ * inside the folder holding the project — so a name carrying `../` would be a
+ * way out of that folder. Reducing it to the last component here means the app
+ * that resolves it is not the only thing standing in the way, and means a name
+ * typed by hand as a path still finds the file it obviously meant.
+ *
+ * Empty, or nothing but dots, names no file at all.
+ */
+function songName(value) {
+  const last = (typeof value === 'string' ? value : '').split(/[/\\]/).pop();
+  return /^\.*$/.test(last) ? '' : last;
+}
+
+/**
+ * A number of seconds from a file, which may hold anything at all.
+ *
+ * `1e999` parses as Infinity, and one of those in a trim spreads through the
+ * arithmetic until the timer reads NaN and the program has no length. Absent,
+ * negative and non-finite all mean zero: a hand-edited file should come up
+ * looking wrong, not take the page down.
+ */
+function seconds(value) {
+  return typeof value === 'number' && isFinite(value) && value > 0 ? value : 0;
+}
+
+/**
+ * The id to give a clip, preferring the one the file supplied.
+ *
+ * `taken` accumulates across the whole document, so the first clip to claim a
+ * name keeps it and a later duplicate is given a fresh one. A made-up id is
+ * checked against the set too — the chance of a collision is tiny, and "tiny"
+ * is not a thing to leave in the one place that decides whether removing a clip
+ * removes the right clip.
+ */
+function claimId(wanted, taken) {
+  let id = typeof wanted === 'string' && wanted ? wanted : uid();
+  while (taken.has(id)) id = uid();
+  taken.add(id);
+  return id;
+}
+
+/**
+ * A clip's level, read from the decibels the file carries.
+ *
+ * Absent or unreadable means "as recorded" — 0 dB, never silent. A number is
+ * clamped to what the slider can reach before being converted, so a hand-typed
+ * 9999 comes back as the loudest the interface offers rather than as infinity,
+ * which `clipGain` will not accept and which would quietly become 1.
+ *
+ * The floor is 6% of the recording, not silence. `gainToDb` maps a gain of zero
+ * onto that same floor, so the two cannot be told apart in a file — and the
+ * slider cannot reach silence either. Reading the floor as silence would mean
+ * dragging a clip all the way down, saving, and finding it gone on reopening.
+ * A clip nobody wants to hear is one to delete, not to silence.
+ */
+function gainFromDb(db) {
+  if (typeof db !== 'number' || !isFinite(db)) return 1;
+  return clipGain({ gain: dbToGain(clamp(db, LEVEL_SLIDER.min, LEVEL_SLIDER.max)) });
+}
+
 /**
  * Read a saved project document into the state it describes.
  *
  * Pure — no DOM, nothing global touched — because this is the contract with
- * every project anyone has already saved, and `loadProject` could not be
- * checked at all while the parsing and the wiring were the same function.
+ * every project anyone saves, and `loadProject` could not be checked at all
+ * while the parsing and the wiring were the same function.
+ *
  * Anything absent or nonsense falls back to something usable rather than
- * throwing: a project file is a plain text document people do edit by hand.
+ * throwing: a project file is a plain text document people do edit by hand, and
+ * refusing one over a number that can be clamped would be no help to anybody.
+ *
+ * A version from the future is the exception, and the only thing here that is
+ * refused. Falling back would mean reading a file whose fields have meanings
+ * this app does not know — coming up with a program that looks plausible and is
+ * wrong. `unsupported` says so and the caller leaves the current program alone.
+ *
+ * The file speaks the language the interface speaks: song, start, end, blend,
+ * decibels. Clips are held in memory with the names the drawing and audio code
+ * has always used, and this function is the only place the two meet.
  *
  * `retargeted` names the level whose length no longer matches the stored time,
  * for the caller to mention. It is not an error — the stored time is the one
  * that wins.
  */
 function readProject(data) {
+  const doc = data && typeof data === 'object' ? data : {};
+  const taken = new Set();
+  const version = Math.floor(Number(doc.version)) || 1;
+  if (version > FORMAT_VERSION) {
+    return { unsupported: { version, understands: FORMAT_VERSION } };
+  }
+
+  const event = doc.event && typeof doc.event === 'object' ? doc.event : {};
   // The stored time wins over the level's current table value, so reopening an
   // old program never silently retargets it because a rulebook number changed.
-  const targetSeconds = data.targetSeconds || 135;
-  let levelId = data.level || CUSTOM_LEVEL;
+  const targetSeconds = event.targetSeconds || 135;
+  let levelId = event.level || CUSTOM_LEVEL;
   const level = findLevel(levelId);
   const retargeted = level && level.seconds !== targetSeconds ? level : null;
   if (retargeted) levelId = CUSTOM_LEVEL;
 
+  const songs = (Array.isArray(doc.songs) ? doc.songs : [])
+    .filter((song) => song && typeof song === 'object' && songName(song.name))
+    .map((song) => ({ ...song, name: songName(song.name) }));
+  /* What each song is called, so a clip that says nothing about its own title
+     is shown the song's rather than its file name. */
+  const titles = new Map(songs.map((song) => [song.name, songTitle(song, song.name)]));
+
   return {
-    name: data.name || 'my program',
+    unsupported: null,
+    name: doc.name || 'my program',
     level: levelId,
     targetSeconds,
-    toleranceSeconds: data.toleranceSeconds || 10,
+    toleranceSeconds: event.toleranceSeconds || 10,
     retargeted,
-    // Absent in projects written before this existed, which is fine: without a
-    // record of what the songs were, nothing is claimed about them.
-    files: Array.isArray(data.files) ? data.files.filter((f) => f && f.name) : [],
-    clips: (data.clips || []).map((c) => ({
-      id: uid(),
-      file: c.file,
-      title: c.title || String(c.file).replace(/\.[^.]+$/, ''),
-      srcStart: c.srcStart || 0,
-      srcEnd: c.srcEnd || 0,
-      fadeIn: c.fadeIn || 0,
-      fadeOut: c.fadeOut || 0,
-      crossfade: c.crossfade || 0,
-      // Older project files predate levels and have no gain at all; missing
-      // means "as recorded", not silent.
-      gain: clipGain(c),
-    })),
+    /* What each song was, kept whole. Without a record of them nothing is
+       claimed about the songs, which is a fine state for a hand-written file. */
+    songs,
+    exportSettings: doc.export && typeof doc.export === 'object' ? doc.export : null,
+    /* Free text nothing reads, and the folder a desktop app keeps the audio in.
+       Both are carried rather than acted on here: a browser has no folder, and
+       nothing in the app writes a note yet. */
+    notes: typeof doc.notes === 'string' ? doc.notes : '',
+    mediaDir: typeof doc.mediaDir === 'string' ? doc.mediaDir : '',
+    /* Top-level keys this reader does not know, handed back so `project` can
+       put them where it found them. Per-song ones need no such list: the song
+       records go into `state.expectedFiles` whole and are written back whole. */
+    carried: unknownKeys(doc, KNOWN_KEYS),
+    /* A clip that is not an object names nothing and cannot be drawn. Dropped
+       rather than read, because reading one throws and this must not: it is
+       what opens every file anybody has, including hand-edited ones. */
+    clips: (Array.isArray(doc.clips) ? doc.clips : [])
+      .filter((c) => c && typeof c === 'object' && songName(c.song))
+      .map((c) => ({
+        /* The file's own id, so anything that refers to a clip still refers to
+         the same one after a save. Selecting and removing are by id and two
+         clips sharing one would take each other out, so a repeated or unusable
+         id is replaced rather than trusted. */
+        id: claimId(c.id, taken),
+        file: songName(c.song),
+        /* The clip's own label when it has one, then the song's title, then
+           the bare file name. A clip is a slice of a song and usually wants no
+           name of its own; one that has been labeled keeps its label. */
+        title:
+          (typeof c.title === 'string' && c.title.trim()) ||
+          titles.get(songName(c.song)) ||
+          songName(c.song).replace(/\.[^.]+$/, ''),
+        srcStart: seconds(c.start),
+        srcEnd: seconds(c.end),
+        fadeIn: seconds(c.fadeIn),
+        fadeOut: seconds(c.fadeOut),
+        crossfade: seconds(c.blend),
+        gain: gainFromDb(c.gainDb),
+      })),
   };
 }
 
@@ -482,6 +651,16 @@ function parseClock(text) {
    them back into the single scope the script tags give them in a browser. */
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
+    FORMAT,
+    FORMAT_VERSION,
+    SCHEMA_URL,
+    claimId,
+    KNOWN_KEYS,
+    unknownKeys,
+    songName,
+    songTitle,
+    seconds,
+    gainFromDb,
     SR,
     MIN_CROSSFADE,
     MIN_CLIP,

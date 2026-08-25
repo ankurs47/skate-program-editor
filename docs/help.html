@@ -99,6 +99,7 @@
           <li><a href="#volume">Volume</a></li>
           <li><a href="#clock">The clock, and program lengths</a></li>
           <li><a href="#quality">Sound quality labels</a></li>
+          <li><a href="#song-info">What a file says about itself</a></li>
           <li><a href="#keys">Keyboard shortcuts</a></li>
           <li><a href="#saving">Saving and loading</a></li>
           <li><a href="#project-file">The project file</a></li>
@@ -327,6 +328,33 @@
         after.
       </p>
 
+      <h2 id="song-info">What a file says about itself</h2>
+
+      <p>
+        Music files usually carry the title, the artist and often the composer, written in by
+        whoever made the file. Press <b>Info</b> beside a song in the list to see what yours holds.
+      </p>
+      <p>
+        Where there is a title, it becomes the name of the song in the list and of any clip you cut
+        from it &mdash; better than <code>track03.mp3</code>. The file name stays under it, because
+        that is what identifies the file and what the editor has to find again later.
+      </p>
+      <p>
+        Two of the fields are worth knowing about if you need permission to use a piece of music.
+        <b>ISRC</b> is a code that identifies one particular recording rather than the song, which
+        is what a licensing service will ask for. <b>Copyright</b> usually names whoever owns it.
+      </p>
+      <p>
+        The panel has a link that looks the song up on <b>ClicknClear</b>, the licensing service the
+        ISU points skaters to for clearing music rights. It searches for the title the file gives,
+        so you are not retyping it. Whether you need to clear anything, and with whom, depends on
+        your event and where you skate &mdash; ask your club or your federation.
+      </p>
+      <p class="hint">
+        Nothing is sent anywhere to read these. The tags are already inside the file, and the editor
+        reads them on your computer along with the rest of it.
+      </p>
+
       <h2 id="keys">Keyboard shortcuts</h2>
 
       <table class="labeled">
@@ -455,29 +483,61 @@
       <p><b>Save project</b> writes a small, readable JSON file:</p>
 
       <pre><code>{
+  "$schema": "https://ankurs47.github.io/skate-program-editor/docs/program.skate.schema.json",
+  "format": "skate-program",
+  "version": 1,
   "name": "my 2026 junior long program",
-  "level": "usfs-jr",
-  "targetSeconds": 210,
-  "toleranceSeconds": 10,
-  "files": [
+  "event": {
+    "level": "usfs-jr",
+    "label": "Junior — 3:30 ±10s",
+    "targetSeconds": 210,
+    "toleranceSeconds": 10
+  },
+  "songs": [
     { "name": "chosen song.mp3", "bytes": 5216340, "seconds": 212.5,
       "fingerprint": "1k4v9p" }
   ],
   "clips": [
-    { "file": "chosen song.mp3", "srcStart": 4.76, "srcEnd": 77.08,
-      "fadeIn": 1.5, "fadeOut": 0, "crossfade": 0, "gain": 1 }
-  ]
+    { "id": "opening", "song": "chosen song.mp3", "title": "chosen song",
+      "start": 4.76, "end": 77.08,
+      "fadeIn": 1.5, "fadeOut": 0, "blend": 0, "gainDb": 0 }
+  ],
+  "notes": "coach wants the slow part a little longer"
 }</code></pre>
 
       <p>
-        <code>files</code> records what each song <em>was</em> &mdash; not where it was. A browser
+        The words are the ones the editor uses on screen. <code>start</code> and
+        <code>end</code> are seconds into the song, <code>blend</code> is how long this clip
+        overlaps the one before it, and <code>gainDb</code> is the level in decibels &mdash; the
+        same number the volume slider shows, where <code>0</code> means the song as recorded.
+      </p>
+      <p>
+        <code>songs</code> records what each song <em>was</em> &mdash; not where it was. A browser
         will not tell a page where a file lives, so a project cannot save a location. What it saves
         instead is enough to recognize a different song wearing the same name, which is the check
         described <a href="#wrong-song">above</a>.
       </p>
       <p>
-        Projects written before this have no <code>files</code> section and are read exactly as
-        before: with nothing recorded, nothing is claimed.
+        A file written by hand needs only <code>clips</code>: with no <code>songs</code> section,
+        nothing is claimed about the music. Anything missing falls back to something sensible rather
+        than refusing to open, so it is safe to edit.
+      </p>
+      <p>
+        <code>version</code> is the one thing that is not guessed at. A project saved by a newer
+        editor than the one you are using will say so and decline to open, rather than showing you a
+        program that looks right and is not.
+      </p>
+      <p>
+        <code>notes</code> is yours. Open <b>Notes</b> under the <b>Program</b> heading and write
+        whatever is worth remembering &mdash; what your coach asked for, what to try next. It is
+        saved with the project and shown again when you open it, and nothing else reads it. If you
+        keep projects in git, as the read-me suggests, remember that whatever you write there is
+        published along with them.
+      </p>
+      <p>
+        The <code>$schema</code> line points a text editor at a description of this format, so if
+        you edit a project by hand you get the field names completed and mistakes underlined. It is
+        only a convenience; deleting it changes nothing.
       </p>
 
       <h2 id="export">Making the music file</h2>
