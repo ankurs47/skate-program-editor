@@ -12,8 +12,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execFileSync } = require('child_process');
-const { check, eq, ok, html, css, ROOT, SCRIPTS, unclosedTags } = require('./harness.js');
+const { check, eq, ok, html, css, ROOT, SCRIPTS } = require('./harness.js');
 
 check('every element the code reaches for exists in the HTML', () => {
   // All three files, not just app.js: the day one of the others grows a $()
@@ -93,12 +92,6 @@ check('the page and the file picker both cover what the tools produce', () => {
   }
 });
 
-check('every script file parses', () => {
-  for (const file of SCRIPTS) {
-    execFileSync(process.execPath, ['--check', path.join(ROOT, file)]);
-  }
-});
-
 check('the analysis and format files stay free of the browser', () => {
   /* The split is only worth anything while it holds. These two are the parts
      that can be tested without a DOM, and one `document.` or one reach into
@@ -126,16 +119,6 @@ check('the page loads the scripts, in an order that works', () => {
   // app.js calls into both by name at load time, so they have to come first.
   const order = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map((m) => m[1]);
   eq(order, SCRIPTS, 'the page must load exactly these, in this order: ');
-});
-
-check('HTML tags are balanced', () => {
-  eq(unclosedTags(html), [], 'unclosed tags in index.html: ');
-});
-
-check('CSS braces balance', () => {
-  const opens = (css.match(/{/g) || []).length;
-  const closes = (css.match(/}/g) || []).length;
-  eq(opens, closes, 'unbalanced braces: ');
 });
 
 check('every CSS custom property used is defined', () => {

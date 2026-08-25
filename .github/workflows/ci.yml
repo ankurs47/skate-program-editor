@@ -32,9 +32,11 @@ jobs:
       # the steps below stay because they carry --net and write the report.
       - name: Pre-commit hooks
         uses: pre-commit/action@v3.0.1
-
-      - name: Lint
-        run: npm run lint
+        env:
+          # The unit suite runs again below, with --net for the CDN hash and
+          # --report for the summary this workflow posts. Running it here too
+          # would be the same checks twice for no extra answer.
+          SKIP: unit-tests
 
       # --net also re-checks that the pinned MP3 encoder hash still matches
       # what the CDN serves. If that ever fails, the CDN changed under us.

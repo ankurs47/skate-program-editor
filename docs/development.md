@@ -109,6 +109,16 @@ Exceptions go in `.codespell-ignore`, each with a comment saying why. A check in
 rather than the file — written the lazy way it passed while the dictionary was
 off, because the comment above the hook happens to name it.
 
+Where a hook already answers a question, the test that used to ask it is gone.
+Prettier's HTML parser rejects unbalanced tags and stylelint rejects an unclosed
+CSS block, so the two checks that did that by hand were removed rather than kept
+for company. A third, "every script file parses", turned out never to have been
+able to run at all: the harness requires `app.js`, which requires the other two,
+so a syntax error anywhere took the suite down before the check was reached.
+
+What stayed is what nothing else covers — a `var(--name)` with no matching
+definition passes stylelint happily, and only `assets.test.js` notices.
+
 `.yamllint` and `.markdownlint.json` draw the same line: **Prettier decides
 layout, the linters decide whether the document is sound.** Every rule switched
 off in them is one Prettier already has an opinion about, because two tools
@@ -217,7 +227,8 @@ measurement agreeing with an independent meter.
 
 Three more cover things that are not logic at all. `assets.test.js` is the
 wiring: every element id the code reaches for exists in the HTML, every help
-button has content, both color themes define the same variables. `site.test.js`
+button has content, both color themes define the same variables, and every
+custom property used is defined somewhere. `site.test.js`
 is what gets served: the guide, the logo, the README badges, and the tags that
 decide how a link to this looks in a search result. `repo.test.js` is the rules
 that apply everywhere: no personal information, no path off this machine, and
