@@ -1,517 +1,701 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light dark">
-<title>Skate Program Editor — cut figure skating music online</title>
-<link rel="canonical" href="https://ankurs47.github.io/skate-program-editor/">
-<meta name="description" content="Cut figure skating program music in your browser. Trim, order and blend songs against the allowed length for your event. Free, no sign-up.">
-<meta name="author" content="ankurs47">
-<!-- Search and social want different lengths: roughly 155 characters before
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Skate Program Editor — cut figure skating music online</title>
+    <link rel="canonical" href="https://ankurs47.github.io/skate-program-editor/" />
+    <meta
+      name="description"
+      content="Cut figure skating program music in your browser. Trim, order and blend songs against the allowed length for your event. Free, no sign-up."
+    />
+    <meta name="author" content="ankurs47" />
+    <!-- Search and social want different lengths: roughly 155 characters before
      Google truncates, roughly 125 before a phone does. One string cannot serve
      both, so these deliberately differ. Absolute URLs throughout — most
      services that read these will not resolve a relative one. -->
-<meta property="og:type" content="website">
-<meta property="og:site_name" content="Skate Program Editor">
-<meta property="og:url" content="https://ankurs47.github.io/skate-program-editor/">
-<meta property="og:title" content="Skate Program Editor — cut figure skating music online">
-<meta property="og:description" content="Trim, order and blend your program music, with a timer against the limit for your event. Nothing is uploaded.">
-<meta property="og:image" content="https://ankurs47.github.io/skate-program-editor/docs/social-card.png">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Skate Program Editor — cut figure skating program music in your browser">
-<meta property="article:published_time" content="2026-08-07">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Skate Program Editor — cut figure skating music online">
-<meta name="twitter:description" content="Trim, order and blend your program music, with a timer against the limit for your event. Nothing is uploaded.">
-<meta name="twitter:image" content="https://ankurs47.github.io/skate-program-editor/docs/social-card.png">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "WebApplication",
-  "name": "Skate Program Editor",
-  "url": "https://ankurs47.github.io/skate-program-editor/",
-  "applicationCategory": "MultimediaApplication",
-  "operatingSystem": "Any modern browser",
-  "browserRequirements": "Requires the Web Audio API",
-  "isAccessibleForFree": true,
-  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-  "author": { "@type": "Person", "name": "ankurs47", "url": "https://github.com/ankurs47" },
-  "license": "https://opensource.org/licenses/MIT",
-  "datePublished": "2026-08-07",
-  "description": "Cut figure skating program music in your browser. Trim, order and blend songs against the allowed length for your event."
-}
-</script>
-<link rel="icon" href="src/logo.svg" type="image/svg+xml">
-<script>
-  /* Runs before the stylesheet so an explicit choice never flashes the other
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Skate Program Editor" />
+    <meta property="og:url" content="https://ankurs47.github.io/skate-program-editor/" />
+    <meta property="og:title" content="Skate Program Editor — cut figure skating music online" />
+    <meta
+      property="og:description"
+      content="Trim, order and blend your program music, with a timer against the limit for your event. Nothing is uploaded."
+    />
+    <meta
+      property="og:image"
+      content="https://ankurs47.github.io/skate-program-editor/docs/social-card.png"
+    />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="Skate Program Editor — cut figure skating program music in your browser"
+    />
+    <meta property="article:published_time" content="2026-08-07" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Skate Program Editor — cut figure skating music online" />
+    <meta
+      name="twitter:description"
+      content="Trim, order and blend your program music, with a timer against the limit for your event. Nothing is uploaded."
+    />
+    <meta
+      name="twitter:image"
+      content="https://ankurs47.github.io/skate-program-editor/docs/social-card.png"
+    />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Skate Program Editor",
+        "url": "https://ankurs47.github.io/skate-program-editor/",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "Any modern browser",
+        "browserRequirements": "Requires the Web Audio API",
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "author": { "@type": "Person", "name": "ankurs47", "url": "https://github.com/ankurs47" },
+        "license": "https://opensource.org/licenses/MIT",
+        "datePublished": "2026-08-07",
+        "description": "Cut figure skating program music in your browser. Trim, order and blend songs against the allowed length for your event."
+      }
+    </script>
+    <link rel="icon" href="src/logo.svg" type="image/svg+xml" />
+    <script>
+      /* Runs before the stylesheet so an explicit choice never flashes the other
      theme first. All this has to do is set the attribute the CSS watches for;
      the rest of the logic — the button, the wording, the repaint — is in
      src/app.js, which spells this key the same way. A test checks that. */
-  try {
-    var m = localStorage.getItem('skate.theme');
-    if (m === 'light' || m === 'dark') document.documentElement.setAttribute('data-theme', m);
-  } catch (e) { /* private mode: fall back to following the system */ }
-</script>
-<link rel="stylesheet" href="src/style.css">
-</head>
-<body>
-
-<noscript>
-  <div class="blocker">
-    <div class="blocker-card">
-      <h2>JavaScript is switched off</h2>
-      <p>This editor does all its work inside your browser, so it needs
-         JavaScript turned on. Switch it on for this page and reload.</p>
-    </div>
-  </div>
-</noscript>
-
-<div id="unsupported" class="blocker hidden">
-  <div class="blocker-card">
-    <h2>This browser can&rsquo;t run the editor</h2>
-    <p id="unsupportedWhy"></p>
-    <p>It needs a current version of Chrome, Edge, Firefox or Safari on a
-       computer. Updating your browser usually fixes this.</p>
-  </div>
-</div>
-
-<div id="smallScreen" class="advisory hidden">
-  <span>
-    <b>Best on a computer.</b> On a phone or tablet the trimming is fiddly, and
-    a few long songs can use more memory than the browser allows.
-  </span>
-  <button id="btnDismissSmall" class="small">Got it</button>
-</div>
-
-<div class="topbar">
-  <span class="topbar-brand">
-    <img class="logo" src="src/logo.svg" width="24" height="24" alt="">
-    <h1>Skate Program Editor</h1>
-  </span>
-  <nav class="help-nav" aria-label="Help topics">
-    <button class="help-btn" data-help="basics">Basics</button>
-    <button class="help-btn" data-help="tips">Tips</button>
-    <button class="help-btn" data-help="saving">Saving</button>
-    <button class="help-btn" data-help="quality">Sound quality</button>
-    <button class="help-btn" data-help="keys">Keyboard</button>
-  </nav>
-  <span class="topbar-links">
-    <span class="menu-wrap">
-      <button class="topbar-link" id="btnSettings" type="button"
-              aria-haspopup="true" aria-expanded="false" aria-controls="settingsMenu">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
-        Settings
-      </button>
-      <div class="menu hidden" id="settingsMenu" role="dialog" aria-modal="false" aria-label="Settings">
-        <p class="menu-head" id="themeGroupLabel">Colors</p>
-        <div class="seg" role="radiogroup" aria-labeledby="themeGroupLabel">
-          <button type="button" role="radio" data-theme-choice="auto" aria-checked="true">Auto</button>
-          <button type="button" role="radio" data-theme-choice="light" aria-checked="false">Light</button>
-          <button type="button" role="radio" data-theme-choice="dark" aria-checked="false">Dark</button>
-        </div>
-        <p class="hint menu-note" id="themeNote">Auto follows whatever this computer is set to.</p>
-
-        <p class="menu-head">This computer</p>
-        <p class="hint menu-note" id="forgetNote"></p>
-        <button type="button" id="btnForget" class="small danger">Forget it all</button>
-      </div>
-    </span>
-    <a class="topbar-link" href="docs/help.html">Full guide</a>
-    <a class="topbar-link" href="https://github.com/ankurs47/skate-program-editor"
-       target="_blank" rel="noopener" title="Source code on GitHub">
-      <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" focusable="false"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
-      GitHub
-    </a>
-  </span>
-</div>
-
-<header>
-  <div class="brand">
-    <label class="field-label" for="programName">Program name</label>
-    <input id="programName" type="text" spellcheck="false" placeholder="my program">
-  </div>
-
-  <div class="budget" id="budget">
-    <div class="budget-time"><span id="totalTime">0:00.0</span></div>
-    <div class="budget-meta">
-      <select id="targetLength"></select>
-      <input id="customLength" type="text" class="hidden" size="5" placeholder="3:10"
-             title="target length as m:ss" spellcheck="false">
-      <span id="budgetDelta" class="delta">add some music</span>
-    </div>
-    <div class="budget-bar"><div class="budget-ok" id="budgetOk"></div><div class="budget-fill" id="budgetFill"></div></div>
-  </div>
-
-  <div class="actions">
-    <button id="btnExport" class="primary" title="Make the finished music file to take to the competition">Make music file</button>
-    <button id="btnSaveProject">Save project</button>
-    <button id="btnLoadProject">Load project</button>
-    <button id="btnNew">New</button>
-  </div>
-</header>
-
-<main>
-  <aside id="library">
-    <div class="panel-head">
-      <button id="btnLibraryToggle" class="lib-toggle" type="button" aria-expanded="true"
-              aria-controls="libraryList" title="Hide the music list">
-        <svg class="ico ico-hide" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m16 15-3-3 3-3"/></svg>
-        <svg class="ico ico-show" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m14 9 3 3-3 3"/></svg>
-      </button>
-      <h2>Music</h2>
-      <button id="btnAddFiles">Add files</button>
-    </div>
-    <ul id="libraryList"></ul>
-    <div id="dropzone" class="dropzone">Drop audio files here</div>
-  </aside>
-
-  <section id="workspace">
-    <div class="panel-head">
-      <h2>Program</h2>
-      <button id="btnEvenOut">Even out the volume</button>
-      <div class="transport">
-        <button id="btnPlay" class="play"><span id="btnPlayLabel">Play</span><kbd>Space</kbd></button>
-        <button id="btnStop" title="Return to start">Stop</button>
-        <span id="playhead" class="mono">0:00.0</span>
-      </div>
-    </div>
-
-    <div id="missingNotice" class="warn hidden">
-      <p class="warn-head">Some songs still need to be added</p>
-      <p class="hint" id="missingList"></p>
-      <p class="hint">
-        A saved project remembers your editing, but not the music. Add these
-        files and your cuts, fades and blends come straight back. Until then the
-        program won&rsquo;t play, and <b>Make music file</b> stays grayed out.
-      </p>
-      <div class="missing-actions">
-        <!-- Only shown where the browser can hand a file back after a reload;
-             everywhere else Add files is the only way, as it always was. -->
-        <button id="btnReconnect" class="small primary hidden">Open the music again</button>
-        <button id="btnAddMissing" class="small">Add files</button>
-      </div>
-    </div>
-
-    <div id="timelineWrap">
-      <div id="timeline" class="timeline"></div>
-      <div id="timelineEmpty" class="empty">
-        Pick a song on the left and press <b>Add to program</b>.
-      </div>
-    </div>
-
-    <canvas id="scrubber" height="62"
-            title="click or drag anywhere to move the marker"></canvas>
-    <p class="hint scrub-help">
-      Click the bar to move the marker, then <kbd>Space</kbd> to play from there
-    </p>
-
-    <div id="editor" class="editor hidden">
-      <div class="panel-head">
-        <h2 id="editorTitle">Clip</h2>
-        <div class="editor-actions">
-          <button id="btnMoveLeft" class="small">Move earlier</button>
-          <button id="btnMoveRight" class="small">Move later</button>
-          <button id="btnPreviewClip" class="small">Play this song</button>
-          <button id="btnRemoveClip" class="small danger">Remove<kbd>Del</kbd></button>
+      try {
+        var m = localStorage.getItem('skate.theme');
+        if (m === 'light' || m === 'dark') document.documentElement.setAttribute('data-theme', m);
+      } catch (e) {
+        /* private mode: fall back to following the system */
+      }
+    </script>
+    <link rel="stylesheet" href="src/style.css" />
+  </head>
+  <body>
+    <noscript>
+      <div class="blocker">
+        <div class="blocker-card">
+          <h2>JavaScript is switched off</h2>
+          <p>
+            This editor does all its work inside your browser, so it needs JavaScript turned on.
+            Switch it on for this page and reload.
+          </p>
         </div>
       </div>
+    </noscript>
 
-      <canvas id="clipCanvas" height="180"></canvas>
-      <div class="scrub-row">
-        <span class="mono" id="lblStart">0:00.0</span>
-        <span class="hint">
-          Drag the edges to trim, or set them with <kbd>I</kbd> and <kbd>O</kbd>
+    <div id="unsupported" class="blocker hidden">
+      <div class="blocker-card">
+        <h2>This browser can&rsquo;t run the editor</h2>
+        <p id="unsupportedWhy"></p>
+        <p>
+          It needs a current version of Chrome, Edge, Firefox or Safari on a computer. Updating your
+          browser usually fixes this.
+        </p>
+      </div>
+    </div>
+
+    <div id="smallScreen" class="advisory hidden">
+      <span>
+        <b>Best on a computer.</b> On a phone or tablet the trimming is fiddly, and a few long songs
+        can use more memory than the browser allows.
+      </span>
+      <button id="btnDismissSmall" class="small">Got it</button>
+    </div>
+
+    <div class="topbar">
+      <span class="topbar-brand">
+        <img class="logo" src="src/logo.svg" width="24" height="24" alt="" />
+        <h1>Skate Program Editor</h1>
+      </span>
+      <nav class="help-nav" aria-label="Help topics">
+        <button class="help-btn" data-help="basics">Basics</button>
+        <button class="help-btn" data-help="tips">Tips</button>
+        <button class="help-btn" data-help="saving">Saving</button>
+        <button class="help-btn" data-help="quality">Sound quality</button>
+        <button class="help-btn" data-help="keys">Keyboard</button>
+      </nav>
+      <span class="topbar-links">
+        <span class="menu-wrap">
+          <button
+            class="topbar-link"
+            id="btnSettings"
+            type="button"
+            aria-haspopup="true"
+            aria-expanded="false"
+            aria-controls="settingsMenu"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="3" />
+              <path
+                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"
+              />
+            </svg>
+            Settings
+          </button>
+          <div
+            class="menu hidden"
+            id="settingsMenu"
+            role="dialog"
+            aria-modal="false"
+            aria-label="Settings"
+          >
+            <p class="menu-head" id="themeGroupLabel">Colors</p>
+            <div class="seg" role="radiogroup" aria-labelledby="themeGroupLabel">
+              <button type="button" role="radio" data-theme-choice="auto" aria-checked="true">
+                Auto
+              </button>
+              <button type="button" role="radio" data-theme-choice="light" aria-checked="false">
+                Light
+              </button>
+              <button type="button" role="radio" data-theme-choice="dark" aria-checked="false">
+                Dark
+              </button>
+            </div>
+            <p class="hint menu-note" id="themeNote">
+              Auto follows whatever this computer is set to.
+            </p>
+
+            <p class="menu-head">This computer</p>
+            <p class="hint menu-note" id="forgetNote"></p>
+            <button type="button" id="btnForget" class="small danger">Forget it all</button>
+          </div>
         </span>
-        <span class="mono" id="lblEnd">0:00.0</span>
+        <a class="topbar-link" href="docs/help.html">Full guide</a>
+        <a
+          class="topbar-link"
+          href="https://github.com/ankurs47/skate-program-editor"
+          target="_blank"
+          rel="noopener"
+          title="Source code on GitHub"
+        >
+          <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" focusable="false">
+            <path
+              fill="currentColor"
+              d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8Z"
+            />
+          </svg>
+          GitHub
+        </a>
+      </span>
+    </div>
+
+    <header>
+      <div class="brand">
+        <label class="field-label" for="programName">Program name</label>
+        <input id="programName" type="text" spellcheck="false" placeholder="my program" />
       </div>
 
-      <div class="controls">
-        <label id="levelWrap" title="How much this song's own volume is changed. 100% leaves the recording as it is.">
-          <span>Volume <b id="valLevel">100%</b></span>
-          <input id="level" type="range" min="-24" max="24" step="0.5" value="0">
-        </label>
-        <label>
-          <span>Fade in <b id="valFadeIn">0.0s</b></span>
-          <input id="fadeIn" type="range" min="0" max="10" step="0.1" value="0">
-        </label>
-        <label>
-          <span>Fade out <b id="valFadeOut">0.0s</b></span>
-          <input id="fadeOut" type="range" min="0" max="10" step="0.1" value="0">
-        </label>
-        <div id="crossfadeWrap" class="join-cell">
-          <label>
-            <span>Blend into previous <b id="valCrossfade">0.0s</b></span>
-            <input id="crossfade" type="range" min="0" max="10" step="0.1" value="0">
-          </label>
-          <div class="join-buttons">
-            <button id="btnPlayJoin" class="small">Play this join</button>
-            <button id="btnAlignJoin" class="small">Line up this join</button>
+      <div class="budget" id="budget">
+        <div class="budget-time"><span id="totalTime">0:00.0</span></div>
+        <div class="budget-meta">
+          <select id="targetLength"></select>
+          <input
+            id="customLength"
+            type="text"
+            class="hidden"
+            size="5"
+            placeholder="3:10"
+            title="target length as m:ss"
+            spellcheck="false"
+          />
+          <span id="budgetDelta" class="delta">add some music</span>
+        </div>
+        <div class="budget-bar">
+          <div class="budget-ok" id="budgetOk"></div>
+          <div class="budget-fill" id="budgetFill"></div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button
+          id="btnExport"
+          class="primary"
+          title="Make the finished music file to take to the competition"
+        >
+          Make music file
+        </button>
+        <button id="btnSaveProject">Save project</button>
+        <button id="btnLoadProject">Load project</button>
+        <button id="btnNew">New</button>
+      </div>
+    </header>
+
+    <main>
+      <aside id="library">
+        <div class="panel-head">
+          <button
+            id="btnLibraryToggle"
+            class="lib-toggle"
+            type="button"
+            aria-expanded="true"
+            aria-controls="libraryList"
+            title="Hide the music list"
+          >
+            <svg
+              class="ico ico-hide"
+              viewBox="0 0 24 24"
+              width="17"
+              height="17"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <rect width="18" height="18" x="3" y="3" rx="2" />
+              <path d="M9 3v18" />
+              <path d="m16 15-3-3 3-3" />
+            </svg>
+            <svg
+              class="ico ico-show"
+              viewBox="0 0 24 24"
+              width="17"
+              height="17"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <rect width="18" height="18" x="3" y="3" rx="2" />
+              <path d="M9 3v18" />
+              <path d="m14 9 3 3-3 3" />
+            </svg>
+          </button>
+          <h2>Music</h2>
+          <button id="btnAddFiles">Add files</button>
+        </div>
+        <ul id="libraryList"></ul>
+        <div id="dropzone" class="dropzone">Drop audio files here</div>
+      </aside>
+
+      <section id="workspace">
+        <div class="panel-head">
+          <h2>Program</h2>
+          <button id="btnEvenOut">Even out the volume</button>
+          <div class="transport">
+            <button id="btnPlay" class="play">
+              <span id="btnPlayLabel">Play</span><kbd>Space</kbd>
+            </button>
+            <button id="btnStop" title="Return to start">Stop</button>
+            <span id="playhead" class="mono">0:00.0</span>
           </div>
         </div>
+
+        <div id="missingNotice" class="warn hidden">
+          <p class="warn-head">Some songs still need to be added</p>
+          <p class="hint" id="missingList"></p>
+          <p class="hint">
+            A saved project remembers your editing, but not the music. Add these files and your
+            cuts, fades and blends come straight back. Until then the program won&rsquo;t play, and
+            <b>Make music file</b> stays grayed out.
+          </p>
+          <div class="missing-actions">
+            <!-- Only shown where the browser can hand a file back after a reload;
+             everywhere else Add files is the only way, as it always was. -->
+            <button id="btnReconnect" class="small primary hidden">Open the music again</button>
+            <button id="btnAddMissing" class="small">Add files</button>
+          </div>
+        </div>
+
+        <div id="timelineWrap">
+          <div id="timeline" class="timeline"></div>
+          <div id="timelineEmpty" class="empty">
+            Pick a song on the left and press <b>Add to program</b>.
+          </div>
+        </div>
+
+        <canvas
+          id="scrubber"
+          height="62"
+          title="click or drag anywhere to move the marker"
+        ></canvas>
+        <p class="hint scrub-help">
+          Click the bar to move the marker, then <kbd>Space</kbd> to play from there
+        </p>
+
+        <div id="editor" class="editor hidden">
+          <div class="panel-head">
+            <h2 id="editorTitle">Clip</h2>
+            <div class="editor-actions">
+              <button id="btnMoveLeft" class="small">Move earlier</button>
+              <button id="btnMoveRight" class="small">Move later</button>
+              <button id="btnPreviewClip" class="small">Play this song</button>
+              <button id="btnRemoveClip" class="small danger">Remove<kbd>Del</kbd></button>
+            </div>
+          </div>
+
+          <canvas id="clipCanvas" height="180"></canvas>
+          <div class="scrub-row">
+            <span class="mono" id="lblStart">0:00.0</span>
+            <span class="hint">
+              Drag the edges to trim, or set them with <kbd>I</kbd> and <kbd>O</kbd>
+            </span>
+            <span class="mono" id="lblEnd">0:00.0</span>
+          </div>
+
+          <div class="controls">
+            <label
+              id="levelWrap"
+              title="How much this song's own volume is changed. 100% leaves the recording as it is."
+            >
+              <span>Volume <b id="valLevel">100%</b></span>
+              <input id="level" type="range" min="-24" max="24" step="0.5" value="0" />
+            </label>
+            <label>
+              <span>Fade in <b id="valFadeIn">0.0s</b></span>
+              <input id="fadeIn" type="range" min="0" max="10" step="0.1" value="0" />
+            </label>
+            <label>
+              <span>Fade out <b id="valFadeOut">0.0s</b></span>
+              <input id="fadeOut" type="range" min="0" max="10" step="0.1" value="0" />
+            </label>
+            <div id="crossfadeWrap" class="join-cell">
+              <label>
+                <span>Blend into previous <b id="valCrossfade">0.0s</b></span>
+                <input id="crossfade" type="range" min="0" max="10" step="0.1" value="0" />
+              </label>
+              <div class="join-buttons">
+                <button id="btnPlayJoin" class="small">Play this join</button>
+                <button id="btnAlignJoin" class="small">Line up this join</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="startDialog" class="modal hidden">
+      <div
+        class="modal-card start-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="startTitle"
+      >
+        <h2 id="startTitle">Skate Program Editor</h2>
+
+        <div id="startWarn" class="warn hidden">
+          <p class="warn-head">This replaces the program on screen</p>
+          <p class="hint" id="startWarnInfo"></p>
+          <p class="hint">
+            Your loaded songs stay in the list. Cancel and use <b>Save project</b>
+            first if you want to keep the current program.
+          </p>
+        </div>
+
+        <div class="start-form">
+          <label class="start-field">
+            <span class="field-label">What shall we call this program?</span>
+            <input
+              id="startName"
+              type="text"
+              spellcheck="false"
+              placeholder="e.g. my 2026 junior long program"
+            />
+          </label>
+          <label class="start-field">
+            <span class="field-label">Which event?</span>
+            <select id="startLevel"></select>
+          </label>
+          <label class="start-field hidden" id="startCustomWrap">
+            <span class="field-label">Length (minutes:seconds)</span>
+            <input id="startCustom" type="text" spellcheck="false" placeholder="3:10" />
+          </label>
+          <button id="btnStartNew" class="primary wide">Start a new program</button>
+        </div>
+
+        <div class="start-or"><span>or</span></div>
+        <button id="btnStartLoad" class="wide">Open a saved project file</button>
+        <p class="hint">
+          You can change the name and the event at any time from the bar at the top.
+        </p>
+        <p class="hint start-privacy">
+          <b>Your music never leaves this computer.</b> Files are read straight from your disk, and
+          nothing is uploaded.
+        </p>
+        <div class="modal-actions" id="startCancelRow">
+          <button id="btnStartCancel">Cancel</button>
+        </div>
       </div>
     </div>
 
-  </section>
-</main>
-
-<div id="startDialog" class="modal hidden">
-  <div class="modal-card start-card" role="dialog" aria-modal="true" aria-labeledby="startTitle">
-    <h2 id="startTitle">Skate Program Editor</h2>
-
-    <div id="startWarn" class="warn hidden">
-      <p class="warn-head">This replaces the program on screen</p>
-      <p class="hint" id="startWarnInfo"></p>
-      <p class="hint">
-        Your loaded songs stay in the list. Cancel and use <b>Save project</b>
-        first if you want to keep the current program.
-      </p>
+    <div id="helpModal" class="modal hidden">
+      <div class="modal-card help-card" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+        <div class="help-head">
+          <h2 id="helpTitle"></h2>
+          <button id="helpClose" class="small" aria-label="Close">Close</button>
+        </div>
+        <div id="helpBody"></div>
+      </div>
     </div>
 
-    <div class="start-form">
-      <label class="start-field">
-        <span class="field-label">What shall we call this program?</span>
-        <input id="startName" type="text" spellcheck="false"
-               placeholder="e.g. my 2026 junior long program">
-      </label>
-      <label class="start-field">
-        <span class="field-label">Which event?</span>
-        <select id="startLevel"></select>
-      </label>
-      <label class="start-field hidden" id="startCustomWrap">
-        <span class="field-label">Length (minutes:seconds)</span>
-        <input id="startCustom" type="text" spellcheck="false" placeholder="3:10">
-      </label>
-      <button id="btnStartNew" class="primary wide">Start a new program</button>
+    <!-- Popup contents. Hidden here, copied into the dialog when a button is used. -->
+    <div id="helpSources" hidden>
+      <div data-help="basics" data-title="The basics">
+        <ul>
+          <li>
+            Choose the <b>level</b> at the top first. That sets the time you&rsquo;re aiming for,
+            and the big timer turns green when you are inside it.
+          </li>
+          <li>
+            The row of blocks is your song list. Click one to work on it. To change the order, drag
+            its block left or right &mdash; or use <b>Move earlier</b> and
+            <b>Move later</b> underneath, which is how to do it on a touchscreen, where dragging
+            doesn&rsquo;t work.
+          </li>
+          <li>
+            The bar underneath shows the real timing. Where blocks overlap, that&rsquo;s a blend.
+            The shaded stripe is the length you&rsquo;re allowed.
+          </li>
+          <li>
+            Click anywhere on that bar to move the marker, then press <kbd>Space</kbd> to listen
+            from there.
+          </li>
+        </ul>
+        <p class="hint">
+          <b>Save project</b> keeps your editing work, but not the songs themselves, so after
+          loading a project you add the music files again. See <b>Saving</b> above for the details.
+        </p>
+      </div>
+
+      <div data-help="tips" data-title="Tips for a good program">
+        <ul>
+          <li>
+            Cut where a line of the music finishes, not in the middle of one. If you can hear the
+            join, it&rsquo;s usually in the wrong place.
+          </li>
+          <li>
+            Set <b>Blend into previous</b> to 1 or 2 seconds to ease from one song into the next.
+            Leave it at 0 for a sudden, dramatic change.
+          </li>
+          <li>
+            <b>Line up this join</b> shifts the cut by up to a couple of seconds to somewhere the
+            music can take it, and tells you if that made the program longer or shorter. When both
+            songs have a steady beat it puts them on it, which is what stops a blend sounding like a
+            stumble.
+          </li>
+          <li>
+            Piano and a lot of orchestral music have no steady beat to find. There the button looks
+            for the <b>end of a phrase</b> instead &mdash; the breath between one musical line and
+            the next &mdash; and says that is what it did. Cutting there is what makes a join sound
+            intended rather than accidental.
+          </li>
+          <li>
+            If it can&rsquo;t find either, it says so and changes nothing, and you place the cut by
+            ear with <kbd>I</kbd> and <kbd>O</kbd>. <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes it either
+            way.
+          </li>
+          <li>
+            <b>Even out the volume</b> sets every song so they all sound about equally loud. Records
+            are mastered at wildly different levels, and the rink&rsquo;s sound desk is set once and
+            left, so a quiet cut in the middle of your program simply disappears. Use it once your
+            cuts are roughly right, and again if you re-trim, because it measures the part you kept.
+          </li>
+          <li>
+            The <b>Volume</b> slider on each song adjusts it by hand afterwards. Evening out is a
+            starting point, not the last word &mdash; a gentle opening is often <i>meant</i> to be
+            softer than the finish.
+          </li>
+          <li>
+            A small <b>Fade in</b> &mdash; about half a second &mdash; stops the music starting with
+            a pop.
+          </li>
+          <li>
+            A <b>Fade out</b> of 2 or 3 seconds lets the ending finish gently instead of stopping
+            dead.
+          </li>
+          <li>
+            <b>Blending makes the program shorter</b>, because the two songs overlap. Watch the
+            timer as you move the slider.
+          </li>
+          <li>
+            Aim for the middle of the green range, not the very edge, so a few seconds either way
+            won&rsquo;t matter. Timing starts at the first sound and stops at the last, so quiet
+            bits still count.
+          </li>
+          <li>
+            Listen on proper speakers before the competition. Laptop speakers hide problems the
+            rink&rsquo;s system will not.
+          </li>
+        </ul>
+        <p class="hint">
+          Allowed times differ by level and can change from year to year, so check yours with your
+          coach.
+        </p>
+      </div>
+
+      <div data-help="saving" data-title="Saving and loading your work">
+        <p class="hint" style="margin-top: 0">
+          <b>Save project</b> writes a small file that records your <i>editing</i> &mdash; which
+          songs you used, where each one starts and ends, and every fade and blend. It is only a few
+          kilobytes because <b>it does not contain the music itself</b>.
+        </p>
+        <ul>
+          <li>
+            Because the music isn&rsquo;t inside it, a project file can&rsquo;t be played on its
+            own, and it can&rsquo;t be handed in at a competition. Use <b>Make music file</b> for
+            that.
+          </li>
+          <li>
+            <b>When you load a project, you have to add the music files again.</b> Use
+            <b>Add files</b>, or drag them onto the page &mdash; anywhere will do. Dropping them on
+            the row of blocks adds them to the program at the same time.
+          </li>
+          <li>
+            On some browsers the editor can remember the songs for you, and offers
+            <b>Open the music again</b> &mdash; one click for the whole program. It still asks your
+            permission, and the music still never leaves your computer. If that button isn&rsquo;t
+            there, your browser can&rsquo;t do it and <b>Add files</b> is the way.
+          </li>
+          <li>
+            Songs are matched by name, so if you hand it a <i>different</i> song with the same name
+            it will say so rather than quietly building your program around the wrong music.
+          </li>
+          <li>
+            Songs are matched by their <b>file name</b>. As long as the names haven&rsquo;t changed,
+            everything reconnects and all your cuts, fades and blends come back exactly as they
+            were.
+          </li>
+          <li>
+            Until the music is added, those songs show up in red and the program won&rsquo;t play or
+            export.
+          </li>
+          <li>
+            If you rename a music file, the link breaks. Rename it back, or remove the song and add
+            it again.
+          </li>
+        </ul>
+        <p class="hint">
+          Keep the project file in the same folder as your music, and the two stay together.
+        </p>
+        <p class="hint">
+          <b>New</b> starts a fresh program and asks for a name and an event again. Your loaded
+          songs stay in the list, and nothing is ever deleted from your computer &mdash; but the
+          current program is replaced, so save it first if you want to come back to it.
+        </p>
+        <p class="hint">
+          You don&rsquo;t need to save after every change &mdash; this browser remembers your work
+          between visits on its own. <b>Save project</b> is for keeping a copy, moving to another
+          computer, or going back to an older version later.
+        </p>
+      </div>
+
+      <div data-help="quality" data-title="What the quality labels mean">
+        <dl class="badge-key">
+          <dt><span class="badge good">Good</span></dt>
+          <dd>This song will sound fine at the competition.</dd>
+          <dt><span class="badge caution">Fair</span></dt>
+          <dd>It will do, but it won&rsquo;t sound crisp on big speakers.</dd>
+          <dt><span class="badge poor">Low</span></dt>
+          <dd>This may sound rough at the rink. Try to find a better copy.</dd>
+          <dt><span class="badge unknown">Unknown</span></dt>
+          <dd>We couldn&rsquo;t check this one. It&rsquo;s probably fine.</dd>
+        </dl>
+        <p class="hint">
+          We show a word instead of numbers because the numbers are easy to misread &mdash; a small
+          number for one kind of file can sound better than a big number for another. Hover a label
+          to see the details.
+        </p>
+        <p class="hint">
+          Saving your program at higher quality can&rsquo;t fix a song that was already poor. You
+          need a better copy of the song itself.
+        </p>
+      </div>
+
+      <div data-help="keys" data-title="Keyboard shortcuts">
+        <dl class="keys">
+          <dt><kbd>Space</kbd></dt>
+          <dd>play from the marker, or pause where you are</dd>
+          <dt><kbd>Home</kbd></dt>
+          <dd>send the marker back to the start</dd>
+          <dt><kbd>I</kbd></dt>
+          <dd>start the song at the marker</dd>
+          <dt><kbd>O</kbd></dt>
+          <dd>end the song at the marker</dd>
+          <dt><kbd>&larr;</kbd> <kbd>&rarr;</kbd></dt>
+          <dd>move the end point a little &mdash; hold <kbd>Shift</kbd> to move more</dd>
+          <dt><kbd>[</kbd> <kbd>]</kbd></dt>
+          <dd>go to the previous or next song</dd>
+          <dt><kbd>Ctrl</kbd>+<kbd>Z</kbd></dt>
+          <dd>undo</dd>
+          <dt><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></dt>
+          <dd>redo &mdash; <kbd>Ctrl</kbd>+<kbd>Y</kbd> works too</dd>
+          <dt><kbd>Delete</kbd></dt>
+          <dd>take the selected song out of the program</dd>
+        </dl>
+      </div>
     </div>
 
-    <div class="start-or"><span>or</span></div>
-    <button id="btnStartLoad" class="wide">Open a saved project file</button>
-    <p class="hint">
-      You can change the name and the event at any time from the bar at the top.
-    </p>
-    <p class="hint start-privacy">
-      <b>Your music never leaves this computer.</b> Files are read straight from
-      your disk, and nothing is uploaded.
-    </p>
-    <div class="modal-actions" id="startCancelRow">
-      <button id="btnStartCancel">Cancel</button>
+    <div id="exportDialog" class="modal hidden">
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="exportTitle">
+        <h2 id="exportTitle">Make the music file</h2>
+        <p id="exportSummary" class="hint"></p>
+        <div id="lengthWarning" class="warn hidden">
+          <p class="warn-head" id="lengthWarnHead"></p>
+          <p class="hint" id="lengthWarnDetail"></p>
+          <p class="hint" id="lengthWarnFix"></p>
+        </div>
+        <div id="clipWarning" class="warn hidden">
+          <p class="warn-head">The music is too loud in places</p>
+          <p class="hint">
+            Some moments are louder than a music file can hold, so they will sound harsh or crackly
+            however good the songs are.
+          </p>
+          <p class="hint">
+            Turn the <b>Volume</b> down on the loudest songs, or use <b>Even out the volume</b>,
+            which keeps everything below the limit.
+          </p>
+        </div>
+        <div id="exportWarnings" class="warn hidden"></div>
+        <label class="row"
+          ><span>Format</span>
+          <select id="exportFormat">
+            <option value="wav">WAV &mdash; works everywhere, big file</option>
+            <option value="mp3">MP3 &mdash; smaller, usually what's asked for</option>
+          </select>
+        </label>
+        <p id="exportNote" class="hint"></p>
+        <div class="modal-actions">
+          <button id="btnExportCancel">Cancel</button>
+          <button id="btnExportGo" class="primary">Make the file</button>
+        </div>
+        <div id="exportProgress" class="progress hidden"><div id="exportBar"></div></div>
+      </div>
     </div>
-  </div>
-</div>
 
-<div id="helpModal" class="modal hidden">
-  <div class="modal-card help-card" role="dialog" aria-modal="true" aria-labeledby="helpTitle">
-    <div class="help-head">
-      <h2 id="helpTitle"></h2>
-      <button id="helpClose" class="small" aria-label="Close">Close</button>
-    </div>
-    <div id="helpBody"></div>
-  </div>
-</div>
+    <input
+      id="fileInput"
+      type="file"
+      multiple
+      hidden
+      accept="audio/*,.mp3,.wav,.flac,.m4a,.ogg,.opus,.aac,.webm,.aif,.aiff"
+    />
+    <input id="projectInput" type="file" accept="application/json,.json" hidden />
+    <div id="toast" class="toast hidden" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<!-- Popup contents. Hidden here, copied into the dialog when a button is used. -->
-<div id="helpSources" hidden>
-
-  <div data-help="basics" data-title="The basics">
-    <ul>
-      <li>Choose the <b>level</b> at the top first. That sets the time
-          you&rsquo;re aiming for, and the big timer turns green when you are
-          inside it.</li>
-      <li>The row of blocks is your song list. Click one to work on it. To
-          change the order, drag its block left or right &mdash; or use
-          <b>Move earlier</b> and <b>Move later</b> underneath, which is how to
-          do it on a touchscreen, where dragging doesn&rsquo;t work.</li>
-      <li>The bar underneath shows the real timing. Where blocks overlap,
-          that&rsquo;s a blend. The shaded stripe is the length you&rsquo;re
-          allowed.</li>
-      <li>Click anywhere on that bar to move the marker, then press
-          <kbd>Space</kbd> to listen from there.</li>
-    </ul>
-    <p class="hint">
-      <b>Save project</b> keeps your editing work, but not the songs themselves,
-      so after loading a project you add the music files again. See
-      <b>Saving</b> above for the details.
-    </p>
-  </div>
-
-  <div data-help="tips" data-title="Tips for a good program">
-    <ul>
-      <li>Cut where a line of the music finishes, not in the middle of one. If
-          you can hear the join, it&rsquo;s usually in the wrong place.</li>
-      <li>Set <b>Blend into previous</b> to 1 or 2 seconds to ease from one song
-          into the next. Leave it at 0 for a sudden, dramatic change.</li>
-      <li><b>Line up this join</b> shifts the cut by up to a couple of seconds
-          to somewhere the music can take it, and tells you if that made the
-          program longer or shorter. When both songs have a steady beat it puts
-          them on it, which is what stops a blend sounding like a stumble.</li>
-      <li>Piano and a lot of orchestral music have no steady beat to find. There
-          the button looks for the <b>end of a phrase</b> instead &mdash; the
-          breath between one musical line and the next &mdash; and says that is
-          what it did. Cutting there is what makes a join sound intended rather
-          than accidental.</li>
-      <li>If it can&rsquo;t find either, it says so and changes nothing, and you
-          place the cut by ear with <kbd>I</kbd> and <kbd>O</kbd>.
-          <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes it either way.</li>
-      <li><b>Even out the volume</b> sets every song so they all sound about
-          equally loud. Records are mastered at wildly different levels, and the
-          rink&rsquo;s sound desk is set once and left, so a quiet cut in the
-          middle of your program simply disappears. Use it once your cuts are
-          roughly right, and again if you re-trim, because it measures the part
-          you kept.</li>
-      <li>The <b>Volume</b> slider on each song adjusts it by hand afterwards.
-          Evening out is a starting point, not the last word &mdash; a gentle
-          opening is often <i>meant</i> to be softer than the finish.</li>
-      <li>A small <b>Fade in</b> &mdash; about half a second &mdash; stops the
-          music starting with a pop.</li>
-      <li>A <b>Fade out</b> of 2 or 3 seconds lets the ending finish gently
-          instead of stopping dead.</li>
-      <li><b>Blending makes the program shorter</b>, because the two songs
-          overlap. Watch the timer as you move the slider.</li>
-      <li>Aim for the middle of the green range, not the very edge, so a few
-          seconds either way won&rsquo;t matter. Timing starts at the first
-          sound and stops at the last, so quiet bits still count.</li>
-      <li>Listen on proper speakers before the competition. Laptop speakers hide
-          problems the rink&rsquo;s system will not.</li>
-    </ul>
-    <p class="hint">
-      Allowed times differ by level and can change from year to year, so check
-      yours with your coach.
-    </p>
-  </div>
-
-  <div data-help="saving" data-title="Saving and loading your work">
-    <p class="hint" style="margin-top:0">
-      <b>Save project</b> writes a small file that records your <i>editing</i> &mdash;
-      which songs you used, where each one starts and ends, and every fade and
-      blend. It is only a few kilobytes because <b>it does not contain the music
-      itself</b>.
-    </p>
-    <ul>
-      <li>Because the music isn&rsquo;t inside it, a project file can&rsquo;t be
-          played on its own, and it can&rsquo;t be handed in at a competition.
-          Use <b>Make music file</b> for that.</li>
-      <li><b>When you load a project, you have to add the music files again.</b>
-          Use <b>Add files</b>, or drag them onto the page &mdash; anywhere will
-          do. Dropping them on the row of blocks adds them to the program at the
-          same time.</li>
-      <li>On some browsers the editor can remember the songs for you, and offers
-          <b>Open the music again</b> &mdash; one click for the whole program.
-          It still asks your permission, and the music still never leaves your
-          computer. If that button isn&rsquo;t there, your browser can&rsquo;t do
-          it and <b>Add files</b> is the way.</li>
-      <li>Songs are matched by name, so if you hand it a <i>different</i> song
-          with the same name it will say so rather than quietly building your
-          program around the wrong music.</li>
-      <li>Songs are matched by their <b>file name</b>. As long as the names
-          haven&rsquo;t changed, everything reconnects and all your cuts, fades
-          and blends come back exactly as they were.</li>
-      <li>Until the music is added, those songs show up in red and the program
-          won&rsquo;t play or export.</li>
-      <li>If you rename a music file, the link breaks. Rename it back, or remove
-          the song and add it again.</li>
-    </ul>
-    <p class="hint">
-      Keep the project file in the same folder as your music, and the two stay
-      together.
-    </p>
-    <p class="hint">
-      <b>New</b> starts a fresh program and asks for a name and an event again.
-      Your loaded songs stay in the list, and nothing is ever deleted from your
-      computer &mdash; but the current program is replaced, so save it first if
-      you want to come back to it.
-    </p>
-    <p class="hint">
-      You don&rsquo;t need to save after every change &mdash; this browser
-      remembers your work between visits on its own. <b>Save project</b> is for
-      keeping a copy, moving to another computer, or going back to an older
-      version later.
-    </p>
-  </div>
-
-  <div data-help="quality" data-title="What the quality labels mean">
-    <dl class="badge-key">
-      <dt><span class="badge good">Good</span></dt>
-      <dd>This song will sound fine at the competition.</dd>
-      <dt><span class="badge caution">Fair</span></dt>
-      <dd>It will do, but it won&rsquo;t sound crisp on big speakers.</dd>
-      <dt><span class="badge poor">Low</span></dt>
-      <dd>This may sound rough at the rink. Try to find a better copy.</dd>
-      <dt><span class="badge unknown">Unknown</span></dt>
-      <dd>We couldn&rsquo;t check this one. It&rsquo;s probably fine.</dd>
-    </dl>
-    <p class="hint">
-      We show a word instead of numbers because the numbers are easy to misread
-      &mdash; a small number for one kind of file can sound better than a big
-      number for another. Hover a label to see the details.
-    </p>
-    <p class="hint">
-      Saving your program at higher quality can&rsquo;t fix a song that was
-      already poor. You need a better copy of the song itself.
-    </p>
-  </div>
-
-  <div data-help="keys" data-title="Keyboard shortcuts">
-    <dl class="keys">
-      <dt><kbd>Space</kbd></dt><dd>play from the marker, or pause where you are</dd>
-      <dt><kbd>Home</kbd></dt><dd>send the marker back to the start</dd>
-      <dt><kbd>I</kbd></dt><dd>start the song at the marker</dd>
-      <dt><kbd>O</kbd></dt><dd>end the song at the marker</dd>
-      <dt><kbd>&larr;</kbd> <kbd>&rarr;</kbd></dt>
-      <dd>move the end point a little &mdash; hold <kbd>Shift</kbd> to move more</dd>
-      <dt><kbd>[</kbd> <kbd>]</kbd></dt><dd>go to the previous or next song</dd>
-      <dt><kbd>Ctrl</kbd>+<kbd>Z</kbd></dt><dd>undo</dd>
-      <dt><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></dt>
-      <dd>redo &mdash; <kbd>Ctrl</kbd>+<kbd>Y</kbd> works too</dd>
-      <dt><kbd>Delete</kbd></dt><dd>take the selected song out of the program</dd>
-    </dl>
-  </div>
-
-</div>
-
-<div id="exportDialog" class="modal hidden">
-  <div class="modal-card" role="dialog" aria-modal="true" aria-labeledby="exportTitle">
-    <h2 id="exportTitle">Make the music file</h2>
-    <p id="exportSummary" class="hint"></p>
-    <div id="lengthWarning" class="warn hidden">
-      <p class="warn-head" id="lengthWarnHead"></p>
-      <p class="hint" id="lengthWarnDetail"></p>
-      <p class="hint" id="lengthWarnFix"></p>
-    </div>
-    <div id="clipWarning" class="warn hidden">
-      <p class="warn-head">The music is too loud in places</p>
-      <p class="hint">Some moments are louder than a music file can hold, so they
-         will sound harsh or crackly however good the songs are.</p>
-      <p class="hint">Turn the <b>Volume</b> down on the loudest songs, or use
-         <b>Even out the volume</b>, which keeps everything below the limit.</p>
-    </div>
-    <div id="exportWarnings" class="warn hidden"></div>
-    <label class="row"><span>Format</span>
-      <select id="exportFormat">
-        <option value="wav">WAV &mdash; works everywhere, big file</option>
-        <option value="mp3">MP3 &mdash; smaller, usually what's asked for</option>
-      </select>
-    </label>
-    <p id="exportNote" class="hint"></p>
-    <div class="modal-actions">
-      <button id="btnExportCancel">Cancel</button>
-      <button id="btnExportGo" class="primary">Make the file</button>
-    </div>
-    <div id="exportProgress" class="progress hidden"><div id="exportBar"></div></div>
-  </div>
-</div>
-
-<input id="fileInput" type="file" multiple hidden
-       accept="audio/*,.mp3,.wav,.flac,.m4a,.ogg,.opus,.aac,.webm,.aif,.aiff">
-<input id="projectInput" type="file" accept="application/json,.json" hidden>
-<div id="toast" class="toast hidden" role="status" aria-live="polite" aria-atomic="true"></div>
-
-<!-- Order matters: app.js calls into both of these by name, and they share one
+    <!-- Order matters: app.js calls into both of these by name, and they share one
      global scope. No modules and no build step — this is still three files you
      can open from disk. -->
-<script src="src/analysis.js"></script>
-<script src="src/formats.js"></script>
-<script src="src/app.js"></script>
-</body>
+    <script src="src/analysis.js"></script>
+    <script src="src/formats.js"></script>
+    <script src="src/app.js"></script>
+  </body>
 </html>

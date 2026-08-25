@@ -92,7 +92,10 @@ check('no absolute local paths leaked into the app', () => {
    "program" for a skating program, and a file that says "programme" two lines
    above it reads as two people arguing. Only forms that actually differ are
    listed: "analysis" and the plural "analyses" are spelled the same either way,
-   so the analyse pattern refuses to match the latter.
+   so the analyse pattern refuses to match the latter, and aria-labelledby is
+   spelled by the ARIA spec rather than by dialect — an earlier pass "corrected"
+   it to aria-labeledby across four dialogs, which is not an attribute at all,
+   so every one of them silently lost its accessible name.
 
    This file is the one thing not scanned, because the list below would match
    itself on every entry. Nothing else is exempt. */
@@ -105,7 +108,7 @@ const BRITISH = [
   'centre',
   'licence',
   'grey',
-  'labelled',
+  'labelled(?!by)',
   'analyse(?!s\\b)',
   'recognis',
   'organis',

@@ -3,3 +3,9 @@
 # couldn: from couldn&rsquo;t in the HTML — codespell sees the word split at
 # the entity and reads the half. The prose is correct as written.
 couldn
+
+# labelledby: part of aria-labelledby, whose spelling is fixed by the ARIA
+# spec and is not a dialect choice. An American-English pass turned it into
+# aria-labeledby across four dialogs, which is not an attribute at all, so
+# every one of them lost its accessible name and nothing noticed.
+labelledby

@@ -256,7 +256,10 @@ check('both pages carry what a link preview and a search result need', () => {
       `${file}: og:image:height should match the file: `,
     );
 
-    ok(/<link rel="canonical" href="https:\/\/[^"]+">/.test(page), `${file} has no canonical URL`);
+    ok(
+      /<link rel="canonical" href="https:\/\/[^"]+"\s*\/?>/.test(page),
+      `${file} has no canonical URL`,
+    );
     for (const [, url] of page.matchAll(
       /(?:og:image|og:url|twitter:image)"[^>]*content="([^"]+)"/g,
     )) {
