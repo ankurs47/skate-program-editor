@@ -48,8 +48,22 @@ npm install
 Which checks depends on what you have. With [pre-commit](https://pre-commit.com)
 installed — `pip install pre-commit` — it owns the hook and you get the whole set
 in `.pre-commit-config.yaml`: whitespace and end-of-file fixes, YAML and JSON
-parsing, shellcheck over the three shell scripts, codespell, stylelint, then
-eslint and the unit suite.
+parsing, shellcheck over the three shell scripts, codespell, prettier,
+stylelint, then eslint and the unit suite.
+
+Prettier formats the JavaScript, JSON, YAML and Markdown, and is deliberately
+kept away from CSS and HTML — `.prettierignore` says so and why. The numbers
+behind that: it rewrote 816 of 1,040 CSS lines by expanding every one-line rule,
+and turned 1,138 lines of HTML into 2,376 by re-indenting markup whose structure
+and comments are deliberate. stylelint covers the CSS instead, and the HTML has
+structural checks in `assets.test.js` and `site.test.js`.
+
+The settings match what was already here rather than being taken as defaults:
+`singleQuote` and `printWidth: 100` between them halved the JavaScript diff, and
+`proseWrap: preserve` stops it rewrapping prose wrapped by hand. Three things no
+option controls are simply accepted — one space before a trailing comment, which
+loses the column alignment; expanded one-line CSS rules, which is why CSS is
+excluded; and `*emphasis*` normalized to `_emphasis_`.
 
 `.stylelintrc.json` names its rules outright instead of extending
 `stylelint-config-standard`. Two reasons: stylelint looks for an extended config

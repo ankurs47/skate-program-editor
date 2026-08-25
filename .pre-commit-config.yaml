@@ -25,8 +25,8 @@ repos:
       - id: mixed-line-ending
         args: [--fix=lf]
       - id: check-merge-conflict
-      - id: check-yaml          # the workflows
-      - id: check-json          # package.json, mutations.json, sources.json
+      - id: check-yaml # the workflows
+      - id: check-json # package.json, mutations.json, sources.json
       - id: check-executables-have-shebangs
       - id: check-added-large-files
         # The README screenshot is 764 KB and generated, so the usual 500 KB
@@ -63,6 +63,14 @@ repos:
         # to that file and never find in here.
         additional_dependencies:
           - stylelint@17.14.1
+
+  # rbubley's fork, not pre-commit/mirrors-prettier: that one is archived and
+  # its newest tag is a v4 alpha. Scope is set by .prettierignore, which leaves
+  # CSS and HTML alone — see the reasoning there and in docs/development.md.
+  - repo: https://github.com/rbubley/mirrors-prettier
+    rev: v3.9.6
+    hooks:
+      - id: prettier
 
   - repo: local
     hooks:
