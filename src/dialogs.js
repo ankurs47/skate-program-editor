@@ -5,8 +5,6 @@
  */
 'use strict';
 
-/* --------------------------------------------------------------- dialogs */
-
 /* Every modal is a plain div over a backdrop rather than a <dialog>, so the
    three things the platform would have given us — a role, focus that starts
    inside and cannot leave, and focus that goes back afterwards — have to be

@@ -415,8 +415,6 @@ async function doExport() {
   }
 }
 
-/* ------------------------------------------------------------------ wiring */
-
 /** Play from the playhead, wrapping to the start if it sits at the very end. */
 function playFromPlayhead() {
   const { total } = layout(state.clips);

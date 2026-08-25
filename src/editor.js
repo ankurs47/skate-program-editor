@@ -6,8 +6,6 @@
  */
 'use strict';
 
-/* ---------------------------------------------------------- clip editor */
-
 function drawClipEditor() {
   const clip = selectedClip();
   const editor = $('editor');

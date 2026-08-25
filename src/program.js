@@ -113,6 +113,8 @@ function findLevel(id) {
    once rounded is shown as sixty seconds rather than carried: 59.98 read as
    "0:60.0" on the program timer, and a 119.6 second song listed as "1:60". */
 
+/* ------------------------------------------------------------- formatting */
+
 function fmt(seconds) {
   if (!isFinite(seconds) || seconds < 0) seconds = 0;
   const tenths = Math.round(seconds * 10);
@@ -248,7 +250,7 @@ function computePeaks(buffer, buckets = 5000) {
   return peaks;
 }
 
-/* --------------------------------------------------------------- library */
+/* ---------------------------------------------- clips against their files */
 
 /**
  * Bring clips back inside a file that has just been decoded.
@@ -465,7 +467,7 @@ function describeReconnect({ files, gone, refused }) {
   return `${opened}, but permission was not given for ${refused.length} of them`;
 }
 
-/* ------------------------------------------------------------ level picker */
+/* --------------------------------------------------------- reading a time */
 
 function parseClock(text) {
   const m = String(text)

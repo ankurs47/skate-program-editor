@@ -187,7 +187,7 @@ mistake.
 
 ### Unit checks
 
-`npm test` — 161 checks across four files, no browser, under a second.
+`npm test` — 166 checks across six files, no browser, under a second.
 
 They cover the parts that are easy to get quietly wrong: timeline math with
 overlapping blends, fade and crossfade envelopes summing correctly, filename

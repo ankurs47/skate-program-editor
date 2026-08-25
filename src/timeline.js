@@ -6,8 +6,6 @@
  */
 'use strict';
 
-/* -------------------------------------------------------------- timeline */
-
 /* Private to this page, so only a drag that began on a clip block carries it. */
 const CLIP_DRAG_TYPE = 'application/x-skate-clip';
 

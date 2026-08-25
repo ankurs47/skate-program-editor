@@ -635,6 +635,8 @@ function refresh() {
   save();
 }
 
+/* ----------------------------------------------------------- level picker */
+
 /** Fill any <select> with the level list. Shared by the header and the start dialog. */
 function fillLevelOptions(select) {
   select.innerHTML = '';
@@ -695,6 +697,8 @@ function applyLevel(id) {
   updateBudget();
   save();
 }
+
+/* ----------------------------------------------------------------- wiring */
 
 function syncLevelPicker() {
   const select = $('targetLength');
