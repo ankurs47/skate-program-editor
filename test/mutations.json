@@ -103,8 +103,8 @@
     "guards": "browsers without the API keep working exactly as before",
     "file": "src/app.js",
     "suite": "dom",
-    "find": "  return typeof window.showOpenFilePicker === 'function'\n    && typeof indexedDB !== 'undefined'\n    && window.isSecureContext === true;",
-    "replace": "  return true;",
+    "find": "    typeof window.showOpenFilePicker === 'function' &&\n    typeof indexedDB !== 'undefined' &&\n    window.isSecureContext === true",
+    "replace": "    true",
     "expect": "falls back to the file picker"
   },
   {
@@ -130,7 +130,7 @@
     "guards": "dragging a slider does not churn the DOM",
     "file": "src/app.js",
     "suite": "dom",
-    "find": "  if (signature === timelineShape && wrap.querySelectorAll('.tl-clip').length === state.clips.length) {",
+    "find": "  if (\n    signature === timelineShape &&\n    wrap.querySelectorAll('.tl-clip').length === state.clips.length\n  ) {",
     "replace": "  if (false) {",
     "expect": "rebuilds nothing"
   },
@@ -157,8 +157,8 @@
     "guards": "a change of structure hiding inside a change of number",
     "file": "src/app.js",
     "suite": "dom",
-    "find": "    parts[i].xf >= MIN_CROSSFADE ? 1 : 0,      // whether a blend marker is shown",
-    "replace": "    0,",
+    "find": "        parts[i].xf >= MIN_CROSSFADE ? 1 : 0, // whether a blend marker is shown",
+    "replace": "        0,",
     "expect": "rebuilds what it must"
   },
   {
@@ -202,8 +202,8 @@
     "guards": "editing keys do not reach the program behind a dialog",
     "file": "src/app.js",
     "suite": "dom",
-    "find": "  if (dialog) { trapFocus(e, dialog.querySelector('.modal-card') || dialog); return; }",
-    "replace": "  if (dialog) { trapFocus(e, dialog.querySelector('.modal-card') || dialog); }",
+    "find": "    trapFocus(e, dialog.querySelector('.modal-card') || dialog);\n    return;",
+    "replace": "    trapFocus(e, dialog.querySelector('.modal-card') || dialog);",
     "expect": "owns the keyboard"
   },
   {
@@ -220,7 +220,7 @@
     "guards": "both redo shortcuts work",
     "file": "src/app.js",
     "suite": "dom",
-    "find": "  if (modifier && key === 'y') { e.preventDefault(); redo(); return; }",
+    "find": "  if (modifier && key === 'y') {\n    e.preventDefault();\n    redo();\n    return;\n  }",
     "replace": "  void modifier;",
     "expect": "by either shortcut"
   },
@@ -274,7 +274,7 @@
     "guards": "the theme survives a reload",
     "file": "src/app.js",
     "suite": "dom",
-    "find": "  try { localStorage.setItem(THEME_KEY, mode); } catch (_) { /* private mode */ }",
+    "find": "  try {\n    localStorage.setItem(THEME_KEY, mode);\n  } catch (_) {\n    /* private mode */\n  }",
     "replace": "  void mode;",
     "expect": "remembered"
   },
@@ -283,8 +283,8 @@
     "guards": "only the music panel's own header goes",
     "file": "src/style.css",
     "suite": "dom",
-    "find": "main.library-collapsed #library .panel-head > :not(.lib-toggle) { display: none; }",
-    "replace": "main.library-collapsed .panel-head > :not(.lib-toggle) { display: none; }",
+    "find": "main.library-collapsed #library .panel-head > :not(.lib-toggle) {",
+    "replace": "main.library-collapsed .panel-head > :not(.lib-toggle) {",
     "expect": "panel header disappeared"
   },
   {
@@ -292,8 +292,8 @@
     "guards": "collapsing actually gives the workspace the room",
     "file": "src/style.css",
     "suite": "dom",
-    "find": "main.library-collapsed { grid-template-columns: auto 1fr; }",
-    "replace": "main.library-collapsed { grid-template-columns: 300px 1fr; }",
+    "find": "main.library-collapsed {\n  grid-template-columns: auto 1fr;\n}",
+    "replace": "main.library-collapsed {\n  grid-template-columns: 300px 1fr;\n}",
     "expect": "no room"
   },
   {
@@ -301,7 +301,7 @@
     "guards": "nothing is left behind after forgetting",
     "file": "src/app.js",
     "suite": "dom",
-    "find": "  try { localStorage.removeItem(STORE_KEY); } catch (_) { /* private mode */ }\n  describeStored();",
+    "find": "  try {\n    localStorage.removeItem(STORE_KEY);\n  } catch (_) {\n    /* private mode */\n  }\n  describeStored();",
     "replace": "  describeStored();",
     "expect": "written back after being cleared"
   },
