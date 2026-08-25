@@ -13,7 +13,6 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { execFileSync } = require('child_process');
 const { check, eq, ok, ROOT, SHIPPED } = require('./harness.js');
 
 /* The words this guards against are a family name and a skater's, and writing
@@ -88,66 +87,44 @@ check('no absolute local paths leaked into the app', () => {
   }
 });
 
-/* American spellings throughout, including in comments — the interface says
-   "program" for a skating program, and a file that says "programme" two lines
-   above it reads as two people arguing. Only forms that actually differ are
-   listed: "analysis" and the plural "analyses" are spelled the same either way,
-   so the analyse pattern refuses to match the latter, and aria-labelledby is
-   spelled by the ARIA spec rather than by dialect — an earlier pass "corrected"
-   it to aria-labeledby across four dialogs, which is not an attribute at all,
-   so every one of them silently lost its accessible name.
+/* Spelling is codespell's job now, with its en-GB_to_en-US dictionary — see
+   .pre-commit-config.yaml. What was here was a hand-written list of 28 British
+   stems and a regex, and it was worse in both directions.
 
-   This file is the one thing not scanned, because the list below would match
-   itself on every entry. Nothing else is exempt. */
-const BRITISH = [
-  'colour',
-  'programme',
-  'behaviour',
-  'neighbour',
-  'honour',
-  'centre',
-  'licence',
-  'grey',
-  'labelled(?!by)',
-  'analyse(?!s\\b)',
-  'recognis',
-  'organis',
-  'realis',
-  'summaris',
-  'normalis',
-  'optimis',
-  'initialis',
-  'utilis',
-  'minimis',
-  'maximis',
-  'apologis',
-  'favourite',
-  'defence',
-  'catalogue',
-  'practis',
-  'whilst',
-  'amongst',
-  'learnt',
-];
+   It missed ten spellings across the repo that the dictionary found the moment
+   it was switched on. And it matched substrings rather than words, so it flagged
+   the British form buried inside aria-labelledby; a blanket fix on the strength
+   of that produced aria-labeledby in four dialogs, which is not an attribute at
+   all, and every one of them silently lost its accessible name. codespell
+   matches whole words and never flags that attribute.
 
-check('everything is written in American English', () => {
-  const files = execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' })
-    .split('\n')
-    .filter((f) => /\.(js|html|css|md|json|yml|svg|sh|cmd)$/.test(f))
-    // The license text is quoted verbatim and is not ours to restyle.
-    .filter((f) => !['LICENSE', 'package-lock.json', 'test/repo.test.js'].includes(f));
-  ok(files.length > 15, `only ${files.length} files were scanned`);
-
-  const found = [];
-  for (const file of files) {
-    const body = fs.readFileSync(path.join(ROOT, file), 'utf8');
-    body.split('\n').forEach((line, i) => {
-      for (const word of BRITISH) {
-        if (new RegExp(word, 'i').test(line)) found.push(`${file}:${i + 1} ${word}`);
-      }
-    });
+   What is left here is the half codespell cannot do: it reads files, not
+   git, so it has no opinion about whether the spelling check ran at all.
+   This asserts the hook is still configured to check. */
+check('the spelling check is still switched on', () => {
+  const config = fs.readFileSync(path.join(ROOT, '.pre-commit-config.yaml'), 'utf8');
+  ok(/id:\s*codespell/.test(config), 'codespell is no longer a hook');
+  /* The argument, not merely the string. Written as /en-GB_to_en-US/ over the
+     whole file this passed while the dictionary was switched off, because the
+     comment above the hook names it — which is the same shape of mistake as a
+     check that reads an attribute out of the file and then looks for it. */
+  const args = config.match(/^\s*-\s*--builtin=(\S+)$/m);
+  ok(args, 'codespell has no --builtin argument');
+  ok(
+    args[1].split(',').includes('en-GB_to_en-US'),
+    `codespell runs with --builtin=${args[1]}, which will not keep the spelling American`,
+  );
+  /* The ignore list is where exceptions go, and each one needs a reason
+     written beside it — an unexplained entry is how a real fault gets
+     silenced. */
+  const ignore = fs.readFileSync(path.join(ROOT, '.codespell-ignore'), 'utf8');
+  for (const line of ignore.split('\n')) {
+    if (!line.trim() || line.startsWith('#')) continue;
+    ok(
+      /#/.test(ignore.slice(0, ignore.indexOf(line))),
+      `${line.trim()} is ignored with no comment saying why`,
+    );
   }
-  eq(found, [], 'British spellings: ');
 });
 
 check('every rule source is one the checker knows how to read', () => {

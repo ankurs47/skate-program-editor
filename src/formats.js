@@ -220,7 +220,7 @@ function fingerprint(head) {
  * The verdict for one source: good, caution, poor, or unknown.
  *
  * Separate from `analyzeSource`, which needs a decoded buffer and a File to say
- * anything at all. The judgement itself is the part that is easy to get wrong
+ * anything at all. The judgment itself is the part that is easy to get wrong
  * and easy to check, so it stands on its own and takes plain numbers — the test
  * for it used to reimplement these thresholds and assert against its own copy,
  * which would have passed whatever this actually did.

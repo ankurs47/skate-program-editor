@@ -45,9 +45,17 @@ repos:
     rev: v2.4.3
     hooks:
       - id: codespell
-        # Typos only. British spellings are a separate matter and are caught by
-        # test/repo.test.js, which knows which forms this project has settled on.
-        args: [--ignore-words=.codespell-ignore]
+        # en-GB_to_en-US is what keeps the spelling American, replacing a
+        # hand-written list of stems in test/repo.test.js that knew 28 forms
+        # and missed ten spellings this dictionary found on its first run.
+        #
+        # It is also the safer of the two. That list matched substrings, so it
+        # saw "labelled" inside aria-labelledby and a blanket fix turned four
+        # dialogs into aria-labeledby, which is not an attribute — codespell
+        # matches whole words and never flags it at all.
+        args:
+          - --builtin=clear,rare,en-GB_to_en-US
+          - --ignore-words=.codespell-ignore
 
   # 755 lines of CSS with nothing checking them until now. stylelint and its
   # shared config live in pre-commit's own environment rather than in

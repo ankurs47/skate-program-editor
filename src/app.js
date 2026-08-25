@@ -3417,7 +3417,7 @@ function init() {
 }
 
 /* In a browser, start. Under Node — the test suite — export the pure logic
-   instead, so the maths can be checked without a DOM.
+   instead, so the math can be checked without a DOM.
  *
  * In the browser the three files share one global scope, so app.js can call
  * into analysis.js and formats.js by name and nothing has to be wired up. Node
