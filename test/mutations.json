@@ -328,7 +328,7 @@
     "guards": "the empty state offers a step that can be taken",
     "file": "src/timeline.js",
     "suite": "dom",
-    "find": "  $('timelineWrap').dataset.mode = state.clips.length\n    ? 'none'\n    : library.size\n      ? 'pick'\n      : 'start';",
+    "find": "  $('timelineWrap').dataset.mode = state.clips.length ? 'none' : library.size ? 'pick' : 'start';",
     "replace": "  $('timelineWrap').dataset.mode = state.clips.length ? 'none' : 'pick';",
     "expect": "says the step that can actually be taken"
   },
@@ -346,8 +346,8 @@
     "guards": "only the message that applies is on the page",
     "file": "src/style.css",
     "suite": "dom",
-    "find": "#timelineWrap[data-mode='start'] [data-when='pick'],\n#timelineWrap:not([data-mode='start']) [data-when='start'] {\n  display: none;\n}",
-    "replace": "#timelineWrap[data-mode='start'] [data-when='pick'] {\n  display: none;\n}",
+    "find": "#timelineWrap[data-mode=\"start\"] [data-when=\"pick\"],\n#timelineWrap:not([data-mode=\"start\"]) [data-when=\"start\"] {\n  display: none;\n}",
+    "replace": "#timelineWrap[data-mode=\"start\"] [data-when=\"pick\"] {\n  display: none;\n}",
     "expect": "says the step that can actually be taken"
   }
 ]

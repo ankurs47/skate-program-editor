@@ -191,3 +191,39 @@ check('the check counts in the documentation are the real ones', () => {
     `only ${claims} check counts found in the docs; the pattern has stopped matching`,
   );
 });
+
+check('every mutation still patches the code it names', () => {
+  /* A mutation whose "find" no longer matches asserts nothing at all, and the
+     only thing that notices is a mutation run — minutes long, and easy to skip.
+     Formatters are what usually breaks them: Prettier reflows a ternary or
+     rewrites a quote and the anchor written against the old shape stops
+     matching, silently. This is the same failure as #26, moved to where it
+     costs a second instead of an afternoon.
+
+     Exactly once, not merely present: an anchor matching two places patches
+     whichever comes first, which is not necessarily the one it was written for.
+     `test/mutate.js` refuses to run those, so they would be dead weight. */
+  const mutations = JSON.parse(fs.readFileSync(path.join(ROOT, 'test/mutations.json'), 'utf8'));
+  ok(mutations.length > 20, `only ${mutations.length} mutations; the file looks truncated`);
+
+  const sources = new Map();
+  for (const mutation of mutations) {
+    if (!sources.has(mutation.file)) {
+      sources.set(mutation.file, fs.readFileSync(path.join(ROOT, mutation.file), 'utf8'));
+    }
+    const hits = sources.get(mutation.file).split(mutation.find).length - 1;
+    eq(
+      hits,
+      1,
+      `"${mutation.name}" matches ${hits} places in ${mutation.file} — update its "find": `,
+    );
+    ok(
+      mutation.find !== mutation.replace,
+      `"${mutation.name}" replaces the code with itself, so it breaks nothing`,
+    );
+    ok(
+      mutation.name && mutation.guards && mutation.expect,
+      `"${mutation.name}" does not say what it guards or which check should catch it`,
+    );
+  }
+});
