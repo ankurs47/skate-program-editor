@@ -281,7 +281,7 @@ check('beatsAround: reports the cut in the window it measured, not the song', ()
   near(early.cut, 2, 0.001, 'a window clipped at the start still locates the cut: ');
 });
 
-/* suggestJoin is fed grids directly here: the alignment maths is what is being
+/* suggestJoin is fed grids directly here: the alignment math is what is being
    checked, and a hand-built grid makes the right answer unambiguous. */
 
 function grid(bpm, opts = {}) {

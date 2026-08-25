@@ -10,7 +10,7 @@
  * comes out unreadable at the width GitHub renders it. This pins both: a 1440x900
  * viewport at 2x, and a program built from the same numbers every time.
  *
- * The audio is synthesised. Shipping real music would mean shipping someone's
+ * The audio is synthesized. Shipping real music would mean shipping someone's
  * recording, and a pure tone draws as a flat band rather than a waveform — so
  * these have beats and phrasing, which is what makes the picture look like the
  * thing the app is actually for.

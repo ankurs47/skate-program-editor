@@ -56,7 +56,7 @@ check('qualityDetail: the tooltip says the numbers the badge refuses to', () => 
 });
 
 check('quality: judged per codec, not on the raw number', () => {
-  /* This calls the app's own judgement. It used to reimplement the thresholds
+  /* This calls the app's own judgment. It used to reimplement the thresholds
      here and then assert against its own copy of them, which meant it would
      have passed whatever `qualityKind` actually did — the thresholds were never
      under test at all. */

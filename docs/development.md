@@ -95,6 +95,19 @@ refuses to install while it is.
 CI runs the same hooks, so a contributor without the framework still cannot land
 trailing whitespace, a shell bug or a typo.
 
+codespell runs with `--builtin=clear,rare,en-GB_to_en-US`. That last dictionary
+is what keeps the spelling American, and it replaced a hand-written list of 28
+stems that used to live in `test/repo.test.js`. The dictionary is better in both
+directions: it found ten spellings the list had missed, and it matches whole
+words where the list matched substrings — which is how the list came to flag the
+British form inside `aria-labelledby`, and how a blanket fix on the strength of
+that put `aria-labeledby` into four dialogs and took their accessible names away.
+
+Exceptions go in `.codespell-ignore`, each with a comment saying why. A check in
+`repo.test.js` asserts the dictionary is still switched on, reading the argument
+rather than the file — written the lazy way it passed while the dictionary was
+off, because the comment above the hook happens to name it.
+
 Two shellcheck findings are suppressed in place with the reason written down
 rather than fixed, because both are deliberate: `music-get.sh` splits `$limit`
 into two words on purpose and is `/bin/sh` with no arrays to do it otherwise,
@@ -178,9 +191,9 @@ mistake.
 
 `npm test` — 161 checks across four files, no browser, under a second.
 
-They cover the parts that are easy to get quietly wrong: timeline maths with
+They cover the parts that are easy to get quietly wrong: timeline math with
 overlapping blends, fade and crossfade envelopes summing correctly, filename
-sanitising across platforms, per-codec quality thresholds, the MPEG frame parser
+sanitizing across platforms, per-codec quality thresholds, the MPEG frame parser
 refusing to match non-MPEG data, beat detection reading the right tempo off a
 known one while declining to claim a beat in material that has none, and loudness
 measurement agreeing with an independent meter.
@@ -280,7 +293,7 @@ per-request tokens, so every run would have fired.
 
 When you have checked, update `tools/sources.json` with
 `npm run check:sources -- --update` and commit it. Until that baseline moves the
-job keeps asking, which is the point: merging an acknowledgement without looking
+job keeps asking, which is the point: merging an acknowledgment without looking
 would reset the tripwire and lose the question.
 
 **`mutation.yml`** runs on every push to `main`, weekly, and on demand. If any

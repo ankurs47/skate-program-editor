@@ -556,7 +556,7 @@ function suggestJoin(out, cutOut, inc, cutIn, opts = {}) {
     if (!blends.length) blends = [Math.min(out.period, maxCrossfade)];
   }
 
-  // Weights are judgement, not physics. Landing on a downbeat is worth roughly
+  // Weights are judgment, not physics. Landing on a downbeat is worth roughly
   // a second of movement; keeping the program's length is worth slightly less
   // than that, because the timer is visible and easy to correct elsewhere.
   const cost = (endShift, startShift, blend, lengthDelta, a, b) =>

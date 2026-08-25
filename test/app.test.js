@@ -1,7 +1,7 @@
 /**
  * The editor itself — the app.js file.
  *
- * Timeline maths with overlapping blends, the envelopes, the undo stack, the
+ * Timeline math with overlapping blends, the envelopes, the undo stack, the
  * project file format, and the plain-language strings the interface is built
  * from. Nothing here needs a DOM.
  */
@@ -11,7 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const { app, check, eq, near, ok, ROOT } = require('./harness.js');
 
-/* ------------------------------------------------------------ 1. the maths */
+/* ------------------------------------------------------------ 1. the math */
 
 check('layout: clips run back to back when nothing is blended', () => {
   const clips = [
