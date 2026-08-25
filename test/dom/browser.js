@@ -89,9 +89,18 @@ function get(url) {
   });
 }
 
-/** Wait for Chrome's debugging port to answer, or give up with a real message. */
+/**
+ * Wait for Chrome's debugging port to answer, or give up with a real message.
+ *
+ * Sixty seconds, not twenty. This only ever elapses when something is wrong —
+ * the loop returns the moment Chrome answers, so a longer limit costs a fast
+ * machine nothing. Twenty was enough until CI grew a step that installs several
+ * Node environments immediately before this runs, and then it failed one run in
+ * three on a busy runner. A browser check that fails for reasons unrelated to
+ * the change under review is one people learn to re-run without reading.
+ */
 async function waitForPort(port, chrome) {
-  const deadline = Date.now() + 20000;
+  const deadline = Date.now() + 60000;
   for (;;) {
     try {
       return JSON.parse(await get(`http://127.0.0.1:${port}/json/version`));
@@ -108,7 +117,7 @@ async function waitForPort(port, chrome) {
 
 /** The page target Chrome opened for us, once it exists. */
 async function findPage(port) {
-  const deadline = Date.now() + 10000;
+  const deadline = Date.now() + 30000; // same reasoning as waitForPort above
   for (;;) {
     const targets = JSON.parse(await get(`http://127.0.0.1:${port}/json/list`));
     const page = targets.find((t) => t.type === 'page' && t.webSocketDebuggerUrl);
