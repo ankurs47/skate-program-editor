@@ -22,7 +22,7 @@ const path = require('path');
 const { open } = require('./browser.js');
 const { SETUP } = require('./fixtures.js');
 // The one list of script files, so this cannot drift from what the page loads.
-const { SCRIPTS } = require('../harness.js');
+const { app, SCRIPTS } = require('../harness.js');
 
 let passed = 0;
 const failures = [];
@@ -357,7 +357,9 @@ async function main() {
         const bare = [...document.querySelectorAll('#libraryList li')][1];
         const bareHasInfo = [...bare.querySelectorAll('button')].some(b => b.textContent === 'Info');
 
-        return { shut, open, survived, heading, fileLine, bareHasInfo,
+        const rights = item.querySelector('.lib-rights').href;
+
+        return { shut, open, survived, heading, fileLine, bareHasInfo, rights,
                  bareHeading: bare.querySelector('.lib-title').textContent };
       `);
 
@@ -373,6 +375,19 @@ async function main() {
 
       eq(out.heading, 'Adagio in G minor', 'the song is still named after its file: ');
       eq(out.fileLine, 'track03.m4a', 'the file name has to stay visible: ');
+
+      const link = new URL(out.rights);
+      eq(link.origin + link.pathname, app.CLICKNCLEAR_SEARCH, 'the rights link moved: ');
+      eq(link.searchParams.get('search'), 'Adagio in G minor', 'it does not look up this song: ');
+      eq(link.searchParams.get('entity'), 'tracks');
+      /* A real search URL from the site also carries a label filter and a year
+         range. Either would quietly hide most of what a song might match, so
+         nothing beyond what is being looked for belongs here. */
+      eq(
+        [...link.searchParams.keys()].sort(),
+        ['entity', 'search'],
+        'the link narrows the search: ',
+      );
 
       ok(!out.bareHasInfo, 'a song with nothing to say still offered an Info button');
       eq(out.bareHeading, 'bare.mp3', 'a song with no title should show its file name: ');

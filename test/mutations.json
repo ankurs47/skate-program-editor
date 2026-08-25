@@ -484,5 +484,14 @@
     "find": "    const named = (entry.tags && entry.tags.title) || '';",
     "replace": "    const named = '';",
     "expect": "says about itself"
+  },
+  {
+    "name": "the rights link carries the filters from the sample URL",
+    "guards": "a rights search is not narrowed to one label and one span of years",
+    "file": "src/library.js",
+    "suite": "dom",
+    "find": "      rights.href = `${CLICKNCLEAR_SEARCH}?entity=tracks&search=${encodeURIComponent(named || entry.name.replace(/\\.[^.]+$/, ''))}`;",
+    "replace": "      rights.href = `${CLICKNCLEAR_SEARCH}?direction=desc&entity=tracks&labels=89&yearRange=1012-2022&search=${encodeURIComponent(named || entry.name.replace(/\\.[^.]+$/, ''))}`;",
+    "expect": "says about itself"
   }
 ]

@@ -111,6 +111,8 @@ module.exports = [
         console: 'readonly',
         global: 'writable',
         Buffer: 'readonly',
+        // For picking a link apart, rather than matching one with a regex.
+        URL: 'readonly',
         // The browser checks drive Chrome over the DevTools Protocol.
         // Node 22 has WebSocket globally, which is what lets them do
         // that without a single dependency.

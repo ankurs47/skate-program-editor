@@ -138,6 +138,10 @@ let libraryShape = null;
    somebody opened should not close because a different song finished loading. */
 const infoOpen = new Set();
 
+/* The licensing service the ISU points skaters to. Kept here rather than inline
+   so a check can hold the link to the shape it is supposed to have. */
+const CLICKNCLEAR_SEARCH = 'https://music.clicknclear.com/en-gb/search';
+
 /** Drop the "already drawn" cache, so the next render really redraws. */
 function forgetLibraryShape() {
   libraryShape = null;
@@ -261,16 +265,19 @@ function renderLibrary() {
         value.textContent = tags[key];
         panel.append(name, value);
       }
-      /* Where the ISU points skaters to clear the rights to a piece of music.
-         A plain link to the site, not a search for this song: nothing here has
-         checked that it takes a query, and a deep link that quietly stops
-         working is worse than one that lands a click away. */
+      /* Where the ISU points skaters to clear the rights to a piece of music,
+         opened on a search for this song so the answer is one click away rather
+         than a name to retype.
+
+         Only the two parameters that say what is being looked for. A real
+         search URL also carries a label filter and a year range, and both would
+         quietly hide most of what the song might match. */
       const rights = document.createElement('a');
       rights.className = 'lib-rights';
-      rights.href = 'https://isu.clicknclear.com';
+      rights.href = `${CLICKNCLEAR_SEARCH}?entity=tracks&search=${encodeURIComponent(named || entry.name.replace(/\.[^.]+$/, ''))}`;
       rights.target = '_blank';
       rights.rel = 'noopener noreferrer';
-      rights.textContent = 'Check the rights on ClicknClear';
+      rights.textContent = 'Look up the rights on ClicknClear';
       panel.append(rights);
 
       info.onclick = () => {
@@ -563,6 +570,7 @@ if (typeof module !== 'undefined' && module.exports) {
     clipsUsing,
     removeFromLibrary,
     libraryShape,
+    CLICKNCLEAR_SEARCH,
     forgetLibraryShape,
     librarySignature,
     renderLibrary,
