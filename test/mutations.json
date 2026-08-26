@@ -522,15 +522,6 @@
     "expect": "folder opens as the program"
   },
   {
-    "name": "an import button appears with no shell to run it",
-    "guards": "the page never describes a shell that is not there",
-    "file": "src/app.js",
-    "suite": "dom",
-    "find": "    button.classList.toggle('hidden', !offered);",
-    "replace": "    button.classList.remove('hidden');",
-    "expect": "exactly the page it was"
-  },
-  {
     "name": "a song arrives and nothing records where it came from",
     "guards": "what a shell knows about a song reaches the project file",
     "file": "src/app.js",
@@ -556,5 +547,14 @@
     "find": "      if (open && open.buffer) continue;",
     "replace": "      if (false && open && open.buffer) continue;",
     "expect": "already open is not fetched"
+  },
+  {
+    "name": "a song arriving is heard but never acted on",
+    "guards": "the page reads the folder again when the shell says it changed",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "  const onAdded = hostAdded();\n  if (!onAdded) return;",
+    "replace": "  const onAdded = hostAdded();\n  return;\n  // eslint-disable-next-line no-unreachable\n  if (!onAdded) return;",
+    "expect": "desktop shell's folder opens"
   }
 ]

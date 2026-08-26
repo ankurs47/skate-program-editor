@@ -1352,7 +1352,7 @@ check('host: with nothing offering one, there is no host', () => {
      possible is asked for through here, so if this says no, none of it runs. */
   ok(!app.hostPresent(), 'a host was found where there is no window at all');
   eq(app.hostProject(), null);
-  eq(app.hostImport(), null);
+  eq(app.hostAdded(), null);
   withHost(undefined, () => ok(!app.hostPresent(), 'undefined counted as a host'));
 });
 
@@ -1392,25 +1392,24 @@ check('host: a shell that does not fit is ignored, not half-used', () => {
   });
 });
 
-check('host: a way to bring music in is named by the shell, not by the page', () => {
-  /* The page knows a shell may offer a route to more music. What that route is
-     — a download, a shared folder, a CD — is the shell's business, so whatever
-     it calls itself is what the button says. */
-  withHost(workingHost({ import: { run: () => {}, label: 'Add from YouTube…' } }), () => {
-    eq(app.hostImport().label, 'Add from YouTube…');
-  });
-  withHost(workingHost({ import: { run: () => {} } }), () => {
-    eq(app.hostImport().label, 'Add music', 'a shell that names nothing still needs a word: ');
-  });
-  withHost(workingHost({ import: { run: () => {}, label: '   ' } }), () => {
-    eq(app.hostImport().label, 'Add music', 'a blank name is not a name: ');
+check('host: the shell says when the folder changed, and offers no button', () => {
+  /* There used to be a `hostImport()` here and a button in the page that a
+     shell named and the page rendered. Bringing music in is the shell's own
+     affair now, done in its own interface; the page's part is to notice that
+     the folder changed and read it again. */
+  ok(!('hostImport' in app), 'the page still knows how to render a shell-supplied button');
+
+  const told = () => {};
+  withHost(workingHost({ project: { ...workingHost().project, onAdded: told } }), () => {
+    eq(app.hostAdded(), told, 'a shell offering to say so was not heard');
   });
 
-  // Offered without a way to run it is not offered.
-  withHost(workingHost({ import: { label: 'Add from YouTube…' } }), () => {
-    eq(app.hostImport(), null, 'an import with no run(): ');
+  // A shell that says nothing is a shell the page simply does not hear from.
+  withHost(workingHost(), () => eq(app.hostAdded(), null, 'invented a way to be told: '));
+  withHost(workingHost({ project: { ...workingHost().project, onAdded: 'soon' } }), () => {
+    eq(app.hostAdded(), null, 'onAdded that is not a function: ');
   });
-  withHost(workingHost(), () => eq(app.hostImport(), null, 'a shell offering no import: '));
+  eq(app.hostAdded(), null, 'with no host at all: ');
 });
 
 check('host: what a shell knows about a song is not in the song', async () => {

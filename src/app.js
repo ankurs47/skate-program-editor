@@ -889,7 +889,7 @@ function bind() {
      is already looking. */
   $('btnEmptyAdd').onclick = pickFiles;
   $('btnEmptyLoad').onclick = () => $('projectInput').click();
-  bindHostImport();
+  bindHostAdded();
   $('btnReconnect').onclick = reconnectMissing;
 
   $('btnNew').onclick = () => openStartDialog(true);
@@ -1165,35 +1165,21 @@ function onKey(e) {
 }
 
 /**
- * Offer the shell's way of bringing music in, if it has one.
+ * Listen for music the shell brings in.
  *
- * The button is named by the shell rather than by the page. The editor knows
- * there may be a route to more music; what that route is — a download, a
- * folder somewhere, a CD — belongs to whatever is hosting it.
+ * No button. A shell that can fetch music has its own interface for doing it —
+ * the page's part is to notice when the folder changed and read it again,
+ * because the folder is the truth and one way of learning what is in it is
+ * enough. What the shell hands over is what the folder cannot say: a title,
+ * and where the song came from.
  */
-function bindHostImport() {
-  const offered = hostImport();
-  /* Says what is true either way rather than only ever revealing. A function
-     that can show a button and not hide it leaves the page describing a shell
-     that is not there, and makes what is on screen depend on the order things
-     were called in. */
-  for (const id of ['btnImport', 'btnEmptyImport']) {
-    const button = $(id);
-    button.classList.toggle('hidden', !offered);
-    button.textContent = offered ? offered.label : '';
-    button.onclick = offered ? () => offered.run() : null;
-  }
-  if (!offered) return;
-  /* When something arrives, read the folder again rather than trusting the
-     account of it: the folder is the truth, and one way of learning what is in
-     it is enough. What the shell hands over is only what the folder cannot say
-     — a title, and where the song came from. */
-  if (offered.onAdded) {
-    offered.onAdded(async (entry) => {
-      await openHostMedia(entry);
-      refresh();
-    });
-  }
+function bindHostAdded() {
+  const onAdded = hostAdded();
+  if (!onAdded) return;
+  onAdded(async (entry) => {
+    await openHostMedia(entry);
+    refresh();
+  });
 }
 
 /**
@@ -1470,6 +1456,7 @@ if (typeof document !== 'undefined') {
     bind,
     onKey,
     openHostMedia,
+    bindHostAdded,
     unsupportedReasons,
     readFileBytes,
     SMALL_SCREEN_KEY,
