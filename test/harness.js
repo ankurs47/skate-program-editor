@@ -5,6 +5,13 @@
  * No dependencies, and no framework. `check` catches so that one failure does
  * not hide the rest — a run reports everything that is wrong at once, which is
  * what makes the suite worth running after a refactor rather than before.
+ *
+ * Checks are queued where they are written and run by `runAll`, rather than run
+ * on the spot. That is what lets an async one be an ordinary one. Running them
+ * on the spot meant an async body returned a promise nobody waited for, so the
+ * check was counted as passed the instant it started and whatever it went on to
+ * assert was thrown away — two checks written that way passed against code that
+ * did none of what they described.
  */
 'use strict';
 
@@ -42,14 +49,23 @@ const css = fs.readFileSync(path.join(ROOT, 'src/style.css'), 'utf8');
 
 let passed = 0;
 const failures = [];
+const queued = [];
 
 function check(name, fn) {
-  try {
-    fn();
-    passed++;
-  } catch (err) {
-    failures.push(`${name}\n      ${err.message}`);
+  queued.push({ name, fn });
+}
+
+/** Runs everything queued so far, in the order it was written. */
+async function runAll() {
+  for (const { name, fn } of queued) {
+    try {
+      await fn();
+      passed++;
+    } catch (err) {
+      failures.push(`${name}\n      ${err.message}`);
+    }
   }
+  queued.length = 0;
 }
 
 function eq(actual, expected, what = '') {
@@ -121,6 +137,7 @@ module.exports = {
   html,
   css,
   check,
+  runAll,
   eq,
   near,
   ok,

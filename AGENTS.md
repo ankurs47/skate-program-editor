@@ -28,7 +28,7 @@ src/style.css    theming via CSS custom properties, light and dark
 docs/            help.html — the user guide, linked from the topbar;
                  development.md; docs.css, whose color tokens copy
                  style.css's and are held to them by a test
-test/            188 checks, no dependencies — one file per testable script
+test/            191 checks, no dependencies — one file per testable script
 test/dom/        browser checks and render budgets, driven over CDP
 tools/           music-get.sh and .cmd — optional YouTube downloader, not the app
 ```
@@ -235,8 +235,11 @@ The unit tests follow what can be tested without a DOM —
 of which is mostly about `program.js` — plus three that are not about any one
 source file: `assets.test.js` for the app's own wiring, `site.test.js` for what
 gets published, `repo.test.js` for rules that hold everywhere.
-`test/harness.js` holds `check`/`eq`/`near`/`ok`; `test/run.js` only loads them
-and reports. A new test goes in the file matching the code it covers.
+`test/harness.js` holds `check`/`eq`/`near`/`ok`; `test/run.js` loads the files,
+runs what they queued, and reports. A new test goes in the file matching the
+code it covers. `check` queues rather than runs, which is what lets an async
+body be an ordinary check — run on the spot, an async one was counted as passed
+the moment it started and everything it went on to assert was thrown away.
 Requiring `app.js` still gets everything, because it re-exports the others.
 
 A check that reads source text reads `SCRIPTS`, not one file by name. This

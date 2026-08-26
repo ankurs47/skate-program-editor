@@ -1315,6 +1315,25 @@ function withHost(given, fn) {
   }
 }
 
+/**
+ * The same, for a `fn` that has to be awaited.
+ *
+ * Kept apart from `withHost` rather than making that one async: the synchronous
+ * version would then have to be awaited everywhere it is used, and a check that
+ * forgot would put the world back before the thing it was testing had run.
+ */
+async function withHostAsync(given, fn) {
+  const had = 'window' in global;
+  const saved = had ? global.window : undefined;
+  global.window = { ...(saved || {}), skateHost: given };
+  try {
+    await fn();
+  } finally {
+    if (had) global.window = saved;
+    else delete global.window;
+  }
+}
+
 /** A host with everything this app requires, plus whatever `extra` adds. */
 const workingHost = (extra = {}) => ({
   version: app.HOST_VERSION,
@@ -1392,6 +1411,103 @@ check('host: a way to bring music in is named by the shell, not by the page', ()
     eq(app.hostImport(), null, 'an import with no run(): ');
   });
   withHost(workingHost(), () => eq(app.hostImport(), null, 'a shell offering no import: '));
+});
+
+check('host: what a shell knows about a song is not in the song', async () => {
+  /* A file says what its tags say. Where it came from — a video, a purchase, a
+     CD — is something only whatever fetched it knows, and it is worth keeping:
+     the day the media folder and the project file get separated, this is what
+     says how to get the music back. */
+  const added = {
+    name: 'Now We Are Free.m4a',
+    title: 'Now We Are Free',
+    source: { kind: 'youtube', url: 'https://www.youtube.com/watch?v=x', addedAt: '2026-08-25' },
+  };
+
+  const saved = new Map(app.state.expectedFiles);
+  try {
+    app.state.expectedFiles.clear();
+    await withHostAsync(workingHost(), () => app.openHostMedia(added));
+    const kept = app.state.expectedFiles.get(added.name);
+    ok(kept, 'the shell said where a song came from and nothing recorded it');
+    eq(kept.source, added.source);
+    eq(kept.title, added.title);
+
+    /* And it reaches the file. `usedSongs` only writes songs a clip uses, which
+       is the right rule — a song nobody cut from is not part of the program —
+       so this is what the project says once one does. */
+    withClips([{ id: 'c1', file: added.name, srcStart: 0, srcEnd: 10, gain: 1 }], () => {
+      const song = app.project().songs.find((s) => s.name === added.name);
+      ok(song, 'the song a clip is cut from was not written down');
+      eq(song.source, added.source, 'the source did not survive into the file: ');
+      eq(song.title, added.title, 'the title did not survive into the file: ');
+    });
+  } finally {
+    app.state.expectedFiles = saved;
+  }
+});
+
+check('host: a song already open is not fetched out of the folder again', async () => {
+  /* Every song that arrives means reading the folder, and the folder holds
+     every song. Without this the fifth download reads all five files across the
+     bridge and decodes none of them, since `addFiles` skips what it already
+     has — the work is wasted on the way rather than at the end.
+
+     `addFiles` is stubbed because what is being checked is which files were
+     gathered, not what decoding does with them: the real one draws.  */
+  const asked = [];
+  const host = workingHost();
+  host.project.media = () =>
+    Promise.resolve([{ name: 'open.m4a' }, { name: 'failed.m4a' }, { name: 'new.m4a' }]);
+  host.project.open = (name) => {
+    asked.push(name);
+    return Promise.resolve(new ArrayBuffer(8));
+  };
+
+  const decoding = [];
+  const realAddFiles = global.addFiles;
+  global.addFiles = (files) => {
+    decoding.push(...Array.from(files).map((f) => f.name));
+    return Promise.resolve();
+  };
+  app.library.set('open.m4a', { name: 'open.m4a', buffer: {}, state: 'ready' });
+  /* One that was read last time and would not decode. The same test `addFiles`
+     uses, so it gets another go rather than being written off for the session. */
+  app.library.set('failed.m4a', { name: 'failed.m4a', buffer: null, state: 'error' });
+
+  try {
+    await withHostAsync(host, () => app.openHostMedia());
+    eq(asked.sort(), ['failed.m4a', 'new.m4a'], 'the wrong files were read out of the folder: ');
+    eq(decoding.sort(), ['failed.m4a', 'new.m4a']);
+  } finally {
+    global.addFiles = realAddFiles;
+    app.library.delete('open.m4a');
+    app.library.delete('failed.m4a');
+  }
+});
+
+check('host: a song arriving does not reopen the program underneath it', async () => {
+  /* The bug this shape exists to avoid. A song arrives while somebody is
+     editing, and re-reading the *project* to learn about it would replace the
+     program on screen with whatever was last written to disk — throwing away
+     the seconds of editing that happened while the download ran.
+
+     Only the folder's music is re-read. The project file is not touched, and
+     this holds it to that by making reading it an error. */
+  let readProject = 0;
+  const host = workingHost();
+  host.project.read = () => {
+    readProject++;
+    return Promise.resolve(null);
+  };
+
+  const saved = new Map(app.state.expectedFiles);
+  try {
+    await withHostAsync(host, () => app.openHostMedia({ name: 'a song.m4a' }));
+    eq(readProject, 0, 'the project file was read when only a song had arrived: ');
+  } finally {
+    app.state.expectedFiles = saved;
+  }
 });
 
 /* ------------------------------------------------------------- 1e. undo */
