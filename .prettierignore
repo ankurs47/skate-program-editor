@@ -10,3 +10,4 @@ LICENSE
 src/logo.svg
 docs/screenshot.png
 docs/social-card.png
+src/vendor/mp3-encoder.js

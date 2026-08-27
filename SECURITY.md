@@ -26,11 +26,15 @@ session theft and access-control bugs have nothing to act on.
 
 What remains:
 
-- **The MP3 encoder is fetched from a CDN.** It is the only runtime fetch in the
-  app: `lamejs` from jsDelivr, loaded with a `sha384` integrity hash and
-  `crossorigin="anonymous"`. A tampered file fails the hash and does not run, and
-  export falls back to WAV. A change to that hash is a change worth scrutinizing
-  in review; a test checks it against the real file when run with `--net`.
+- **The MP3 encoder is third-party code that ships with the app.** The app makes
+  no runtime fetch of any kind, so there is no CDN to compromise and nothing to
+  substitute in transit — but `src/vendor/mp3-encoder.js` is 400 KB of generated
+  bundle nobody reads in review, which is its own exposure. What stands in for
+  reading it: `npm run check:encoder` rebuilds it from the versions pinned in
+  `tools/build-mp3-encoder.js` and fails if a byte differs, and CI runs that on
+  every push. A change to those pins, or to that file without a matching change
+  to them, is worth scrutinizing in review. `npm test -- --net` additionally asks
+  npm whether those versions are still the bytes that were published.
 - **Project files are untrusted input.** A `.json` project is plain text people
   do edit by hand, and can arrive from anyone. It is parsed defensively rather
   than trusted — absent fields, wrong types and absurd numbers are all expected

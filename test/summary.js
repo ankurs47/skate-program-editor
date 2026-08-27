@@ -102,7 +102,7 @@ const out = [
   '',
   '| suite | checks | result |',
   '|---|---:|---|',
-  suiteRow('Unit — `npm test`', unit, unit.net ? ' (incl. CDN hash)' : ''),
+  suiteRow('Unit — `npm test`', unit, unit.net ? ' (incl. encoder pins)' : ''),
   suiteRow('Browser — `npm run test:dom`', browser),
   budgets(browser.metrics),
   failureList(unit, browser),

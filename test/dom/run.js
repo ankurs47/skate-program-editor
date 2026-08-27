@@ -72,8 +72,12 @@ async function main() {
     await check('the page starts clean, with every script loaded', async () => {
       const state = await run(`
         return {
+          /* The encoder is injected rather than listed in the page, and it may
+             or may not have arrived by now — either way it is not what this
+             check is about. The export check below is what proves it loads. */
           scripts: [...document.querySelectorAll('script[src]')]
-            .map(s => s.getAttribute('src')).filter(s => !s.startsWith('http')),
+            .map(s => s.getAttribute('src'))
+            .filter(s => !s.startsWith('http') && !s.startsWith('src/vendor/')),
           crossFile: ['clamp', 'analyzeBeats', 'qualityKind', 'layout', 'drawWave',
             'playProgram', 'renderLibrary', 'renderTimeline', 'drawClipEditor',
             'openDialog', 'refresh']
@@ -1489,6 +1493,109 @@ async function main() {
       ok(result.stale === 'rgb(1, 2, 3)', 'the cache should have been consulted');
       eq(result.after, result.before, 'repainting must go back to the stylesheet: ');
       ok(result.cacheSize > 0, 'and fill the cache again as it draws');
+    });
+
+    await check('a program encodes to a real MP3, without freezing the page', async () => {
+      /* The whole export path, in a suite that reaches no further than this
+         machine: render, encode, and a file whose first bytes are an MPEG frame
+         rather than whatever an error produced.
+
+         The freeze is measured, not assumed. A 4 ms ticker cannot fire while
+         the thread is busy, so the largest gap between its firings is the
+         longest the page went unanswered. The bound is loose enough not to fail
+         on a loaded CI machine, and tight enough that an encode running on the
+         main thread could not pass it. */
+      const out = await run(`
+        window.__reset([['a.mp3', window.__tone(220, 20)]]);
+
+        /* Injected on the way past, so a check this early in a cold page can
+           arrive before it does. */
+        for (let i = 0; i < 100 && !mp3Ready; i++) {
+          await new Promise((done) => setTimeout(done, 100));
+        }
+        if (!mp3Ready) return { encoderArrived: false };
+
+        const rendered = await renderProgram();
+
+        let last = performance.now(), longestFreeze = 0;
+        const ticker = setInterval(() => {
+          const now = performance.now();
+          if (now - last > longestFreeze) longestFreeze = now - last;
+          last = now;
+        }, 4);
+        const progress = [];
+        const blob = await encodeMp3(rendered, (p) => progress.push(p));
+        clearInterval(ticker);
+
+        const head = new Uint8Array(await blob.slice(0, 2).arrayBuffer());
+        return {
+          encoderArrived: true,
+          type: blob.type,
+          bytes: blob.size,
+          seconds: rendered.duration,
+          frameSync: head[0] === 0xff && (head[1] & 0xe0) === 0xe0,
+          longestFreeze: Math.round(longestFreeze),
+          progressCalls: progress.length,
+          climbs: progress.every((v, i) => i === 0 || v >= progress[i - 1]),
+        };
+      `);
+      eq(out.encoderArrived, true, 'the vendored encoder never loaded: ');
+      eq(out.type, 'audio/mpeg', 'the blob is not labeled as an MP3: ');
+      eq(out.frameSync, true, 'the file does not start with an MPEG frame header: ');
+      ok(
+        out.bytes > 20 * 1024 * out.seconds * 0.9,
+        `${out.bytes} bytes is too small for ${out.seconds}s at 320 kbps`,
+      );
+      ok(out.progressCalls > 1, 'progress was never reported while encoding');
+      eq(out.climbs, true, 'progress went backwards: ');
+      ok(
+        out.longestFreeze < 150,
+        `the page froze for ${out.longestFreeze} ms — the encode is on the main thread`,
+      );
+    });
+
+    await check('export reports finished even when the encoder stops short', async () => {
+      /* The last `onProgress(1)` in `encodeMp3` is a promise this app makes
+         about its own progress bar, not one it asks every encoder to keep.
+
+         It needs an encoder that stops short to show at all: the one shipped
+         here reports a final packet that lands on the end, so the bar reaches
+         1 whether or not the app insists. Registering a short-counting one is
+         what makes the difference visible — and it exercises the seam in a
+         browser besides, which is the whole reason `registerMp3Encoder` is a
+         public thing rather than a detail of loading. */
+      const out = await run(`
+        const real = mp3Encoder;
+        const wasReady = mp3Ready;
+        try {
+          registerMp3Encoder({
+            name: 'stops short',
+            load: async () => true,
+            encode: async (buffer, spec, onProgress) => {
+              onProgress(0.25);
+              onProgress(0.5);
+              return new Blob([new Uint8Array(8)], { type: 'audio/mpeg' });
+            },
+          });
+          mp3Ready = true;
+          const seen = [];
+          const buf = new OfflineAudioContext(2, 44100, 44100).createBuffer(2, 44100, 44100);
+          const blob = await encodeMp3(buf, (p) => seen.push(p));
+          return { last: seen[seen.length - 1], calls: seen.length, bytes: blob.size,
+                   spec: { ...mp3Spec() } };
+        } finally {
+          mp3Encoder = real;
+          mp3Ready = wasReady;
+        }
+      `);
+      eq(out.last, 1, 'the bar was left wherever the encoder stopped counting: ');
+      eq(out.calls, 3, 'the encoder reported twice, so the app should add one: ');
+      eq(out.bytes, 8, "the registered encoder's file is not what came back: ");
+      eq(
+        out.spec,
+        { sampleRate: 44100, numberOfChannels: 2, bitrate: 320000 },
+        'an encoder is handed the wrong requirement: ',
+      );
     });
 
     /* -------------------------------------------------------------- close */

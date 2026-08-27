@@ -314,38 +314,20 @@ function encodeWav(buffer) {
   return new Blob([view], { type: 'audio/wav' });
 }
 
+/**
+ * Encode the rendered program to MP3, through whatever was registered.
+ *
+ * The last `onProgress(1)` is this file's promise rather than the encoder's:
+ * a bar that stops at 97% because a library counted differently is this app's
+ * problem to solve, not something to ask every future encoder to remember.
+ */
 async function encodeMp3(buffer, onProgress) {
-  const channels = Math.min(2, buffer.numberOfChannels);
-  const encoder = new window.lamejs.Mp3Encoder(channels, buffer.sampleRate, 320);
-  const left = buffer.getChannelData(0);
-  const right = channels > 1 ? buffer.getChannelData(1) : null;
-  const block = 1152;
-  const chunks = [];
-
-  const toInt16 = (src, start, len) => {
-    const out = new Int16Array(len);
-    for (let i = 0; i < len; i++) {
-      const v = clamp(src[start + i] || 0, -1, 1);
-      out[i] = v < 0 ? v * 0x8000 : v * 0x7fff;
-    }
-    return out;
-  };
-
-  for (let i = 0; i < buffer.length; i += block) {
-    const len = Math.min(block, buffer.length - i);
-    const l = toInt16(left, i, len);
-    const r = right ? toInt16(right, i, len) : null;
-    const encoded = r ? encoder.encodeBuffer(l, r) : encoder.encodeBuffer(l);
-    if (encoded.length) chunks.push(encoded);
-    if (i % (block * 200) === 0) {
-      onProgress(i / buffer.length);
-      await new Promise((r2) => setTimeout(r2, 0)); // keep the UI responsive
-    }
+  if (!mp3Ready || !mp3Encoder) {
+    throw new Error('the MP3 encoder never arrived — save as WAV instead');
   }
-  const tail = encoder.flush();
-  if (tail.length) chunks.push(tail);
+  const blob = await mp3Encoder.encode(buffer, mp3Spec(), onProgress);
   onProgress(1);
-  return new Blob(chunks, { type: 'audio/mpeg' });
+  return blob;
 }
 
 async function renderProgram() {
@@ -444,30 +426,70 @@ function updateExportAvailability() {
 }
 
 /*
- * MP3 encoder. Browsers can decode MP3 but none can encode it, so the encoder
- * has to come from somewhere — lamejs is a 156 KB JS port of LAME.
+ * The MP3 encoder, whichever one it is.
  *
- * Loaded from a CDN so the app is a single HTML file you can drop on any host
- * with nothing to install. It is fetched asynchronously and the app does not
- * wait for it: if it is slow the editor still starts, and if it never arrives
- * WAV export carries on working. The integrity hash pins the exact bytes, so a
- * compromised or altered CDN copy is refused rather than executed.
+ * Nothing in this file knows which library encodes an MP3, and that is the
+ * point: `src/mp3.js` hands one over during startup, and swapping libraries is
+ * rewriting that file alone. What crosses between them is two calls and a
+ * description of the file that has to come out.
+ *
+ * The bitrate lives here rather than there because it is a promise this app
+ * makes — 320 kbps is what a competition gets handed — and an encoder's job is
+ * to satisfy it, not to choose it.
+ *
+ * There may be no encoder at all: a build that ships without one, or one that
+ * fails to load. That is not an error state. Export offers WAV and says why,
+ * which is the same thing it does when a browser is missing anything else.
  */
-const LAME_URL = 'https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js';
-const LAME_SRI = 'sha384-xuasJXVcyv3hZq0eYpelEkBC8l4yufatZXDsKuyCU2rqfhDCb+ftuE/mSfZAteiK';
+const MP3_BITRATE = 320000;
 
-function tryLoadLame() {
-  const script = document.createElement('script');
-  script.src = LAME_URL;
-  script.integrity = LAME_SRI;
-  script.crossOrigin = 'anonymous';
-  script.async = true;
-  script.onload = () => {
-    mp3Ready = typeof window.lamejs !== 'undefined';
-    updateExportOptions();
-  };
-  script.onerror = updateExportOptions;
-  document.head.appendChild(script);
+/* Built on each call rather than held as a constant: `SR` belongs to another
+   file, and reading it while this one is still loading is a value that is only
+   there in a browser. Under Node it is not, and the whole file fails to load. */
+const mp3Spec = () => ({ sampleRate: SR, numberOfChannels: 2, bitrate: MP3_BITRATE });
+
+/* What was registered, if anything. */
+let mp3Encoder = null;
+
+/**
+ * Take an encoder. Called by `src/mp3.js` with:
+ *
+ *   name    what to call it when something needs saying about it
+ *   load    (spec) => Promise<boolean> — get ready, and answer whether it can
+ *           produce `spec`. Never rejects: false is the answer, not a throw.
+ *   encode  (buffer, spec, onProgress) => Promise<Blob> — the finished file,
+ *           with progress reported from 0 to 1 along the way.
+ *
+ * An encoder missing either call is refused rather than half-used, the same way
+ * `host.js` refuses a shell that offers a project it cannot read.
+ */
+function registerMp3Encoder(encoder) {
+  if (!encoder || typeof encoder.load !== 'function' || typeof encoder.encode !== 'function') {
+    return false;
+  }
+  mp3Encoder = encoder;
+  return true;
+}
+
+/**
+ * Ask whatever encoder is installed to get itself ready.
+ *
+ * Never waited on: the editor starts whether or not this finishes, and the
+ * export dialog is told what came of it when it does.
+ */
+async function tryLoadMp3Encoder() {
+  if (typeof installMp3Encoder === 'function') installMp3Encoder(registerMp3Encoder);
+  if (mp3Encoder) {
+    try {
+      mp3Ready = (await mp3Encoder.load(mp3Spec())) === true;
+    } catch (_) {
+      /* A `load` that throws instead of answering is a broken encoder, and the
+         app treats it as an absent one rather than carrying the failure into
+         the export. */
+      mp3Ready = false;
+    }
+  }
+  updateExportOptions();
 }
 
 /* Whichever format was used last. Not a setting anyone has to find — picking
@@ -493,7 +515,7 @@ function updateExportOptions() {
     mp3Option.textContent = 'MP3 — could not be loaded';
     select.value = 'wav';
     $('exportNote').textContent =
-      'The MP3 encoder could not be reached, so only WAV is available right now. ' +
+      'The MP3 encoder could not be loaded, so only WAV is available right now. ' +
       'WAV plays anywhere, it is just a much larger file.';
   }
 }
@@ -522,13 +544,14 @@ if (typeof module !== 'undefined' && module.exports) {
     channelsOf,
     encodeWav,
     encodeMp3,
+    MP3_BITRATE,
+    mp3Spec,
+    registerMp3Encoder,
     renderProgram,
     doExport,
     playFromPlayhead,
     updateExportAvailability,
-    LAME_URL,
-    LAME_SRI,
-    tryLoadLame,
+    tryLoadMp3Encoder,
     FORMAT_KEY,
     updateExportOptions,
   };

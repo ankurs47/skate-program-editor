@@ -18,7 +18,8 @@ src/formats.js   ID3/MPEG/Ogg parsing and the Good/Fair/Low verdict
 src/program.js   what a program is: clips, levels, envelopes, joins, project files
 src/host.js      the desktop shell, when there is one — and nothing when there is not
 src/canvas.js    colors read from the stylesheet, and the canvas helpers
-src/audio.js     playback scheduling, offline render, WAV/MP3 encoding
+src/mp3.js       which MP3 encoder this app uses — the only file that knows
+src/audio.js     playback scheduling, offline render, WAV encoding, export
 src/library.js   decoding files, the song list, remembered file handles
 src/timeline.js  the clip strip, the ruler and the playhead
 src/editor.js    one clip up close: trims, fades, align, even out, budget
@@ -28,7 +29,7 @@ src/style.css    theming via CSS custom properties, light and dark
 docs/            help.html — the user guide, linked from the topbar;
                  development.md; docs.css, whose color tokens copy
                  style.css's and are held to them by a test
-test/            191 checks, no dependencies — one file per testable script
+test/            195 checks, no dependencies — one file per testable script
 test/dom/        browser checks and render budgets, driven over CDP
 tools/           music-get.sh and .cmd — optional YouTube downloader, not the app
 ```
@@ -53,7 +54,7 @@ npm install      # installs eslint and enables the pre-commit hook
 npm test         # unit + wiring + asset checks
 npm run lint
 npm run check    # lint + unit tests
-npm run test:net # also re-verifies the pinned CDN hash
+npm run test:net # also asks npm about the encoder's pinned versions
 npm run test:dom # browser checks and render budgets — needs Chrome
 npm run test:mutate  # break the code on purpose, check a test notices (~4 min)
 ```
@@ -68,8 +69,9 @@ the machine it says so and nothing checks your commits until CI does.
 ## Ground rules
 
 - **No build step and no runtime dependencies.** Anyone must be able to clone
-  and open `index.html`. The single exception is the MP3 encoder, loaded from a
-  CDN with an integrity hash.
+  and open `index.html`. The single exception is the MP3 encoder, which is
+  generated — committed under `src/vendor/`, so what runs is still what is in
+  the repository, and rebuilding it is a maintainer's job rather than a user's.
 - **Audio never leaves the machine.** Files are read with the File API and
   decoded in memory. Nothing is uploaded, and nothing should become uploadable.
 - **No personal information in shipped files.** There is a test asserting this.
@@ -232,9 +234,15 @@ throwaway worktree from HEAD, so the tree you are working in is never touched
 and you can keep editing while it runs — which also means **uncommitted work is
 not tested**, and the script refuses to start rather than pretend otherwise.
 
-`npm run test:mutate:here` runs it in place, for when you want that. The runner
-restores from a copy in memory, never with git: a `git checkout --` takes
-uncommitted work with it.
+`test/mutate.js` refuses to run anywhere but a throwaway worktree, so the way in
+is the script. `npm run test:mutate:here` passes `--in-place` and is the way
+past it, for the case the worktree cannot cover: uncommitted work a checkout of
+HEAD would not contain. Touch nothing while that one runs — the danger is not
+the mutating, it is that a `git add` or a commit in the middle records code
+nobody wrote, and restoring afterwards does not unread what was already read.
+
+The runner restores from a copy in memory, never with git: a `git checkout --`
+takes uncommitted work with it.
 
 The unit tests follow what can be tested without a DOM —
 `test/analysis.test.js`, `test/formats.test.js` and `test/app.test.js`, the last
@@ -465,9 +473,31 @@ visible rather than hidden, and saved projects store the actual target seconds
 rather than only a level id — so reopening an old project never silently
 retargets it. Keep both properties.
 
-**The pinned CDN hash** (`LAME_SRI`) is checked against jsDelivr by
-`npm run test:net`. If it fails, find out why the bytes changed before updating
-it.
+**Changing the MP3 encoder is one file.** `src/mp3.js` hands `audio.js` an
+encoder during startup — `load(spec)` to get ready and answer whether it can
+produce what the app promises, `encode(buffer, spec, onProgress)` to make the
+file — and `audio.js` knows nothing else about it. A different library is a
+rewrite of `src/mp3.js` and nothing more: not the page, not the script list, not
+`audio.js`, which a check enforces by refusing to let a library name appear
+there. The bitrate lives in `audio.js` because 320 kbps is a promise this app
+makes to a competition, and an encoder's job is to satisfy it, not choose it.
+
+Registration happens during `init()` rather than when the file loads, so the
+order the page lists its scripts in stays something nobody has to think about.
+An app with no encoder installed at all is a supported state: export offers WAV
+and says why.
+
+**The vendored MP3 encoder** (`src/vendor/mp3-encoder.js`) is generated and
+committed. `npm run check:encoder` rebuilds it from the versions pinned in
+`tools/build-mp3-encoder.js` and fails if the bytes differ, which is what makes
+400 KB of somebody else's code reviewable: it is traceable to two npm versions
+and a bundler, and to nothing else. `npm run test:net` asks npm whether those
+versions are still the bytes that were published.
+
+It is a classic script, not a module, and that is not a style choice. A page
+opened from `file://` is an opaque origin and cannot load a local ES module at
+all — the import is refused before the file is read — while an injected classic
+script loads fine. Both are checked behavior, not assumed.
 
 ## Conventions
 
