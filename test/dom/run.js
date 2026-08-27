@@ -530,6 +530,70 @@ async function main() {
       eq(out.afterWait.local, null, 'the program was also left in localStorage: ');
     });
 
+    await check('inside a shell the page stops offering to manage the project', async () => {
+      /* In a browser this page is the whole application and has to be able to
+         start a program, save one and open one, because nothing else can.
+         Inside a shell all three happen before this page exists — the folder is
+         the project and which project is a question answered on a landing page
+         — so a button here would either do nothing or quietly disagree with the
+         folder it is sitting in. */
+      const out = await run(`
+        window.__reset([]);
+        const before = PROJECT_CONTROLS.map((id) => ({
+          id,
+          hidden: document.getElementById(id).classList.contains('hidden'),
+        }));
+
+        window.skateHost = {
+          version: HOST_VERSION,
+          project: {
+            name: () => 'a folder', read: async () => null, write: async () => {},
+            media: async () => [], open: async () => new ArrayBuffer(0),
+          },
+        };
+        hideProjectControls();
+        const after = PROJECT_CONTROLS.map((id) => ({
+          id,
+          hidden: document.getElementById(id).classList.contains('hidden'),
+        }));
+
+        /* And the first-run dialog stays shut. The name and the event were
+           answered before this page loaded. */
+        const dialogHidden = document.getElementById('startDialog').classList.contains('hidden');
+
+        /* And put back when the shell goes, which is what makes this safe to
+           run on a page other checks share. */
+        delete window.skateHost;
+        hideProjectControls();
+        const restored = PROJECT_CONTROLS.map((id) => ({
+          id,
+          hidden: document.getElementById(id).classList.contains('hidden'),
+        }));
+
+        return { before, after, dialogHidden, restored };
+      `);
+
+      /* Every one of them is on screen for a browser, or this proves nothing. */
+      eq(
+        out.before.filter((c) => c.hidden).map((c) => c.id),
+        [],
+        'these were already hidden without a shell, so hiding them shows nothing: ',
+      );
+      eq(
+        out.after.filter((c) => !c.hidden).map((c) => c.id),
+        [],
+        'a shell is hosting the page and these are still offered: ',
+      );
+      ok(out.dialogHidden, 'the first-run dialog opened inside a shell');
+      /* And back again with the shell gone. A function that can hide a control
+         and not show it makes the page depend on what ran before it. */
+      eq(
+        out.restored.filter((c) => c.hidden).map((c) => c.id),
+        [],
+        'the shell went away and these stayed hidden: ',
+      );
+    });
+
     await check('with no shell, the page is exactly the page it was', async () => {
       /* The guarantee the whole bridge rests on. Everything above is asked for
          through hostPresent(), so with nothing offering a host none of it can

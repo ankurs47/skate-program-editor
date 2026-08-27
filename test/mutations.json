@@ -574,5 +574,59 @@
     "find": "  const blob = await mp3Encoder.encode(buffer, mp3Spec(), onProgress);\n  onProgress(1);",
     "replace": "  const blob = await mp3Encoder.encode(buffer, mp3Spec(), onProgress);",
     "expect": "export reports finished even when the encoder stops short"
+  },
+  {
+    "name": "a hosted page still offers to manage the project",
+    "guards": "with a shell owning the folder, the page stops asking which project",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "    if (element) element.classList.toggle('hidden', hosted);",
+    "replace": "    if (element) element.classList.toggle('hidden', false);",
+    "expect": "stops offering to manage the project"
+  },
+  {
+    "name": "hiding a control is a one-way door",
+    "guards": "what is on screen does not depend on what ran before it",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "  const hosted = hostPresent();",
+    "replace": "  const hosted = hostPresent() || true;",
+    "expect": "stops offering to manage the project"
+  },
+  {
+    "name": "the first-run dialog interrupts a shell",
+    "guards": "the name and the event were answered before the page loaded",
+    "file": "src/app.js",
+    "suite": "unit",
+    "find": "  if (hostPresent()) return false;",
+    "replace": "  if (false) return false;",
+    "expect": "never asked to name a program it already named"
+  },
+  {
+    "name": "a history from another program is applied",
+    "guards": "undo cannot put back a state this program never came from",
+    "file": "src/app.js",
+    "suite": "unit",
+    "find": "  if (saved.current !== undoSnapshot()) return false;",
+    "replace": "  if (false) return false;",
+    "expect": "describes the program it was saved from"
+  },
+  {
+    "name": "a refused history leaves the last one in place",
+    "guards": "refusing a history clears the stacks as surely as accepting one",
+    "file": "src/app.js",
+    "suite": "unit",
+    "find": "  undoStack.length = 0;\n  redoStack.length = 0;\n  if (!saved || typeof saved !== 'object') return false;",
+    "replace": "  if (!saved || typeof saved !== 'object') return false;\n  undoStack.length = 0;\n  redoStack.length = 0;",
+    "expect": "restoring always clears what was there"
+  },
+  {
+    "name": "a history file decides how deep undo goes",
+    "guards": "the app keeps its own depth whatever a file asks for",
+    "file": "src/app.js",
+    "suite": "unit",
+    "find": "  undoStack.push(...clean(saved.undo).slice(-UNDO_DEPTH));",
+    "replace": "  undoStack.push(...clean(saved.undo));",
+    "expect": "what comes back is what went in"
   }
 ]

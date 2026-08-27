@@ -283,6 +283,7 @@ function pushUndo(tag = null) {
   undoRun = { tag, at: now };
   undoStack.push(undoSnapshot());
   if (undoStack.length > UNDO_DEPTH) undoStack.shift();
+  saveHistory();
   // A new edit is a new branch of history: whatever was undone to get here is
   // no longer reachable, and offering to redo it would put back something that
   // never followed from this state.
@@ -304,6 +305,7 @@ function takeUndo() {
   const previous = undoStack.pop();
   redoStack.push(undoSnapshot());
   endUndoRun();
+  saveHistory();
   return previous;
 }
 
@@ -312,6 +314,7 @@ function takeRedo() {
   if (!redoStack.length) return null;
   const next = redoStack.pop();
   undoStack.push(undoSnapshot());
+  saveHistory();
   endUndoRun();
   return next;
 }
@@ -551,17 +554,102 @@ let hostSaveTimer = null;
 let hostSaveFailed = false;
 
 /**
- * Write the project out now, if a shell is holding one waiting.
+ * Write the project out now, if a shell is holding one waiting, and say how it
+ * went.
  *
  * Called when the page is being hidden or closed, because the wait above is the
- * one window in which an edit exists nowhere but in memory.
+ * one window in which an edit exists nowhere but in memory — and by a shell
+ * about to close the project, which needs to know whether everything reached
+ * the folder before it lets the window go.
+ *
+ * `saved` is the honest answer to "is the folder up to date". It is false only
+ * when a write was actually refused, which is the one case where closing loses
+ * work and the one case worth interrupting somebody about.
  */
-function flushHostSave() {
+async function flushHostSave() {
   const folder = hostProject();
-  if (!folder || hostSaveTimer === null) return;
-  clearTimeout(hostSaveTimer);
-  hostSaveTimer = null;
-  Promise.resolve(folder.write(project())).catch(reportHostSaveFailure);
+  if (!folder) return { saved: true, hosted: false };
+  if (hostSaveTimer !== null) {
+    clearTimeout(hostSaveTimer);
+    hostSaveTimer = null;
+    try {
+      await folder.write(project());
+    } catch (err) {
+      reportHostSaveFailure(err);
+      return { saved: false, hosted: true };
+    }
+  }
+  /* The history rides along. It is written on a slower rhythm than the
+     program, so a close is the moment it is most likely to be behind. */
+  if (historyTimer !== null) {
+    clearTimeout(historyTimer);
+    historyTimer = null;
+    if (typeof folder.writeHistory === 'function') {
+      try {
+        await folder.writeHistory(historyNow());
+      } catch (_) {
+        /* Losing the history is not losing the work. */
+      }
+    }
+  }
+
+  /* A write that failed earlier is still a folder out of date, even if there is
+     nothing pending now. */
+  return { saved: !hostSaveFailed, hosted: true };
+}
+
+/* How long to wait before writing the undo history out. Slower than the
+   program itself on purpose: the program is small and is the thing that must
+   not be lost, while the history is sixty snapshots of it and only has to
+   survive the app closing. Writing both on every keystroke would be writing a
+   hundred kilobytes to say that one clip moved. */
+const HISTORY_DELAY = 2500;
+let historyTimer = null;
+
+/**
+ * The undo history as it goes to disk.
+ *
+ * `current` is the snapshot the two stacks are relative to. Without it a
+ * history could be applied to a program it never described — the file edited
+ * by hand between sessions, or opened by a copy of the app that saved
+ * something else — and undoing would put back a state that never preceded this
+ * one. That is not an undo, it is a substitution.
+ */
+function historyNow() {
+  return { current: undoSnapshot(), undo: [...undoStack], redo: [...redoStack] };
+}
+
+/** Hand the history to the shell, if it is holding one. */
+function saveHistory() {
+  const folder = hostProject();
+  if (!folder || typeof folder.writeHistory !== 'function') return;
+  if (historyTimer !== null) clearTimeout(historyTimer);
+  historyTimer = setTimeout(() => {
+    historyTimer = null;
+    Promise.resolve(folder.writeHistory(historyNow())).catch(() => {
+      /* A history that cannot be written is a session you cannot step back
+         through after a restart. Everything else still works, and saying so
+         once an edit is not worth the interruption. */
+    });
+  }, HISTORY_DELAY);
+}
+
+/**
+ * Put back the undo history a folder was left with.
+ *
+ * Refused unless it describes the program that was just loaded. A history whose
+ * `current` does not match is a history of some other version of this file, and
+ * applying it would let somebody undo into a program that never existed.
+ */
+function restoreHistory(saved) {
+  undoStack.length = 0;
+  redoStack.length = 0;
+  if (!saved || typeof saved !== 'object') return false;
+  if (saved.current !== undoSnapshot()) return false;
+  const clean = (list) => (Array.isArray(list) ? list.filter((s) => typeof s === 'string') : []);
+  undoStack.push(...clean(saved.undo).slice(-UNDO_DEPTH));
+  redoStack.push(...clean(saved.redo).slice(-UNDO_DEPTH));
+  return true;
 }
 
 /* Said once, not once per keystroke: a folder that cannot be written to will
@@ -890,6 +978,7 @@ function bind() {
   $('btnEmptyAdd').onclick = pickFiles;
   $('btnEmptyLoad').onclick = () => $('projectInput').click();
   bindHostAdded();
+  hideProjectControls();
   $('btnReconnect').onclick = reconnectMissing;
 
   $('btnNew').onclick = () => openStartDialog(true);
@@ -1164,6 +1253,60 @@ function onKey(e) {
   }
 }
 
+/* What a project is, where it lives and which one is open — questions this page
+   answers for itself in a browser and does not get asked at all inside a shell.
+   There the folder is the project, and choosing between projects happens before
+   this page is loaded. */
+const PROJECT_CONTROLS = [
+  'btnSaveProject', // the folder already holds the file
+  'btnLoadProject', // opening one is the shell's landing page
+  'btnNew', // so is starting one
+  'btnEmptyLoad',
+  'storageSection', // "Forget it all" clears storage a hosted page does not use
+];
+
+/**
+ * Take away the controls that belong to whoever owns the project.
+ *
+ * In a browser this page is the whole application: it has to be able to start a
+ * program, save one and open one, because nothing else can. Inside a shell all
+ * three happen somewhere else, before this page exists — so a button here would
+ * either do nothing useful or quietly disagree with the folder.
+ *
+ * Hidden rather than removed, and hidden from one list, so what is gone and why
+ * is a single thing to read.
+ *
+ * Says what is true either way rather than only ever hiding. A function that
+ * can take a button away and not put it back leaves what is on screen depending
+ * on the order things were called in — which is exactly how this first went
+ * wrong, with a browser check finding a control still gone after the shell it
+ * was hidden for had been deleted.
+ */
+function hideProjectControls() {
+  const hosted = hostPresent();
+  for (const id of PROJECT_CONTROLS) {
+    const element = $(id);
+    if (element) element.classList.toggle('hidden', hosted);
+  }
+}
+
+/**
+ * Should the first run interrupt with a dialog?
+ *
+ * Only when there is no work to come back to, and never inside a shell — there
+ * the name and the event were answered before this page loaded, and the folder
+ * is already a project. A dialog asking both again would be asking somebody to
+ * repeat themselves and then disagreeing with the file.
+ *
+ * Its own function because it is a rule rather than a line: buried in `init` it
+ * could not be asked about, and a mutation that dropped the shell half of it
+ * went unnoticed by every check there was.
+ */
+function shouldOfferStart(saved) {
+  if (hostPresent()) return false;
+  return !saved || !(saved.clips || []).length;
+}
+
 /**
  * Listen for music the shell brings in.
  *
@@ -1202,6 +1345,18 @@ async function openHostProject() {
   } catch (_) {
     toast('Could not read the project in this folder', 6000);
   }
+
+  /* After the project and before anything can be edited. `loadProject` clears
+     the stacks as it goes, so restoring earlier would only be undone by it. */
+  if (typeof folder.readHistory === 'function') {
+    try {
+      restoreHistory(await folder.readHistory());
+    } catch (_) {
+      /* No history is a project you can still edit, only not step back past
+         this moment. */
+    }
+  }
+
   await openHostMedia();
   refresh();
 }
@@ -1366,8 +1521,7 @@ function init() {
   // notice above the timeline is updated again once the answer arrives. It is
   // never waited on: the editor has to start whether or not it comes back.
   loadRememberedNames();
-  // Only interrupt when there is no work to come back to.
-  if (!saved || !(saved.clips || []).length) openStartDialog(false);
+  if (shouldOfferStart(saved)) openStartDialog(false);
 }
 
 /* In a browser, start. Under Node — the test suite — export the logic instead,
@@ -1428,6 +1582,10 @@ if (typeof document !== 'undefined') {
     UNDO_COALESCE_MS,
     undoRun,
     undoSnapshot,
+    HISTORY_DELAY,
+    historyNow,
+    restoreHistory,
+    saveHistory,
     pushUndo,
     endUndoRun,
     takeUndo,
@@ -1458,6 +1616,9 @@ if (typeof document !== 'undefined') {
     onKey,
     openHostMedia,
     bindHostAdded,
+    PROJECT_CONTROLS,
+    hideProjectControls,
+    shouldOfferStart,
     unsupportedReasons,
     readFileBytes,
     SMALL_SCREEN_KEY,

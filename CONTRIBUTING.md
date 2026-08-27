@@ -53,8 +53,8 @@ Two more that matter nearly as much:
 ## Running the checks
 
 ```sh
-npm test              # 195 unit checks, no browser, about a second
-npm run test:dom      # 42 checks driving real Chrome over CDP
+npm test              # 199 unit checks, no browser, about a second
+npm run test:dom      # 43 checks driving real Chrome over CDP
 npm run lint          # eslint
 pre-commit run --all-files    # everything CI runs
 npm run test:mutate   # breaks the code on purpose to see if the tests notice
