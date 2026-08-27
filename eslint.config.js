@@ -57,9 +57,6 @@ const browser = {
   OfflineAudioContext: 'readonly',
   FileReader: 'readonly',
   Blob: 'readonly',
-  // Only for the encoder's integrity check — the app fetches nothing else, and
-  // never anything of the user's.
-  fetch: 'readonly',
   // Built from bytes a desktop shell hands over, so music from a project
   // folder goes in through the same door as a drop or the file picker.
   File: 'readonly',

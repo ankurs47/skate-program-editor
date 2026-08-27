@@ -112,7 +112,7 @@ thing that will not run.
 npm test             # 193 unit, wiring and asset checks — fast, no browser
 npm run lint
 npm run check        # lint + test, which is what the pre-commit hook runs
-npm run test:net     # also re-verifies the pinned CDN hash over the network
+npm run test:net     # also asks npm about the encoder's pinned versions
 npm run test:dom     # browser checks and render budgets — needs Chrome
 npm run screenshot   # regenerate the README picture from a real, driven app
 npm run check:sources # have the ISU or USFS published anything since we looked?

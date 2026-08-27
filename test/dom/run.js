@@ -1496,17 +1496,15 @@ async function main() {
     });
 
     await check('a program encodes to a real MP3, without freezing the page', async () => {
-      /* The encoder is a file in this repository now, so this can run in a suite
-         that never reaches the network — with the CDN it could not. What it
-         asserts is the export path end to end: render, encode, and a file whose
-         first bytes are an MPEG frame rather than whatever an error produced.
+      /* The whole export path, in a suite that reaches no further than this
+         machine: render, encode, and a file whose first bytes are an MPEG frame
+         rather than whatever an error produced.
 
-         The freeze is measured, not assumed. A 4 ms ticker cannot fire while the
-         thread is busy, so the largest gap between its firings is the longest
-         the page was unresponsive. The encoder before this one blocked in
-         half-second stretches; the assertion is loose enough not to fail on a
-         loaded CI machine, and tight enough that running the encode on the main
-         thread again could not pass it. */
+         The freeze is measured, not assumed. A 4 ms ticker cannot fire while
+         the thread is busy, so the largest gap between its firings is the
+         longest the page went unanswered. The bound is loose enough not to fail
+         on a loaded CI machine, and tight enough that an encode running on the
+         main thread could not pass it. */
       const out = await run(`
         window.__reset([['a.mp3', window.__tone(220, 20)]]);
 
@@ -1554,7 +1552,7 @@ async function main() {
       eq(out.endsAtOne, true, 'progress never reached the end: ');
       ok(
         out.longestFreeze < 150,
-        `the page froze for ${out.longestFreeze} ms — the encode is back on the main thread`,
+        `the page froze for ${out.longestFreeze} ms — the encode is on the main thread`,
       );
     });
 

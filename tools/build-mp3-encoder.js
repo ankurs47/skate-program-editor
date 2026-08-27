@@ -6,8 +6,9 @@
  *   node tools/build-mp3-encoder.js --check   # rebuild and compare, changing nothing
  *
  * Browsers play MP3 and none of them can create one, so the encoder has to come
- * from somewhere. It used to be fetched from a CDN; it is a file in this
- * repository instead, and that is a deliberate trade.
+ * from somewhere, and it is a file in this repository — the editor needs no
+ * network once the page is open, and nobody outside this repository can change
+ * what export does.
  *
  * Why a bundle rather than the published files: mediabunny ships ES modules,
  * and a page opened from disk cannot load a local one — `file://` is an opaque

@@ -3,7 +3,7 @@
  * Test suite. No dependencies — plain Node.
  *
  *   node test/run.js          everything except the network check
- *   node test/run.js --net    also verify the pinned CDN hash still matches
+ *   node test/run.js --net    also ask npm about the encoder's pinned versions
  *
  * One file per script file, so a change to the analysis has an obvious place
  * to be tested and the editor's own tests are not buried under a thousand

@@ -329,9 +329,9 @@ async function encodeMp3(buffer, onProgress) {
   const total = buffer.duration;
   const source = new AudioBufferSource({
     codec: 'mp3',
-    /* 320 kbps, as before. `quality` is what this library would rather be
-       given, but a named quality is a promise about how it sounds and this is
-       a promise about the file — the same bitrate that has been shipping. */
+    /* `quality` is what this library would rather be given, but a named
+       quality is a promise about how it sounds and this is a promise about the
+       file: 320 kbps, whatever the encoder would have chosen. */
     bitrate: MP3_BITRATE,
     onEncodedPacket: (packet) => {
       if (total > 0) onProgress(clamp(packet.timestamp / total, 0, 1));
@@ -445,20 +445,17 @@ function updateExportAvailability() {
 
 /*
  * MP3 encoder. Browsers can decode MP3 but none of them can create one —
- * WebCodecs now exposes an AudioEncoder everywhere, and `mp3` is not among the
- * codecs any of them will encode — so the encoder has to come from somewhere.
- * It is LAME either way; the only question is what runs it.
+ * WebCodecs exposes an AudioEncoder everywhere, and `mp3` is not among the
+ * codecs any of them will encode — so the editor carries its own. It is LAME,
+ * compiled to WebAssembly, and it encodes in a worker it starts for itself, so
+ * the page stays live through an export. That last part is the reason this is
+ * the encoder here: export is the one operation nobody can afford to have look
+ * broken, and a page that stops answering looks broken.
  *
- * This is LAME compiled to WebAssembly, and it encodes in a worker it starts
- * for itself. Both halves matter. The pure-JS port that came before it ran on
- * the main thread and froze the page in half-second blocks — on the one
- * operation nobody can afford to have look broken — and this is about three
- * times faster besides.
- *
- * It is a file in this repository rather than something fetched from a CDN, so
- * the editor works with no network at all once the page is open, and there is
- * no third party who can change what it does. `tools/build-mp3-encoder.js`
- * builds it and can prove the committed bytes are what its sources produce.
+ * It lives in this repository so the editor works with no network at all once
+ * the page is open, and so nobody outside the repository can change what it
+ * does. `tools/build-mp3-encoder.js` builds it and can prove the committed
+ * bytes are what its sources produce.
  *
  * Loaded on the way past rather than with the page: it is 400 KB that most
  * sessions never reach for, and nothing about starting up needs it. If it is
@@ -520,7 +517,7 @@ function updateExportOptions() {
     mp3Option.textContent = 'MP3 — could not be loaded';
     select.value = 'wav';
     $('exportNote').textContent =
-      'The MP3 encoder could not be reached, so only WAV is available right now. ' +
+      'The MP3 encoder could not be loaded, so only WAV is available right now. ' +
       'WAV plays anywhere, it is just a much larger file.';
   }
 }

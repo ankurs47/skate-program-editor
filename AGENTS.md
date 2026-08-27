@@ -53,7 +53,7 @@ npm install      # installs eslint and enables the pre-commit hook
 npm test         # unit + wiring + asset checks
 npm run lint
 npm run check    # lint + unit tests
-npm run test:net # also re-verifies the pinned CDN hash
+npm run test:net # also asks npm about the encoder's pinned versions
 npm run test:dom # browser checks and render budgets — needs Chrome
 npm run test:mutate  # break the code on purpose, check a test notices (~4 min)
 ```
@@ -476,7 +476,7 @@ versions are still the bytes that were published.
 It is a classic script, not a module, and that is not a style choice. A page
 opened from `file://` is an opaque origin and cannot load a local ES module at
 all — the import is refused before the file is read — while an injected classic
-script loads fine. Both were checked in a browser before this was written.
+script loads fine. Both are checked behavior, not assumed.
 
 ## Conventions
 

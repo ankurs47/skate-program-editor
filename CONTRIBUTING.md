@@ -39,10 +39,9 @@ it does, and a change that breaks one is not a small change.
 2. **No build step.** Plain script tags sharing one global scope. What is in the
    repository is what runs.
 3. **It opens from disk.** `file://` has to work, which rules out fetch of local
-   files and anything needing a server. None of the app's own files is a module:
-   an opaque origin cannot load a local one. The MP3 encoder is a module and is
-   fine, because it comes from a CDN over https — verified from `file://`, not
-   assumed.
+   files and anything needing a server. Nothing here is an ES module either: an
+   opaque origin cannot load a local one, which is why the vendored MP3 encoder
+   is bundled to a classic script. Checked behavior, not assumed.
 
 Two more that matter nearly as much:
 

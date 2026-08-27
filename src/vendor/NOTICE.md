@@ -1,9 +1,9 @@
 # Third-party code in this folder
 
 `mp3-encoder.js` is generated, not written here. It is built by
-`tools/build-mp3-encoder.js` from published packages, and it is committed rather
-than fetched so that the editor needs no network once the page is open and no
-third party can change what it does. Do not edit it; rebuild it.
+`tools/build-mp3-encoder.js` from published packages, and it is committed, so the
+editor needs no network once the page is open and no third party can change what
+it does. Do not edit it; rebuild it.
 
 The rest of this repository is MIT. This file is not, and the difference matters
 to anyone redistributing it.
