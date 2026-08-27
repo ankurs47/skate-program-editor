@@ -315,37 +315,19 @@ function encodeWav(buffer) {
 }
 
 /**
- * Encode the rendered program to MP3.
+ * Encode the rendered program to MP3, through whatever was registered.
  *
- * The work happens in a worker the encoder starts for itself, so there is no
- * loop here to yield from and nothing to keep the page responsive by hand.
- * Progress comes from the packets as they come out.
+ * The last `onProgress(1)` is this file's promise rather than the encoder's:
+ * a bar that stops at 97% because a library counted differently is this app's
+ * problem to solve, not something to ask every future encoder to remember.
  */
 async function encodeMp3(buffer, onProgress) {
-  if (!mp3Lib) throw new Error('the MP3 encoder never arrived — save as WAV instead');
-  const { Output, Mp3OutputFormat, BufferTarget, AudioBufferSource } = mp3Lib;
-
-  const output = new Output({ format: new Mp3OutputFormat(), target: new BufferTarget() });
-  const total = buffer.duration;
-  const source = new AudioBufferSource({
-    codec: 'mp3',
-    /* `quality` is what this library would rather be given, but a named
-       quality is a promise about how it sounds and this is a promise about the
-       file: 320 kbps, whatever the encoder would have chosen. */
-    bitrate: MP3_BITRATE,
-    onEncodedPacket: (packet) => {
-      if (total > 0) onProgress(clamp(packet.timestamp / total, 0, 1));
-    },
-  });
-  output.addAudioTrack(source);
-
-  await output.start();
-  await source.add(buffer);
-  source.close();
-  await output.finalize();
-
+  if (!mp3Ready || !mp3Encoder) {
+    throw new Error('the MP3 encoder never arrived — save as WAV instead');
+  }
+  const blob = await mp3Encoder.encode(buffer, mp3Spec(), onProgress);
   onProgress(1);
-  return new Blob([output.target.buffer], { type: 'audio/mpeg' });
+  return blob;
 }
 
 async function renderProgram() {
@@ -444,54 +426,70 @@ function updateExportAvailability() {
 }
 
 /*
- * MP3 encoder. Browsers can decode MP3 but none of them can create one —
- * WebCodecs exposes an AudioEncoder everywhere, and `mp3` is not among the
- * codecs any of them will encode — so the editor carries its own. It is LAME,
- * compiled to WebAssembly, and it encodes in a worker it starts for itself, so
- * the page stays live through an export. That last part is the reason this is
- * the encoder here: export is the one operation nobody can afford to have look
- * broken, and a page that stops answering looks broken.
+ * The MP3 encoder, whichever one it is.
  *
- * It lives in this repository so the editor works with no network at all once
- * the page is open, and so nobody outside the repository can change what it
- * does. `tools/build-mp3-encoder.js` builds it and can prove the committed
- * bytes are what its sources produce.
+ * Nothing in this file knows which library encodes an MP3, and that is the
+ * point: `src/mp3.js` hands one over during startup, and swapping libraries is
+ * rewriting that file alone. What crosses between them is two calls and a
+ * description of the file that has to come out.
  *
- * Loaded on the way past rather than with the page: it is 400 KB that most
- * sessions never reach for, and nothing about starting up needs it. If it is
- * slow the editor is already usable, and if it fails to load at all the export
- * dialog says so and offers WAV.
+ * The bitrate lives here rather than there because it is a promise this app
+ * makes — 320 kbps is what a competition gets handed — and an encoder's job is
+ * to satisfy it, not to choose it.
+ *
+ * There may be no encoder at all: a build that ships without one, or one that
+ * fails to load. That is not an error state. Export offers WAV and says why,
+ * which is the same thing it does when a browser is missing anything else.
  */
 const MP3_BITRATE = 320000;
-const MP3_ENCODER_FILE = 'src/vendor/mp3-encoder.js';
 
-let mp3Lib = null; // the library itself, once it is there
+/* Built on each call rather than held as a constant: `SR` belongs to another
+   file, and reading it while this one is still loading is a value that is only
+   there in a browser. Under Node it is not, and the whole file fails to load. */
+const mp3Spec = () => ({ sampleRate: SR, numberOfChannels: 2, bitrate: MP3_BITRATE });
 
-function tryLoadMp3Encoder() {
-  const script = document.createElement('script');
-  script.src = MP3_ENCODER_FILE;
-  script.async = true;
-  script.onload = async () => {
+/* What was registered, if anything. */
+let mp3Encoder = null;
+
+/**
+ * Take an encoder. Called by `src/mp3.js` with:
+ *
+ *   name    what to call it when something needs saying about it
+ *   load    (spec) => Promise<boolean> — get ready, and answer whether it can
+ *           produce `spec`. Never rejects: false is the answer, not a throw.
+ *   encode  (buffer, spec, onProgress) => Promise<Blob> — the finished file,
+ *           with progress reported from 0 to 1 along the way.
+ *
+ * An encoder missing either call is refused rather than half-used, the same way
+ * `host.js` refuses a shell that offers a project it cannot read.
+ */
+function registerMp3Encoder(encoder) {
+  if (!encoder || typeof encoder.load !== 'function' || typeof encoder.encode !== 'function') {
+    return false;
+  }
+  mp3Encoder = encoder;
+  return true;
+}
+
+/**
+ * Ask whatever encoder is installed to get itself ready.
+ *
+ * Never waited on: the editor starts whether or not this finishes, and the
+ * export dialog is told what came of it when it does.
+ */
+async function tryLoadMp3Encoder() {
+  if (typeof installMp3Encoder === 'function') installMp3Encoder(registerMp3Encoder);
+  if (mp3Encoder) {
     try {
-      const lib = window.MediabunnyMp3;
-      /* Never override a browser that has grown its own MP3 encoder. None has
-         yet; the day one does, its encoder is the better one to use. */
-      if (!(await lib.canEncodeAudio('mp3'))) lib.registerMp3Encoder();
-      mp3Ready = await lib.canEncodeAudio('mp3', {
-        numberOfChannels: 2,
-        sampleRate: SR,
-        bitrate: MP3_BITRATE,
-      });
-      if (mp3Ready) mp3Lib = lib;
+      mp3Ready = (await mp3Encoder.load(mp3Spec())) === true;
     } catch (_) {
-      /* Loaded, but not something this app can encode with. Same outcome as
-         never arriving, and the same thing to say about it. */
+      /* A `load` that throws instead of answering is a broken encoder, and the
+         app treats it as an absent one rather than carrying the failure into
+         the export. */
       mp3Ready = false;
     }
-    updateExportOptions();
-  };
-  script.onerror = updateExportOptions;
-  document.head.appendChild(script);
+  }
+  updateExportOptions();
 }
 
 /* Whichever format was used last. Not a setting anyone has to find — picking
@@ -547,11 +545,12 @@ if (typeof module !== 'undefined' && module.exports) {
     encodeWav,
     encodeMp3,
     MP3_BITRATE,
+    mp3Spec,
+    registerMp3Encoder,
     renderProgram,
     doExport,
     playFromPlayhead,
     updateExportAvailability,
-    MP3_ENCODER_FILE,
     tryLoadMp3Encoder,
     FORMAT_KEY,
     updateExportOptions,

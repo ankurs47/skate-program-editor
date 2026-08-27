@@ -18,7 +18,8 @@ src/formats.js   ID3/MPEG/Ogg parsing and the Good/Fair/Low verdict
 src/program.js   what a program is: clips, levels, envelopes, joins, project files
 src/host.js      the desktop shell, when there is one — and nothing when there is not
 src/canvas.js    colors read from the stylesheet, and the canvas helpers
-src/audio.js     playback scheduling, offline render, WAV/MP3 encoding
+src/mp3.js       which MP3 encoder this app uses — the only file that knows
+src/audio.js     playback scheduling, offline render, WAV encoding, export
 src/library.js   decoding files, the song list, remembered file handles
 src/timeline.js  the clip strip, the ruler and the playhead
 src/editor.js    one clip up close: trims, fades, align, even out, budget
@@ -28,7 +29,7 @@ src/style.css    theming via CSS custom properties, light and dark
 docs/            help.html — the user guide, linked from the topbar;
                  development.md; docs.css, whose color tokens copy
                  style.css's and are held to them by a test
-test/            193 checks, no dependencies — one file per testable script
+test/            195 checks, no dependencies — one file per testable script
 test/dom/        browser checks and render budgets, driven over CDP
 tools/           music-get.sh and .cmd — optional YouTube downloader, not the app
 ```
@@ -465,6 +466,20 @@ Every dropdown option shows its time beside the level name so a wrong number is
 visible rather than hidden, and saved projects store the actual target seconds
 rather than only a level id — so reopening an old project never silently
 retargets it. Keep both properties.
+
+**Changing the MP3 encoder is one file.** `src/mp3.js` hands `audio.js` an
+encoder during startup — `load(spec)` to get ready and answer whether it can
+produce what the app promises, `encode(buffer, spec, onProgress)` to make the
+file — and `audio.js` knows nothing else about it. A different library is a
+rewrite of `src/mp3.js` and nothing more: not the page, not the script list, not
+`audio.js`, which a check enforces by refusing to let a library name appear
+there. The bitrate lives in `audio.js` because 320 kbps is a promise this app
+makes to a competition, and an encoder's job is to satisfy it, not choose it.
+
+Registration happens during `init()` rather than when the file loads, so the
+order the page lists its scripts in stays something nobody has to think about.
+An app with no encoder installed at all is a supported state: export offers WAV
+and says why.
 
 **The vendored MP3 encoder** (`src/vendor/mp3-encoder.js`) is generated and
 committed. `npm run check:encoder` rebuilds it from the versions pinned in

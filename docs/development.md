@@ -33,7 +33,9 @@ library, so the DOM tests drive Chrome over the DevTools Protocol using the
 The page makes no outbound requests. The MP3 encoder — the one thing here that
 is not hand-written, since no browser can create an MP3 — is a generated bundle
 committed under `src/vendor/`, built by `tools/build-mp3-encoder.js` and loaded
-from disk when export first needs it.
+from disk when export first needs it. Which library that is, `audio.js` does not
+know: `src/mp3.js` registers an encoder during startup, and swapping libraries
+is a rewrite of that one file.
 
 ## Setup
 
@@ -109,7 +111,7 @@ thing that will not run.
 ## Commands
 
 ```bash
-npm test             # 193 unit, wiring and asset checks — fast, no browser
+npm test             # 195 unit, wiring and asset checks — fast, no browser
 npm run lint
 npm run check        # lint + test, which is what the pre-commit hook runs
 npm run test:net     # also asks npm about the encoder's pinned versions
@@ -140,7 +142,8 @@ src/
                       joins, project files. No DOM.
   host.js             the desktop shell, if one is hosting the page
   canvas.js           theme colors and the canvas helpers
-  audio.js            playback, offline render, WAV and MP3 encoding
+  mp3.js              which MP3 encoder is used — the only file that knows
+  audio.js            playback, offline render, WAV encoding, export
   library.js          decoding files, the song list, remembered handles
   timeline.js         the clip strip, the ruler, the playhead
   editor.js           one clip up close, and what acts on a selection
@@ -201,7 +204,7 @@ mistake.
 
 ### Unit checks
 
-`npm test` — 193 checks across six files, no browser, under a second.
+`npm test` — 195 checks across six files, no browser, under a second.
 
 They cover the parts that are easy to get quietly wrong: timeline math with
 overlapping blends, fade and crossfade envelopes summing correctly, filename

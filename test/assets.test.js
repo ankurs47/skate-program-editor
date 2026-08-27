@@ -150,16 +150,48 @@ check('the vendored MP3 encoder is the one the build script pins', () => {
   );
 });
 
-check('the page does not load the encoder, and audio.js does', () => {
+check('the page does not load the encoder, and src/mp3.js does', () => {
   /* 400 KB that most sessions never need, so it is fetched on the way past
      rather than by the page. If it ever appears in a script tag, startup is
      paying for something almost nobody uses. */
   ok(
     !html.includes(app.MP3_ENCODER_FILE),
-    'the page loads the encoder directly; it should be injected by audio.js instead',
+    'the page loads the encoder bundle directly; src/mp3.js should fetch it instead',
   );
+  const mp3 = fs.readFileSync(path.join(ROOT, 'src/mp3.js'), 'utf8');
+  ok(mp3.includes(app.MP3_ENCODER_FILE), 'src/mp3.js no longer names the bundle it fetches');
+});
+
+check('audio.js knows nothing about which encoder is installed', () => {
+  /* The reason src/mp3.js exists. Swapping encoder libraries has to be that
+     file and nothing else, which only holds while this one stays ignorant of
+     what is behind it — a library name reaching in here is the first step back
+     to the arrangement where it was spread across both. */
   const audio = fs.readFileSync(path.join(ROOT, 'src/audio.js'), 'utf8');
-  ok(audio.includes('MP3_ENCODER_FILE'), 'audio.js no longer names the file it injects');
+  for (const name of [
+    'mediabunny',
+    'Mediabunny',
+    'lame',
+    'LAME',
+    'src/vendor',
+    'Mp3OutputFormat',
+  ]) {
+    ok(!audio.includes(name), `audio.js mentions ${name}; that belongs in src/mp3.js`);
+  }
+  ok(
+    audio.includes('registerMp3Encoder'),
+    'audio.js no longer offers a way to register an encoder',
+  );
+});
+
+check('an encoder is refused unless it can do both halves of the job', () => {
+  /* Half an encoder is worse than none: it would pass whatever check the export
+     dialog makes and then fail at the moment someone clicks the button. */
+  const good = { name: 'test', load: () => true, encode: () => null };
+  eq(app.registerMp3Encoder(good), true, 'a complete encoder should be taken: ');
+  for (const bad of [null, {}, { load: () => true }, { encode: () => null }]) {
+    eq(app.registerMp3Encoder(bad), false, `${JSON.stringify(bad)} should be refused: `);
+  }
 });
 
 check('every CSS custom property used is defined', () => {

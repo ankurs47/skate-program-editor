@@ -1394,6 +1394,7 @@ if (typeof document !== 'undefined') {
     require('./program.js'),
     require('./host.js'),
     require('./canvas.js'),
+    require('./mp3.js'),
     require('./audio.js'),
     require('./library.js'),
     require('./timeline.js'),

@@ -30,6 +30,7 @@ const SCRIPTS = [
   'src/program.js',
   'src/host.js',
   'src/canvas.js',
+  'src/mp3.js',
   'src/audio.js',
   'src/library.js',
   'src/timeline.js',
