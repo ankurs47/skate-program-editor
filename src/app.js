@@ -844,6 +844,7 @@ function updateMissingNotice() {
 
 function refresh() {
   updateMissingNotice();
+  updateMemoryNotice();
   updateExportAvailability();
   updateEvenOutAvailability();
   // The library is redrawn too: whether a file can be removed depends on
@@ -989,6 +990,7 @@ function bind() {
 
   bindFileDrops();
   bindReplace();
+  bindMemoryNotice();
 
   $('btnPlay').onclick = () => (playing ? stopPlayback() : playFromPlayhead());
   $('btnStop').onclick = () => {

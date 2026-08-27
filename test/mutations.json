@@ -799,5 +799,86 @@
     "find": "    if (clip.title === wasCalled) clip.title = nowCalled;",
     "replace": "    clip.title = nowCalled;",
     "expect": "a name somebody chose survives the swap"
+  },
+  {
+    "name": "a song's size forgets it has two channels",
+    "guards": "what a decoded song costs is the figure it really costs",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "  return buffer.length * buffer.numberOfChannels * MEMORY.bytesPerSample;",
+    "replace": "  return buffer.length * MEMORY.bytesPerSample;",
+    "expect": "four bytes a sample a channel"
+  },
+  {
+    "name": "whatever the browser claims is believed",
+    "guards": "a browser claiming 32 GB or 0.25 GB still gets a sane budget",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "      ? clamp(claimed, MEMORY.leastGb, MEMORY.mostGb)",
+    "replace": "      ? claimed",
+    "expect": "pinned at both ends"
+  },
+  {
+    "name": "a browser that says nothing gets a budget of nothing",
+    "guards": "Firefox and Safari get an assumption rather than a notice on every song",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "    isFinite(claimed) && claimed > 0",
+    "replace": "    isFinite(claimed)",
+    "expect": "gets an assumption, not a zero"
+  },
+  {
+    "name": "the memory notice speaks up before there is anything to say",
+    "guards": "nothing is said until the music is actually heavy",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "  if (!(used > budget)) return null;",
+    "replace": "  if (false) return null;",
+    "expect": "says nothing at all until it matters"
+  },
+  {
+    "name": "a button is offered when there is nothing to give back",
+    "guards": "an offer is only made when pressing it would do something",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "  if (!unused) {",
+    "replace": "  if (false) {",
+    "expect": "with nothing to give back it explains rather than offers"
+  },
+  {
+    "name": "giving back the unused songs takes the used ones too",
+    "guards": "freeing memory never touches the program",
+    "file": "src/library.js",
+    "suite": "dom",
+    "find": "  return [...library.values()].filter((entry) => !clipsUsing(entry.name));",
+    "replace": "  return [...library.values()];",
+    "expect": "keeps the program intact"
+  },
+  {
+    "name": "the notice, once shown, never goes away",
+    "guards": "the notice follows what is true rather than only ever appearing",
+    "file": "src/library.js",
+    "suite": "dom",
+    "find": "  $('memoryNotice').classList.toggle('hidden', !say);",
+    "replace": "  if (say) $('memoryNotice').classList.remove('hidden');",
+    "expect": "stays quiet until the music is heavy"
+  },
+  {
+    "name": "the Remove button stops saying how much it would give back",
+    "guards": "the figure is where the decision to let a song go is made",
+    "file": "src/library.js",
+    "suite": "dom",
+    "find": "        `${holding ? `the ${describeBytes(holding)} it is holding` : 'the memory it is holding'}. ` +",
+    "replace": "        'the memory it is holding. ' +",
+    "expect": "says how much that song is holding"
+  },
+  {
+    "name": "the memory notice goes back below the list",
+    "guards": "a notice that only appears with a long list is not put below that list",
+    "file": "index.html",
+    "suite": "dom",
+    "find": "        <div id=\"memoryNotice\" class=\"warn hidden\">\n          <p class=\"warn-head\" id=\"memoryHead\"></p>\n          <p class=\"hint\" id=\"memoryDetail\"></p>\n          <div class=\"missing-actions\">\n            <button id=\"btnFreeUnused\" class=\"small primary hidden\"></button>\n          </div>\n        </div>\n        <ul id=\"libraryList\"></ul>",
+    "replace": "        <ul id=\"libraryList\"></ul>\n        <div id=\"memoryNotice\" class=\"warn hidden\">\n          <p class=\"warn-head\" id=\"memoryHead\"></p>\n          <p class=\"hint\" id=\"memoryDetail\"></p>\n          <div class=\"missing-actions\">\n            <button id=\"btnFreeUnused\" class=\"small primary hidden\"></button>\n          </div>\n        </div>",
+    "expect": "can be seen without scrolling past the list"
   }
 ]

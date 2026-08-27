@@ -2007,3 +2007,105 @@ check('clipsPastEnd: counts what would not fit, and does not change it', () => {
 check('clipsPastEnd: a clip ending exactly at the end fits', () => {
   eq(app.clipsPastEnd([{ file: 'a.mp3', srcStart: 0, srcEnd: 50 }], 'a.mp3', 50), 0);
 });
+
+/* --------------------------------------- what the music is costing to hold */
+
+/* The arithmetic, the budget and the wording. Nothing here can measure a real
+   AudioBuffer, so the byte figure is checked against a buffer whose size is
+   known exactly — and against the one number this was calibrated on, which is
+   the 85 MB four minutes of stereo really costs. */
+
+const song = (seconds, channels = 2, rate = 44100) => ({
+  buffer: { length: Math.round(seconds * rate), numberOfChannels: channels },
+});
+
+check('decodedBytes: four bytes a sample a channel, which is what it really is', () => {
+  eq(app.decodedBytes(song(240)), 84672000);
+  /* Measured, not derived: a four-minute stereo song in Chrome reports exactly
+     10584000 frames and costs 84.7 MB. If this ever stops matching, the model
+     behind every figure the app shows has changed. */
+  near(app.decodedBytes(song(240)) / 1e6, 84.7, 0.1, 'four minutes of stereo, in MB: ');
+  eq(app.decodedBytes(song(240, 1)), 42336000, 'mono is half: ');
+  eq(app.decodedBytes(song(240, 2, 48000)), 92160000, 'a higher rate is more: ');
+});
+
+check('decodedBytes: a song not yet decoded costs nothing', () => {
+  eq(app.decodedBytes({ buffer: null }), 0);
+  eq(app.decodedBytes({}), 0);
+  eq(app.decodedBytes(null), 0);
+  eq(app.decodedBytes({ buffer: { length: 0, numberOfChannels: 2 } }), 0);
+});
+
+check('memoryBudget: a share of what the machine says it has', () => {
+  eq(app.memoryBudget(4), 4 * 1e9 * app.MEMORY.share);
+  ok(app.memoryBudget(8) > app.memoryBudget(4), 'more memory, more room');
+});
+
+check('memoryBudget: pinned at both ends, because the figure cannot be trusted', () => {
+  /* The specification says this is capped at 8 and rounded to a power of two.
+     Chrome returns 32 on a 32 GB machine, so it is not capped in practice —
+     and a browser reporting 0.25 should not produce a budget of 62 MB, which
+     every single song would exceed. */
+  eq(app.memoryBudget(32), app.memoryBudget(app.MEMORY.mostGb), 'a huge claim is capped: ');
+  eq(app.memoryBudget(0.25), app.memoryBudget(app.MEMORY.leastGb), 'a tiny one has a floor: ');
+});
+
+check('memoryBudget: a browser that will not say gets an assumption, not a zero', () => {
+  const assumed = app.memoryBudget(app.MEMORY.assumedGb);
+  eq(app.memoryBudget(undefined), assumed, 'Firefox and Safari offer nothing: ');
+  eq(app.memoryBudget(null), assumed);
+  eq(app.memoryBudget(0), assumed);
+  eq(app.memoryBudget('lots'), assumed);
+  eq(app.memoryBudget(-4), assumed);
+});
+
+check('describeBytes: megabytes until it is worth saying gigabytes', () => {
+  eq(app.describeBytes(84672000), '85 MB');
+  eq(app.describeBytes(1.4e9), '1.4 GB');
+  eq(app.describeBytes(999000000), '999 MB');
+  eq(app.describeBytes(0), '0 MB');
+});
+
+check('describeMemoryUse: says nothing at all until it matters', () => {
+  eq(
+    app.describeMemoryUse({ used: 5e8, budget: 1e9, unused: 3, unusedBytes: 4e8 }),
+    null,
+    'well under: ',
+  );
+  eq(
+    app.describeMemoryUse({ used: 1e9, budget: 1e9, unused: 3, unusedBytes: 4e8 }),
+    null,
+    'exactly at the budget is not over it: ',
+  );
+});
+
+check('describeMemoryUse: offers the songs nothing is playing', () => {
+  const say = app.describeMemoryUse({ used: 1.4e9, budget: 1e9, unused: 3, unusedBytes: 6e8 });
+  ok(/1\.4 GB/.test(say.head), `says how much: ${say.head}`);
+  ok(/3 songs are not in your program/.test(say.says), say.says);
+  ok(/600 MB/.test(say.says), `and how much they hold: ${say.says}`);
+  eq(say.offer, 'Remove 3 unused songs');
+});
+
+check('describeMemoryUse: one song is one song, not "1 songs"', () => {
+  const say = app.describeMemoryUse({ used: 1.4e9, budget: 1e9, unused: 1, unusedBytes: 9e7 });
+  ok(/One song is not in your program and is holding/.test(say.says), say.says);
+  eq(say.offer, 'Remove the unused song');
+});
+
+check('describeMemoryUse: with nothing to give back it explains rather than offers', () => {
+  const say = app.describeMemoryUse({ used: 1.4e9, budget: 1e9, unused: 0, unusedBytes: 0 });
+  eq(say.offer, null, 'there is no button when there is nothing to press it about: ');
+  ok(/nothing to give back/.test(say.says), say.says);
+});
+
+check('describeMemoryUse: the program is never what is at risk, and it says so', () => {
+  /* The failure is a tab that closes, and what that costs is the music, not the
+     work — which is written out as it is edited. Telling a skater they are
+     about to lose their program would be false and frightening. */
+  for (const unused of [0, 1, 4]) {
+    const say = app.describeMemoryUse({ used: 1.4e9, budget: 1e9, unused, unusedBytes: 1e8 });
+    ok(/Your program is saved either way/.test(say.says), `unused=${unused}: ${say.says}`);
+    ok(/open all the music again/.test(say.says), `unused=${unused}: says what is lost`);
+  }
+});

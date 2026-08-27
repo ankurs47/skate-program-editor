@@ -111,7 +111,7 @@ thing that will not run.
 ## Commands
 
 ```bash
-npm test             # 231 unit, wiring and asset checks — fast, no browser
+npm test             # 242 unit, wiring and asset checks — fast, no browser
 npm run lint
 npm run check        # lint + test, which is what the pre-commit hook runs
 npm run test:net     # also asks npm about the encoder's pinned versions
@@ -204,7 +204,7 @@ mistake.
 
 ### Unit checks
 
-`npm test` — 231 checks across six files, no browser, under a second.
+`npm test` — 242 checks across six files, no browser, under a second.
 
 They cover the parts that are easy to get quietly wrong: timeline math with
 overlapping blends, fade and crossfade envelopes summing correctly, filename
@@ -238,7 +238,7 @@ did none of what they described.
 
 ### Browser checks
 
-`npm run test:dom` — 55 checks in real headless Chrome, driven over the DevTools
+`npm run test:dom` — 60 checks in real headless Chrome, driven over the DevTools
 Protocol. No dependency: Node 22 has a global `WebSocket`, and Chrome speaks CDP
 over one.
 

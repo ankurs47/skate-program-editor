@@ -730,6 +730,100 @@ function checkReplacement({ current, candidate, match, quality, clips }) {
   return { checks, worst, shift, shortened: past };
 }
 
+/* ------------------------------------------------ what the music is costing */
+
+/* Decoded audio is the largest thing this app holds and the only one that can
+ * end the session. Four minutes of stereo is 85 MB — measured, and matching the
+ * arithmetic to the byte — and every song in the list holds its full length
+ * however little of it the program plays.
+ *
+ * Nothing in the browser will warn about it. An AudioBuffer does not live on
+ * the JavaScript heap, so no quota applies and nothing throws: a tab that takes
+ * too much is killed by the operating system, with no error to catch and
+ * nothing said. `performance.memory` cannot see it either — eighty songs in, it
+ * still reports a two-megabyte heap, which rules out the obvious way of
+ * watching this.
+ *
+ * So it is worked out from what is held rather than asked of anything, and only
+ * mentioned when it is close to mattering. On a desktop it never will be. On a
+ * four-gigabyte Chromebook it is about a dozen songs.
+ */
+
+const MEMORY = {
+  bytesPerSample: 4, // an AudioBuffer channel is a Float32Array
+  share: 0.25, // of the machine's memory, before this is worth saying
+  assumedGb: 4, // when the browser declines to say what it has
+  leastGb: 1, // and a floor and ceiling on what it claims, either way
+  mostGb: 16,
+};
+
+/** What one decoded song costs. Zero until it has been decoded. */
+function decodedBytes(entry) {
+  const buffer = entry && entry.buffer;
+  if (!buffer || !buffer.length) return 0;
+  return buffer.length * buffer.numberOfChannels * MEMORY.bytesPerSample;
+}
+
+/**
+ * How much audio this machine will put up with.
+ *
+ * `navigator.deviceMemory` is the only figure a page gets, and it is optional —
+ * Firefox and Safari do not offer it at all. The specification says it should
+ * be rounded down to a power of two and capped at 8 to make it less useful for
+ * fingerprinting; Chrome here returns 32 on a 32 GB machine, so the cap cannot
+ * be relied on and the range is pinned at both ends instead.
+ */
+function memoryBudget(deviceMemory) {
+  const claimed = Number(deviceMemory);
+  const gb =
+    isFinite(claimed) && claimed > 0
+      ? clamp(claimed, MEMORY.leastGb, MEMORY.mostGb)
+      : MEMORY.assumedGb;
+  return gb * 1e9 * MEMORY.share;
+}
+
+/** Bytes as a person would say them. */
+function describeBytes(bytes) {
+  return bytes >= 1e9 ? `${(bytes / 1e9).toFixed(1)} GB` : `${Math.round(bytes / 1e6)} MB`;
+}
+
+/**
+ * What to say about the memory the music is using, or null when nothing.
+ *
+ * Two different situations, and only one of them has anything to do about it.
+ * Songs nothing plays from can be given back, and that is an offer. A list
+ * where every song is in the program cannot be made smaller — the editor holds
+ * whole songs because the trims can be moved at any time — so all that is left
+ * is to say why the page might stop, which beats it stopping unexplained.
+ *
+ * The program itself is never at risk and the wording says so: it is written to
+ * the folder, or to this browser, as it is edited. What a lost tab costs is the
+ * music, which has to be found and opened again.
+ */
+function describeMemoryUse({ used, budget, unused, unusedBytes }) {
+  if (!(used > budget)) return null;
+
+  const head = `The music in your list is using ${describeBytes(used)}`;
+  const risk =
+    'A browser tab that runs out of memory closes itself. Your program is saved either way, ' +
+    'but you would have to open all the music again.';
+
+  if (!unused) {
+    return {
+      head,
+      says: `${risk} Every song here is in your program, so there is nothing to give back.`,
+      offer: null,
+    };
+  }
+  return {
+    head,
+    says:
+      `${unused === 1 ? 'One song is' : `${unused} songs are`} not in your program and ` +
+      `${unused === 1 ? 'is' : 'are'} holding ${describeBytes(unusedBytes)} of that. ${risk}`,
+    offer: unused === 1 ? 'Remove the unused song' : `Remove ${unused} unused songs`,
+  };
+}
+
 /**
  * What happened when the music was asked for again, in one sentence.
  *
@@ -826,6 +920,11 @@ if (typeof module !== 'undefined' && module.exports) {
     clipsOnExport,
     audioPickerTypes,
     describeWrongFile,
+    MEMORY,
+    decodedBytes,
+    memoryBudget,
+    describeBytes,
+    describeMemoryUse,
     REPLACE,
     clipsPastEnd,
     checkReplacement,

@@ -320,10 +320,15 @@ function renderLibrary() {
     drop.className = 'small danger';
     drop.textContent = 'Remove';
     drop.disabled = used > 0;
+    /* How much this one is holding, where the decision to let it go is made.
+       A number in the panel at all times would be a number most people cannot
+       act on; here it answers the question the button raises. */
+    const holding = decodedBytes(entry);
     drop.title = used
       ? `This song is in your program ${used === 1 ? 'once' : `${used} times`} — ` +
         'take it out of the program first'
-      : 'Take this file out of the list and give back the memory it is holding. ' +
+      : 'Take this file out of the list and give back ' +
+        `${holding ? `the ${describeBytes(holding)} it is holding` : 'the memory it is holding'}. ` +
         'Your program is untouched, and nothing is deleted from your computer.';
     drop.onclick = () => removeFromLibrary(entry.name);
     row.appendChild(drop);
@@ -485,6 +490,69 @@ function storedHandles() {
       };
     };
   });
+}
+
+/* -------------------------------------------- the memory the music is using */
+
+/** Songs nothing in the program plays from, which are the ones that can go. */
+function unusedSongs() {
+  return [...library.values()].filter((entry) => !clipsUsing(entry.name));
+}
+
+/** What everything in the list is holding, decoded. */
+function libraryBytes() {
+  return [...library.values()].reduce((total, entry) => total + decodedBytes(entry), 0);
+}
+
+/**
+ * Show, or hide, the notice about how much memory the music is using.
+ *
+ * Called from `refresh`, so it follows every change to the list and to the
+ * program — a song leaving the program is exactly the event that makes it
+ * removable, and that is when there is something new to offer.
+ */
+function updateMemoryNotice() {
+  const spare = unusedSongs();
+  const say = describeMemoryUse({
+    used: libraryBytes(),
+    budget: memoryBudget(navigator.deviceMemory),
+    unused: spare.length,
+    unusedBytes: spare.reduce((total, entry) => total + decodedBytes(entry), 0),
+  });
+
+  $('memoryNotice').classList.toggle('hidden', !say);
+  if (!say) return;
+  $('memoryHead').textContent = say.head;
+  $('memoryDetail').textContent = say.says;
+  const button = $('btnFreeUnused');
+  button.classList.toggle('hidden', !say.offer);
+  if (say.offer) button.textContent = say.offer;
+}
+
+/**
+ * Give back every song the program is not playing from.
+ *
+ * `removeFromLibrary` is the same thing one at a time, and refuses a song in
+ * use — so this is a convenience rather than a second way of doing it, and a
+ * song that becomes used between the notice being drawn and the button being
+ * pressed is still safe.
+ */
+function removeUnusedSongs() {
+  const going = unusedSongs();
+  if (!going.length) return;
+  const freed = going.reduce((total, entry) => total + decodedBytes(entry), 0);
+  for (const entry of going) removeFromLibrary(entry.name);
+  refresh();
+  toast(
+    `Gave back ${describeBytes(freed)}. ` +
+      `${going.length === 1 ? 'That song is' : 'Those songs are'} no longer in the list — ` +
+      'use Add files if you want it back.',
+    6000,
+  );
+}
+
+function bindMemoryNotice() {
+  $('btnFreeUnused').onclick = removeUnusedSongs;
 }
 
 /* ------------------------------------------- putting a better file underneath */
@@ -950,6 +1018,11 @@ if (typeof module !== 'undefined' && module.exports) {
     storedHandles,
     loadRememberedNames,
     pickFiles,
+    unusedSongs,
+    libraryBytes,
+    updateMemoryNotice,
+    removeUnusedSongs,
+    bindMemoryNotice,
     pickReplacement,
     pickOneFile,
     offerReplacement,

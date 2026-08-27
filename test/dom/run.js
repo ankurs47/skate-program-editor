@@ -959,6 +959,135 @@ async function main() {
       ok(result.stillThere, 'a file still in the program was removed anyway');
     });
 
+    await check('the memory notice stays quiet until the music is heavy', async () => {
+      const result = await run(`
+        window.__reset([['a.mp3', window.__tone(220, 20)]]);
+        window.__addToLibrary('spare.mp3', window.__tone(330, 20));
+        refresh();
+        const quiet = window.__visible('memoryNotice');
+
+        /* Two twenty-second tones are not heavy on any machine, so the notice
+           has to be provoked. The budget is what varies between machines, and
+           it is the thing being tested around — so it is pinned here rather
+           than the audio being made enormous, which would take a gigabyte of
+           real memory to run one check. */
+        const real = memoryBudget;
+        window.memoryBudget = () => 1;
+        refresh();
+        const loud = {
+          shown: window.__visible('memoryNotice'),
+          head: document.getElementById('memoryHead').textContent,
+          detail: document.getElementById('memoryDetail').textContent,
+          button: document.getElementById('btnFreeUnused').textContent,
+          offered: !document.getElementById('btnFreeUnused').classList.contains('hidden'),
+        };
+        window.memoryBudget = real;
+        refresh();
+        return { quiet, loud, quietAgain: !window.__visible('memoryNotice') };
+      `);
+      eq(result.quiet, false, 'two short tones should say nothing: ');
+      ok(result.loud.shown, 'past the budget the notice should appear');
+      ok(/using \d+ MB/.test(result.loud.head), `says how much: ${result.loud.head}`);
+      ok(result.loud.offered, 'a song nothing plays should be offered back');
+      eq(result.loud.button, 'Remove the unused song');
+      ok(/Your program is saved/.test(result.loud.detail), result.loud.detail);
+      ok(result.quietAgain, 'and it should go away again when it no longer applies');
+    });
+
+    await check('the memory notice can be seen without scrolling past the list', async () => {
+      /* It only ever appears when the list is long, so where it sits in the
+         panel decides whether anybody ever reads it. Below the list, twelve
+         songs put it 1218 px past the bottom of an 800 px window — measured,
+         which is how this was found. */
+      const result = await run(`
+        window.__reset([['used.mp3', window.__tone(220, 10)]]);
+        for (let i = 0; i < 11; i++) {
+          window.__addToLibrary('spare' + i + '.mp3', window.__tone(300 + i, 10));
+        }
+        const real = memoryBudget;
+        window.memoryBudget = () => 1;
+        refresh();
+        const box = document.getElementById('memoryNotice').getBoundingClientRect();
+        const firstSong = document.querySelector('#libraryList li').getBoundingClientRect();
+        window.memoryBudget = real;
+        refresh();
+        return {
+          songs: 12,
+          shown: box.height > 0,
+          top: Math.round(box.top),
+          viewport: innerHeight,
+          aboveTheList: box.top < firstSong.top,
+        };
+      `);
+      ok(result.shown, 'the notice should be showing with twelve songs and no room');
+      ok(
+        result.top < result.viewport,
+        `the notice is ${result.top - result.viewport}px below the fold on a ${result.viewport}px window`,
+      );
+      ok(result.aboveTheList, 'it should come before the songs, not after all of them');
+    });
+
+    await check('with every song in use the notice explains instead of offering', async () => {
+      const result = await run(`
+        window.__reset([['a.mp3', window.__tone(220, 20)], ['b.mp3', window.__tone(330, 20)]]);
+        const real = memoryBudget;
+        window.memoryBudget = () => 1;
+        refresh();
+        const out = {
+          shown: window.__visible('memoryNotice'),
+          offered: !document.getElementById('btnFreeUnused').classList.contains('hidden'),
+          detail: document.getElementById('memoryDetail').textContent,
+        };
+        window.memoryBudget = real;
+        refresh();
+        return out;
+      `);
+      ok(result.shown, 'the notice should still appear');
+      eq(result.offered, false, 'but there should be no button to press: ');
+      ok(/nothing to give back/.test(result.detail), result.detail);
+    });
+
+    await check('giving back the unused songs keeps the program intact', async () => {
+      const result = await run(`
+        window.__reset([['used.mp3', window.__tone(220, 20)]]);
+        window.__addToLibrary('spare1.mp3', window.__tone(330, 20));
+        window.__addToLibrary('spare2.mp3', window.__tone(440, 20));
+        refresh();
+        const before = { songs: library.size, clips: state.clips.length };
+        removeUnusedSongs();
+        return {
+          before,
+          left: [...library.keys()],
+          clips: state.clips.length,
+          plays: state.clips[0].file,
+          stillPlayable: !!library.get(state.clips[0].file).buffer,
+        };
+      `);
+      eq(result.before, { songs: 3, clips: 1 });
+      eq(result.left, ['used.mp3'], 'only the song in the program should remain: ');
+      eq(result.clips, 1, 'the program should be untouched: ');
+      eq(result.plays, 'used.mp3');
+      ok(result.stillPlayable, 'and it should still have its music');
+    });
+
+    await check('the Remove button says how much that song is holding', async () => {
+      const result = await run(`
+        window.__reset([['a.mp3', window.__tone(220, 20)]]);
+        window.__addToLibrary('spare.mp3', window.__tone(330, 30));
+        renderLibrary();
+        return [...document.querySelectorAll('#libraryList li')].map((li) => ({
+          song: li.dataset.song,
+          title: [...li.querySelectorAll('button')].find((b) => b.textContent === 'Remove').title,
+        }));
+      `);
+      const spare = result.find((r) => r.song === 'spare.mp3');
+      const used = result.find((r) => r.song === 'a.mp3');
+      /* Thirty seconds of stereo at 44100 is 10.6 MB, and the tooltip is where
+         that number is worth having — beside the button that gives it back. */
+      ok(/give back the 11 MB it is holding/.test(spare.title), spare.title);
+      ok(/in your program/.test(used.title), 'a song in use says why it cannot go: ' + used.title);
+    });
+
     /* ------------------------------------------------ replacing a song */
 
     await check('Replace is offered on exactly the songs Remove is not', async () => {
