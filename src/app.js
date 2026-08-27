@@ -890,6 +890,7 @@ function bind() {
   $('btnEmptyAdd').onclick = pickFiles;
   $('btnEmptyLoad').onclick = () => $('projectInput').click();
   bindHostAdded();
+  hideProjectControls();
   $('btnReconnect').onclick = reconnectMissing;
 
   $('btnNew').onclick = () => openStartDialog(true);
@@ -1164,6 +1165,43 @@ function onKey(e) {
   }
 }
 
+/* What a project is, where it lives and which one is open — questions this page
+   answers for itself in a browser and does not get asked at all inside a shell.
+   There the folder is the project, and choosing between projects happens before
+   this page is loaded. */
+const PROJECT_CONTROLS = [
+  'btnSaveProject', // the folder already holds the file
+  'btnLoadProject', // opening one is the shell's landing page
+  'btnNew', // so is starting one
+  'btnEmptyLoad',
+  'storageSection', // "Forget it all" clears storage a hosted page does not use
+];
+
+/**
+ * Take away the controls that belong to whoever owns the project.
+ *
+ * In a browser this page is the whole application: it has to be able to start a
+ * program, save one and open one, because nothing else can. Inside a shell all
+ * three happen somewhere else, before this page exists — so a button here would
+ * either do nothing useful or quietly disagree with the folder.
+ *
+ * Hidden rather than removed, and hidden from one list, so what is gone and why
+ * is a single thing to read.
+ *
+ * Says what is true either way rather than only ever hiding. A function that
+ * can take a button away and not put it back leaves what is on screen depending
+ * on the order things were called in — which is exactly how this first went
+ * wrong, with a browser check finding a control still gone after the shell it
+ * was hidden for had been deleted.
+ */
+function hideProjectControls() {
+  const hosted = hostPresent();
+  for (const id of PROJECT_CONTROLS) {
+    const element = $(id);
+    if (element) element.classList.toggle('hidden', hosted);
+  }
+}
+
 /**
  * Listen for music the shell brings in.
  *
@@ -1366,8 +1404,10 @@ function init() {
   // notice above the timeline is updated again once the answer arrives. It is
   // never waited on: the editor has to start whether or not it comes back.
   loadRememberedNames();
-  // Only interrupt when there is no work to come back to.
-  if (!saved || !(saved.clips || []).length) openStartDialog(false);
+  /* Only interrupt when there is no work to come back to — and never inside a
+     shell, where the name and the event were answered before this page loaded
+     and the folder is already a project. */
+  if (!hostPresent() && (!saved || !(saved.clips || []).length)) openStartDialog(false);
 }
 
 /* In a browser, start. Under Node — the test suite — export the logic instead,
@@ -1458,6 +1498,8 @@ if (typeof document !== 'undefined') {
     onKey,
     openHostMedia,
     bindHostAdded,
+    PROJECT_CONTROLS,
+    hideProjectControls,
     unsupportedReasons,
     readFileBytes,
     SMALL_SCREEN_KEY,

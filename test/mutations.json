@@ -574,5 +574,32 @@
     "find": "  const blob = await mp3Encoder.encode(buffer, mp3Spec(), onProgress);\n  onProgress(1);",
     "replace": "  const blob = await mp3Encoder.encode(buffer, mp3Spec(), onProgress);",
     "expect": "export reports finished even when the encoder stops short"
+  },
+  {
+    "name": "a hosted page still offers to manage the project",
+    "guards": "with a shell owning the folder, the page stops asking which project",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "    if (element) element.classList.toggle('hidden', hosted);",
+    "replace": "    if (element) element.classList.toggle('hidden', false);",
+    "expect": "stops offering to manage the project"
+  },
+  {
+    "name": "hiding a control is a one-way door",
+    "guards": "what is on screen does not depend on what ran before it",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "  const hosted = hostPresent();",
+    "replace": "  const hosted = hostPresent() || true;",
+    "expect": "stops offering to manage the project"
+  },
+  {
+    "name": "the first-run dialog interrupts a shell",
+    "guards": "the name and the event were answered before the page loaded",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "  if (!hostPresent() && (!saved || !(saved.clips || []).length)) openStartDialog(false);",
+    "replace": "  if (!saved || !(saved.clips || []).length) openStartDialog(false);",
+    "expect": "stops offering to manage the project"
   }
 ]
