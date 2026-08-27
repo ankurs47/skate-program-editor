@@ -59,21 +59,21 @@ function hostProject() {
 }
 
 /**
- * A way to bring music in that the shell provides, or null.
+ * The shell's way of saying the folder changed, or null.
  *
- * Deliberately not called "YouTube". The page knows a shell may offer a route
- * to more music and renders whatever it calls itself; what that route actually
- * is belongs to the shell and is none of the editor's business.
+ * There used to be a `hostImport()` beside this, and a button in the page that
+ * a shell named and the page rendered. That is gone: bringing music in is the
+ * shell's own affair now, done in its own interface, and the page has no
+ * business owning a control for it.
+ *
+ * What is left is the half the page genuinely needs. Something appeared in the
+ * folder; read the folder again. The page is told rather than polling, and
+ * what it is handed is only what the folder cannot say for itself — a title,
+ * and where the song came from.
  */
-function hostImport() {
-  const given = host();
-  const offered = given ? given.import : null;
-  if (!offered || typeof offered.run !== 'function') return null;
-  return {
-    label: typeof offered.label === 'string' && offered.label.trim() ? offered.label : 'Add music',
-    run: offered.run,
-    onAdded: typeof offered.onAdded === 'function' ? offered.onAdded : null,
-  };
+function hostAdded() {
+  const project = hostProject();
+  return project && typeof project.onAdded === 'function' ? project.onAdded : null;
 }
 
 /* Under Node — the test suite — hand this file's names to app.js, which puts
@@ -85,6 +85,6 @@ if (typeof module !== 'undefined' && module.exports) {
     host,
     hostPresent,
     hostProject,
-    hostImport,
+    hostAdded,
   };
 }

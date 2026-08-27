@@ -128,9 +128,15 @@ a file, no server, nothing installed. A browser check deletes the host and holds
 it to that.
 
 The bridge is deliberately not called YouTube, or Electron, or anything else.
-The page knows a shell may own a project folder and may offer a route to more
-music, and renders whatever that route calls itself. What it actually is belongs
-to the shell.
+The page knows a shell may own a project folder, and that the folder may change
+under it — nothing more. Where the music came from is the shell's business.
+
+There used to be a `hostImport()` here, and a button the page rendered under a
+name the shell supplied. It is gone. A shell that can fetch music has its own
+interface for it, and a control in this page for something this page does not
+own was the page describing somebody else's app. What survives is
+`hostAdded()`: the shell says the folder changed, and the page reads the folder
+again, because the folder is the truth and one way of learning it is enough.
 
 **The edit is data.** `state.clips` is an ordered list of
 `{file, srcStart, srcEnd, fadeIn, fadeOut, crossfade}`. Everything else —

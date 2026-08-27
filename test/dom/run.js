@@ -457,19 +457,17 @@ async function main() {
             media: async () => [{ name: 'opening.wav' }],
             open: async () => bytes,
           },
-          import: { label: 'Add from YouTube…', run: () => { window.__imported = true; } },
         };
+        /* Bringing music in is the shell's own affair, done in its own
+           interface. What the page still needs is to be told the folder
+           changed — see the arrival below. */
+        window.skateHost.project.onAdded = (fn) => { window.__tellPage = fn; };
 
         const seen = hostPresent();
-        bindHostImport();
-        const button = {
-          label: document.getElementById('btnImport').textContent,
-          hidden: document.getElementById('btnImport').classList.contains('hidden'),
-          emptyLabel: document.getElementById('btnEmptyImport').textContent,
-        };
-        document.getElementById('btnImport').click();
+        bindHostAdded();
 
         await openHostProject();
+        const noButtons = document.querySelectorAll('#btnImport, #btnEmptyImport').length;
         const opened = {
           name: state.name,
           clips: state.clips.length,
@@ -488,15 +486,33 @@ async function main() {
         const afterWait = { writes: written.length, name: written.length ? written[0].name : null,
                             local: localStorage.getItem('skate.program.v1') };
 
+        /* And the arrival itself, followed through: the shell says a song
+           landed, and the page reads the folder again rather than trusting the
+           account of it. bindHostAdded is the join between those two, and
+           without exercising it a version that quietly returns before
+           subscribing passes every other check. */
+        const heard = typeof window.__tellPage === 'function';
+        if (heard) {
+          await window.__tellPage({
+            name: 'arrived.m4a',
+            title: 'Bolero',
+            source: { kind: 'youtube', url: 'https://www.youtube.com/watch?v=x' },
+          });
+        }
+        const remembered = state.expectedFiles.get('arrived.m4a') || null;
+
         delete window.skateHost;
-        return { seen, button, opened, beforeWait, afterWait, ran: !!window.__imported };
+        return { seen, heard, remembered, noButtons, opened, beforeWait, afterWait };
       `);
 
       ok(out.seen, 'the shell was not found');
-      eq(out.button.hidden, false, 'the shell offered a way in and no button appeared: ');
-      eq(out.button.label, 'Add from YouTube…', 'the button is named by the shell: ');
-      eq(out.button.emptyLabel, 'Add from YouTube…', 'and so is the one in the empty state: ');
-      ok(out.ran, 'pressing it did not reach the shell');
+      /* The page renders no control for this any more. A shell that can fetch
+         music has its own interface; a button here would be the page
+         describing something it does not own. */
+      eq(out.noButtons, 0, 'the page still has a shell-supplied import button: ');
+      ok(out.heard, 'the shell offered to say when the folder changed and nobody listened');
+      ok(out.remembered, 'the shell said a song arrived and the page did nothing with it');
+      eq(out.remembered.title, 'Bolero', 'what the shell knew about it was dropped: ');
 
       eq(out.opened.name, 'from a folder', 'the project in the folder did not open: ');
       eq(out.opened.clips, 1, 'the program came back empty: ');
@@ -517,7 +533,7 @@ async function main() {
       const out = await run(`
         delete window.skateHost;
         window.__reset([]);
-        bindHostImport();
+        bindHostAdded();
 
         localStorage.removeItem('skate.program.v1');
         state.name = 'no shell here';
@@ -527,9 +543,7 @@ async function main() {
         return {
           present: hostPresent(),
           project: hostProject(),
-          importer: hostImport(),
-          importHidden: document.getElementById('btnImport').classList.contains('hidden'),
-          emptyImportHidden: document.getElementById('btnEmptyImport').classList.contains('hidden'),
+          importer: hostAdded(),
           storedName: stored && stored.name,
           routes: [...document.querySelectorAll('#timelineEmpty .empty-actions button')]
             .filter((b) => !b.classList.contains('hidden'))
@@ -540,8 +554,6 @@ async function main() {
       eq(out.present, false, 'a host was found with nothing offering one: ');
       eq(out.project, null);
       eq(out.importer, null);
-      ok(out.importHidden, 'an import button appeared with no shell to run it');
-      ok(out.emptyImportHidden, 'the empty state offered an import with no shell to run it');
       eq(out.storedName, 'no shell here', 'saving stopped going to localStorage: ');
       eq(
         out.routes,
