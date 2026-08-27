@@ -556,5 +556,23 @@
     "find": "  const onAdded = hostAdded();\n  if (!onAdded) return;",
     "replace": "  const onAdded = hostAdded();\n  return;\n  // eslint-disable-next-line no-unreachable\n  if (!onAdded) return;",
     "expect": "desktop shell's folder opens"
+  },
+  {
+    "name": "half an encoder is good enough to register",
+    "guards": "an encoder missing either call is refused rather than half-used",
+    "file": "src/audio.js",
+    "suite": "unit",
+    "find": "  if (!encoder || typeof encoder.load !== 'function' || typeof encoder.encode !== 'function') {",
+    "replace": "  if (!encoder || typeof encoder.encode !== 'function') {",
+    "expect": "an encoder is refused unless it can do both halves of the job"
+  },
+  {
+    "name": "the progress bar is left wherever the encoder stopped counting",
+    "guards": "export reports finished, whatever the encoder reported",
+    "file": "src/audio.js",
+    "suite": "dom",
+    "find": "  const blob = await mp3Encoder.encode(buffer, mp3Spec(), onProgress);\n  onProgress(1);",
+    "replace": "  const blob = await mp3Encoder.encode(buffer, mp3Spec(), onProgress);",
+    "expect": "export reports finished even when the encoder stops short"
   }
 ]

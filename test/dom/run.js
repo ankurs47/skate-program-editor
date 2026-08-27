@@ -1537,7 +1537,6 @@ async function main() {
           longestFreeze: Math.round(longestFreeze),
           progressCalls: progress.length,
           climbs: progress.every((v, i) => i === 0 || v >= progress[i - 1]),
-          endsAtOne: progress[progress.length - 1] === 1,
         };
       `);
       eq(out.encoderArrived, true, 'the vendored encoder never loaded: ');
@@ -1549,10 +1548,53 @@ async function main() {
       );
       ok(out.progressCalls > 1, 'progress was never reported while encoding');
       eq(out.climbs, true, 'progress went backwards: ');
-      eq(out.endsAtOne, true, 'progress never reached the end: ');
       ok(
         out.longestFreeze < 150,
         `the page froze for ${out.longestFreeze} ms — the encode is on the main thread`,
+      );
+    });
+
+    await check('export reports finished even when the encoder stops short', async () => {
+      /* The last `onProgress(1)` in `encodeMp3` is a promise this app makes
+         about its own progress bar, not one it asks every encoder to keep.
+
+         It needs an encoder that stops short to show at all: the one shipped
+         here reports a final packet that lands on the end, so the bar reaches
+         1 whether or not the app insists. Registering a short-counting one is
+         what makes the difference visible — and it exercises the seam in a
+         browser besides, which is the whole reason `registerMp3Encoder` is a
+         public thing rather than a detail of loading. */
+      const out = await run(`
+        const real = mp3Encoder;
+        const wasReady = mp3Ready;
+        try {
+          registerMp3Encoder({
+            name: 'stops short',
+            load: async () => true,
+            encode: async (buffer, spec, onProgress) => {
+              onProgress(0.25);
+              onProgress(0.5);
+              return new Blob([new Uint8Array(8)], { type: 'audio/mpeg' });
+            },
+          });
+          mp3Ready = true;
+          const seen = [];
+          const buf = new OfflineAudioContext(2, 44100, 44100).createBuffer(2, 44100, 44100);
+          const blob = await encodeMp3(buf, (p) => seen.push(p));
+          return { last: seen[seen.length - 1], calls: seen.length, bytes: blob.size,
+                   spec: { ...mp3Spec() } };
+        } finally {
+          mp3Encoder = real;
+          mp3Ready = wasReady;
+        }
+      `);
+      eq(out.last, 1, 'the bar was left wherever the encoder stopped counting: ');
+      eq(out.calls, 3, 'the encoder reported twice, so the app should add one: ');
+      eq(out.bytes, 8, "the registered encoder's file is not what came back: ");
+      eq(
+        out.spec,
+        { sampleRate: 44100, numberOfChannels: 2, bitrate: 320000 },
+        'an encoder is handed the wrong requirement: ',
       );
     });
 
