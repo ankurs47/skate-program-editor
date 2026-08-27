@@ -1404,7 +1404,9 @@ async function openHostMedia(added) {
         /* one unreadable file is not a reason to open none of them */
       }
     }
-    if (files.length) await addFiles(files);
+    /* These came out of the media folder, so they are already the project's
+       own and must not be copied back into it. */
+    if (files.length) await addFiles(files, { fromFolder: true });
   } catch (_) {
     toast('Could not read the music in this folder', 6000);
   }
