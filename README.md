@@ -83,6 +83,23 @@ sequence of cuts does not need.
 Everything runs in the browser tab: decoding, playback, mixing and encoding.
 There is no server and no upload step.
 
+### Inside a desktop shell
+
+The page is a web page first and stays one. A shell hosting it — see
+[skate-desktop][desktop] — owns a project folder, and where it does, this page
+stops asking about projects: **Save**, **Load**, **New** and "Forget it all"
+disappear, because the folder is the project and it is written on every edit.
+Which one to open was answered before this page loaded.
+
+Undo goes with it. A program that saves itself continuously has no "discard my
+changes" left, so the shell is handed the history to keep and the page is given
+it back next time — but only if it describes the same program, since undoing
+into a version that never existed is not an undo.
+
+And a song brought in from elsewhere is handed to the shell to put in the
+project folder before it is used. This page never writes a file; it cannot, and
+it does not pretend to.
+
 ## What it needs
 
 Any current Chrome, Edge, Firefox or Safari **on a computer**. The page tells
@@ -122,3 +139,5 @@ the part that matters.
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+[desktop]: https://github.com/ankurs47/skate-desktop

@@ -140,6 +140,28 @@ own was the page describing somebody else's app. What survives is
 `hostAdded()`: the shell says the folder changed, and the page reads the folder
 again, because the folder is the truth and one way of learning it is enough.
 
+**With a folder, this page stops managing projects.** `PROJECT_CONTROLS` lists
+what goes — Save, Load, New, the empty state's Load, and "Forget it all" — and
+`hideProjectControls` says what is true either way rather than only ever hiding,
+because a function that can take a control away and not put it back makes the
+page depend on what ran before it. `shouldOfferStart` keeps the first-run dialog
+shut for the same reason: the name and the event were answered before this page
+loaded.
+
+**This page never writes a file, and must not start.** A song brought from
+outside goes to the shell through `importFile`, which puts it in the project
+folder and answers with the name it ended up under — which may not be the name
+that was sent, since one already taken gets a number. `addFiles` takes
+`fromFolder` to tell the two directions apart: by the time both are `File`
+objects nothing else can, and without it the folder's own songs get copied back
+into it forever.
+
+**Undo is persisted by the shell, and refused unless it fits.** `historyNow`
+records `current`, the snapshot the stacks are relative to, and `restoreHistory`
+applies a saved history only when that matches the program just loaded. Anything
+else describes a different version of the file, and stepping back into a state
+this program never came from is a substitution rather than an undo.
+
 **The edit is data.** `state.clips` is an ordered list of
 `{file, srcStart, srcEnd, fadeIn, fadeOut, crossfade}`. Everything else —
 timeline, waveforms, playback, export — is derived from it. `layout()` is the
