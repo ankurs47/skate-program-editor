@@ -988,6 +988,7 @@ function bind() {
   };
 
   bindFileDrops();
+  bindReplace();
 
   $('btnPlay').onclick = () => (playing ? stopPlayback() : playFromPlayhead());
   $('btnStop').onclick = () => {
@@ -1104,8 +1105,9 @@ function bind() {
       const tail = document.createElement('p');
       tail.className = 'hint';
       tail.textContent =
-        'Saving at higher quality will not fix this — you need ' +
-        'a better copy of the song itself. You can carry on anyway.';
+        'Saving at higher quality will not fix this — you need a better copy of the song ' +
+        'itself. Replace on a song puts one underneath without disturbing your edit. ' +
+        'You can carry on anyway.';
       box.appendChild(tail);
     }
     rememberFocus();

@@ -597,6 +597,139 @@ function describeWrongFile(expected, entry) {
   return `“${entry.name}” is not the song this program was built from${length}`;
 }
 
+/* ------------------------------------------------ swapping a song for another */
+
+/* Replacing a song under an edit that is already made is the one operation here
+ * that can go wrong without looking wrong. Every trim, fade, blend and level
+ * survives; the timer still reads correctly; the strip still draws. If the file
+ * handed over is not the song the program was cut from, all of that is a
+ * carefully made edit of the wrong music, and nothing on screen says so.
+ *
+ * So the swap is checked and the checks are shown, every one of them, passing
+ * or not. A skater replacing a rough download with the copy they licensed is
+ * doing something entirely reasonable and should not have to argue with the
+ * app about it — the checks inform the decision rather than making it, which is
+ * why the button stays live and only changes what it says.
+ */
+
+const REPLACE = {
+  worthSaying: 1, // seconds of difference in length worth a line of its own
+};
+
+/**
+ * Clips that would fall outside the new file, after any shift is applied.
+ *
+ * Pure and counted rather than clamped, because this runs before the swap to
+ * describe it. `clampClipsToFile` does the clamping afterwards, and would
+ * silently shorten these — which is fine once it has been said out loud and not
+ * before.
+ */
+function clipsPastEnd(clips, file, duration, shift = 0) {
+  return clips.filter((c) => c.file === file && c.srcEnd + shift > duration + 0.001).length;
+}
+
+/**
+ * Everything worth saying about swapping `candidate` in for `current`.
+ *
+ * Pure: two analyses, whatever `sameRecording` returned, whatever
+ * `compareQuality` returned, and the clips. No DOM, no state, so the wording
+ * and the verdicts are under test rather than being whatever the dialog
+ * happened to render.
+ *
+ * `worst` is what the button reads from. `shift` is what the clips would move
+ * by, already decided — zero unless the music really does start elsewhere and
+ * this really is the same recording, because moving every trim in a program on
+ * the strength of a song that did not match would be two mistakes rather than
+ * one.
+ */
+function checkReplacement({ current, candidate, match, quality, clips }) {
+  const checks = [];
+  const say = (id, level, head, says) => checks.push({ id, level, head, says });
+
+  if (!match) {
+    say(
+      'song',
+      'note',
+      'Too short to check',
+      'One of these is too short to compare, so whether they are the same recording is unknown',
+    );
+  } else if (match.same) {
+    say('song', 'good', 'The same recording', 'The sound rises and falls in the same places');
+  } else {
+    say(
+      'song',
+      'warn',
+      'This does not look like the same recording',
+      'The sound rises and falls in different places. A different take, a remaster at a ' +
+        'different speed, or simply another song — every trim you have made would land ' +
+        'somewhere else in the music',
+    );
+  }
+
+  const better = { better: 'good', same: 'note', worse: 'warn', unknown: 'note' };
+  const heads = {
+    better: 'Better quality',
+    same: 'No better, no worse',
+    worse: 'Lower quality',
+    unknown: 'Quality unknown',
+  };
+  say('quality', better[quality.direction], heads[quality.direction], quality.says);
+
+  /* Only meaningful when the two are the same recording: an offset found
+     between two different songs is where they happened to line up best, which
+     is not a fact about either of them. */
+  const shift = match && match.same && Math.abs(match.shift) >= MATCH.shift ? match.shift : 0;
+  if (shift) {
+    const later = shift > 0;
+    say(
+      'timing',
+      'note',
+      `The music starts ${fmt(Math.abs(shift))} ${later ? 'later' : 'earlier'}`,
+      `Every trim will be moved ${fmt(Math.abs(shift))} ${later ? 'later' : 'earlier'} to match, ` +
+        'so your cuts stay on the same moments in the music',
+    );
+  } else if (match && match.same) {
+    say(
+      'timing',
+      'good',
+      'The music starts in the same place',
+      'Your trims land where they do now',
+    );
+  }
+
+  const grew = candidate.duration - current.duration;
+  if (Math.abs(grew) >= REPLACE.worthSaying) {
+    say(
+      'length',
+      'note',
+      `${fmtShort(candidate.duration)} rather than ${fmtShort(current.duration)}`,
+      grew > 0
+        ? 'Longer than the song it replaces. Extra music at either end changes nothing about ' +
+            'your program'
+        : 'Shorter than the song it replaces',
+    );
+  }
+
+  const past = clipsPastEnd(clips, current.name, candidate.duration, shift);
+  if (past) {
+    say(
+      'fit',
+      'warn',
+      past === 1 ? 'One clip runs past the end' : `${past} clips run past the end`,
+      past === 1
+        ? 'It will be shortened to fit, which changes how long your program runs'
+        : 'They will be shortened to fit, which changes how long your program runs',
+    );
+  }
+
+  const worst = checks.some((c) => c.level === 'warn')
+    ? 'warn'
+    : checks.some((c) => c.level === 'note')
+      ? 'note'
+      : 'good';
+  return { checks, worst, shift, shortened: past };
+}
+
 /**
  * What happened when the music was asked for again, in one sentence.
  *
@@ -693,6 +826,9 @@ if (typeof module !== 'undefined' && module.exports) {
     clipsOnExport,
     audioPickerTypes,
     describeWrongFile,
+    REPLACE,
+    clipsPastEnd,
+    checkReplacement,
     describeReconnect,
     parseClock,
   };

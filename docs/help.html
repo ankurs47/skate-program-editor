@@ -99,6 +99,7 @@
           <li><a href="#volume">Volume</a></li>
           <li><a href="#clock">The clock, and program lengths</a></li>
           <li><a href="#quality">Sound quality labels</a></li>
+          <li><a href="#replacing">Swapping in a better copy</a></li>
           <li><a href="#song-info">What a file says about itself</a></li>
           <li><a href="#keys">Keyboard shortcuts</a></li>
           <li><a href="#saving">Saving and loading</a></li>
@@ -325,7 +326,62 @@
       <p>
         <b>Exporting at a higher quality cannot rescue a song that was already poor.</b>
         You need a better copy of the song itself. The editor says so before you export rather than
-        after.
+        after &mdash; and once you have that better copy, you do not have to start the program
+        again. See <a href="#replacing">Swapping in a better copy</a>.
+      </p>
+
+      <h2 id="replacing">Swapping in a better copy</h2>
+
+      <p>
+        You cut a program around a rough download, and then you buy the licensed version. Press
+        <b>Replace</b> beside the song and choose the new file &mdash; or just drag it onto that
+        song in the list. Every trim, blend, fade and volume you set stays exactly as it was. Only
+        the file underneath changes.
+      </p>
+      <p>
+        <b>Replace</b> only appears on songs your program actually plays. A song nothing uses can
+        simply be removed and a better one added, which is the same thing with fewer questions.
+      </p>
+
+      <h3>What it checks before it does it</h3>
+
+      <p>
+        This is the one thing the editor can do that goes wrong without looking wrong. Hand it the
+        wrong song and every cut still applies, the clock still reads correctly, the strip still
+        draws &mdash; and the program is now a careful edit of the wrong music. So it checks, and
+        shows you every check:
+      </p>
+      <ul>
+        <li>
+          <b>Is it the same recording?</b> Not the same file name and not the same tags, either of
+          which can say anything. The editor compares how the sound rises and falls through the
+          whole song, which is what a recording keeps when it is encoded again and what two
+          different songs do not share.
+        </li>
+        <li>
+          <b>Is it actually better?</b> Compared the way the quality labels are, so a swap to a more
+          efficient kind of file is not reported as a downgrade.
+        </li>
+        <li>
+          <b>Does the music start in the same place?</b> A fresh download often begins a fraction of
+          a second later or earlier than the copy it replaces. The editor finds by how much and
+          moves every trim to match, so your cuts stay on the same moments in the music.
+        </li>
+        <li>
+          <b>Does everything still fit?</b> If the new file is shorter, it says which clips will
+          have to be shortened before it shortens them.
+        </li>
+      </ul>
+      <p>
+        Nothing here stops you. If the checks are unhappy the button reads <b>Replace anyway</b>,
+        because there are good reasons to swap in a copy that is no better &mdash; a licensed one,
+        for instance &mdash; and only you know whether this is one of them. Nothing changes until
+        you press it, and <b>Cancel</b> leaves everything exactly as it was.
+      </p>
+      <p>
+        The song you replaced stays in the list. It is not part of your program any more, so
+        <b>Remove</b> is available on it once you are sure &mdash; and until then
+        <kbd>Ctrl</kbd>+<kbd>Z</kbd> puts everything back the way it was, music included.
       </p>
 
       <h2 id="song-info">What a file says about itself</h2>

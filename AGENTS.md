@@ -13,8 +13,8 @@ plain, and jargon is treated as a bug.
 
 ```text
 index.html       the page — stays at the root, see below
-src/analysis.js  beat detection, phrase detection, loudness — samples in, numbers out
-src/formats.js   ID3/MPEG/Ogg parsing and the Good/Fair/Low verdict
+src/analysis.js  beats, phrases, loudness, is-this-the-same-recording — samples in, numbers out
+src/formats.js   ID3/MPEG/Ogg parsing, the Good/Fair/Low verdict, better-or-worse
 src/program.js   what a program is: clips, levels, envelopes, joins, project files
 src/host.js      the desktop shell, when there is one — and nothing when there is not
 src/canvas.js    colors read from the stylesheet, and the canvas helpers
@@ -29,7 +29,7 @@ src/style.css    theming via CSS custom properties, light and dark
 docs/            help.html — the user guide, linked from the topbar;
                  development.md; docs.css, whose color tokens copy
                  style.css's and are held to them by a test
-test/            199 checks, no dependencies — one file per testable script
+test/            231 checks, no dependencies — one file per testable script
 test/dom/        browser checks and render budgets, driven over CDP
 tools/           music-get.sh and .cmd — optional YouTube downloader, not the app
 ```
