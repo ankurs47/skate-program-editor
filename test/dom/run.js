@@ -1048,6 +1048,12 @@ async function main() {
     });
 
     await check('giving back the unused songs keeps the program intact', async () => {
+      /* Guarded twice on purpose, which is why no single mutation names this
+         check: `unusedSongs` will not offer a song the program plays, and
+         `removeFromLibrary` refuses one even if asked. Break either alone and
+         this still passes. It is here for the property rather than for a line
+         of code — the two layers are mutated separately, against the checks
+         each of them really does break. */
       const result = await run(`
         window.__reset([['used.mp3', window.__tone(220, 20)]]);
         window.__addToLibrary('spare1.mp3', window.__tone(330, 20));

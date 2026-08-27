@@ -846,13 +846,13 @@
     "expect": "with nothing to give back it explains rather than offers"
   },
   {
-    "name": "giving back the unused songs takes the used ones too",
-    "guards": "freeing memory never touches the program",
+    "name": "the offer counts songs the program is playing",
+    "guards": "the number offered back is the number that can actually go",
     "file": "src/library.js",
     "suite": "dom",
     "find": "  return [...library.values()].filter((entry) => !clipsUsing(entry.name));",
     "replace": "  return [...library.values()];",
-    "expect": "keeps the program intact"
+    "expect": "stays quiet until the music is heavy"
   },
   {
     "name": "the notice, once shown, never goes away",
@@ -880,5 +880,14 @@
     "find": "        <div id=\"memoryNotice\" class=\"warn hidden\">\n          <p class=\"warn-head\" id=\"memoryHead\"></p>\n          <p class=\"hint\" id=\"memoryDetail\"></p>\n          <div class=\"missing-actions\">\n            <button id=\"btnFreeUnused\" class=\"small primary hidden\"></button>\n          </div>\n        </div>\n        <ul id=\"libraryList\"></ul>",
     "replace": "        <ul id=\"libraryList\"></ul>\n        <div id=\"memoryNotice\" class=\"warn hidden\">\n          <p class=\"warn-head\" id=\"memoryHead\"></p>\n          <p class=\"hint\" id=\"memoryDetail\"></p>\n          <div class=\"missing-actions\">\n            <button id=\"btnFreeUnused\" class=\"small primary hidden\"></button>\n          </div>\n        </div>",
     "expect": "can be seen without scrolling past the list"
+  },
+  {
+    "name": "a song can be removed while the program is playing it",
+    "guards": "the refusal that stops a removal gutting the edit",
+    "file": "src/library.js",
+    "suite": "dom",
+    "find": "  if (clipsUsing(name)) {\n    toast('That song is in your program \u2014 take it out of the program first');",
+    "replace": "  if (false) {\n    toast('That song is in your program \u2014 take it out of the program first');",
+    "expect": "a file can only be removed once the program stops using it"
   }
 ]
