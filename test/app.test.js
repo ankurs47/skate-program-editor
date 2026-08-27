@@ -1392,6 +1392,28 @@ check('host: a shell that does not fit is ignored, not half-used', () => {
   });
 });
 
+check('host: a shell is never asked to name a program it already named', () => {
+  /* The first run interrupts with a dialog asking for a name and an event.
+     Inside a shell both were answered before this page loaded and the folder is
+     already a project, so asking again is asking somebody to repeat themselves
+     and then disagreeing with the file. */
+  const nothing = null;
+  const empty = { clips: [] };
+  const work = { clips: [{ id: 'a' }] };
+
+  // In a browser this page is the whole application and has to ask.
+  eq(app.shouldOfferStart(nothing), true, 'nothing stored: ');
+  eq(app.shouldOfferStart(empty), true, 'stored but empty: ');
+  eq(app.shouldOfferStart(work), false, 'there is work to come back to: ');
+
+  // With a shell it never asks, whatever it found.
+  withHost(workingHost(), () => {
+    for (const saved of [nothing, empty, work]) {
+      eq(app.shouldOfferStart(saved), false, `hosted, ${JSON.stringify(saved)}: `);
+    }
+  });
+});
+
 check('host: the shell says when the folder changed, and offers no button', () => {
   /* There used to be a `hostImport()` here and a button in the page that a
      shell named and the page rendered. Bringing music in is the shell's own
@@ -1507,6 +1529,80 @@ check('host: a song arriving does not reopen the program underneath it', async (
   } finally {
     app.state.expectedFiles = saved;
   }
+});
+
+check('history: a saved history describes the program it was saved from', () => {
+  /* The guard the whole feature rests on. A history whose `current` does not
+     match the program that was just loaded is a history of some other version
+     of this file — edited by hand between sessions, or written by a second copy
+     of the app. Applying it would let somebody undo into a program that never
+     existed, which is not an undo, it is a substitution. */
+  withProgram(
+    { name: 'a program', clips: [{ id: 'c1', file: 'a.wav', srcStart: 0, srcEnd: 5, gain: 1 }] },
+    () => {
+      const mine = app.historyNow();
+      eq(mine.current, app.undoSnapshot(), 'what was saved is not what is on screen: ');
+
+      app.undoStack.length = 0;
+      ok(app.restoreHistory(mine), 'its own history was refused');
+
+      // A history from a different program is not this program's history.
+      ok(
+        !app.restoreHistory({ current: '{"clips":[]}', undo: ['x'], redo: [] }),
+        'a history for another program was accepted',
+      );
+      eq(app.undoStack.length, 0, 'a refused history left something behind: ');
+
+      // And neither is nonsense.
+      for (const junk of [null, undefined, 'a string', 42, []]) {
+        ok(!app.restoreHistory(junk), `${JSON.stringify(junk)} was accepted as a history`);
+      }
+    },
+  );
+});
+
+check('history: what comes back is what went in, and no deeper', () => {
+  withProgram({ name: 'p', clips: [] }, () => {
+    const current = app.undoSnapshot();
+    const deep = Array.from({ length: app.UNDO_DEPTH + 40 }, (_, i) => `snapshot ${i}`);
+
+    ok(app.restoreHistory({ current, undo: deep, redo: ['r1', 'r2'] }));
+    /* Trimmed to the depth this app keeps, from the recent end: a file written
+       by a version that kept more should not make this one keep more. */
+    eq(app.undoStack.length, app.UNDO_DEPTH, 'the stack came back deeper than the app allows: ');
+    eq(app.undoStack[app.undoStack.length - 1], deep[deep.length - 1], 'the newest was dropped: ');
+    eq(app.redoStack, ['r1', 'r2'], 'the redo stack did not survive: ');
+
+    /* Entries that are not snapshots are dropped rather than carried into
+       something that will try to apply them. */
+    app.restoreHistory({ current, undo: ['ok', 7, null, { a: 1 }], redo: [] });
+    eq(app.undoStack, ['ok'], 'junk in the file reached the stack: ');
+  });
+});
+
+check('history: restoring always clears what was there', () => {
+  /* Whether it accepts or refuses. A refusal that left the previous project's
+     stack in place would let somebody undo one program into another, which is
+     the exact failure the `current` check exists to stop. */
+  withProgram({ name: 'p', clips: [] }, () => {
+    /* Every way it can refuse, not just the interesting one. A history that is
+       not an object at all is the easiest case to return early from and the
+       easiest to return early from too soon. */
+    for (const refused of [
+      { current: 'no match', undo: [], redo: [] },
+      null,
+      undefined,
+      'a string',
+      42,
+      [],
+    ]) {
+      app.undoStack.push('from another project');
+      app.redoStack.push('and its redo');
+      ok(!app.restoreHistory(refused), `${JSON.stringify(refused)} was accepted: `);
+      eq(app.undoStack.length, 0, `undo survived ${JSON.stringify(refused)}: `);
+      eq(app.redoStack.length, 0, `redo survived ${JSON.stringify(refused)}: `);
+    }
+  });
 });
 
 /* ------------------------------------------------------------- 1e. undo */

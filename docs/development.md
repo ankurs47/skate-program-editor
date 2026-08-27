@@ -111,7 +111,7 @@ thing that will not run.
 ## Commands
 
 ```bash
-npm test             # 195 unit, wiring and asset checks — fast, no browser
+npm test             # 199 unit, wiring and asset checks — fast, no browser
 npm run lint
 npm run check        # lint + test, which is what the pre-commit hook runs
 npm run test:net     # also asks npm about the encoder's pinned versions
@@ -204,7 +204,7 @@ mistake.
 
 ### Unit checks
 
-`npm test` — 195 checks across six files, no browser, under a second.
+`npm test` — 199 checks across six files, no browser, under a second.
 
 They cover the parts that are easy to get quietly wrong: timeline math with
 overlapping blends, fade and crossfade envelopes summing correctly, filename

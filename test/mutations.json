@@ -597,9 +597,36 @@
     "name": "the first-run dialog interrupts a shell",
     "guards": "the name and the event were answered before the page loaded",
     "file": "src/app.js",
-    "suite": "dom",
-    "find": "  if (!hostPresent() && (!saved || !(saved.clips || []).length)) openStartDialog(false);",
-    "replace": "  if (!saved || !(saved.clips || []).length) openStartDialog(false);",
-    "expect": "stops offering to manage the project"
+    "suite": "unit",
+    "find": "  if (hostPresent()) return false;",
+    "replace": "  if (false) return false;",
+    "expect": "never asked to name a program it already named"
+  },
+  {
+    "name": "a history from another program is applied",
+    "guards": "undo cannot put back a state this program never came from",
+    "file": "src/app.js",
+    "suite": "unit",
+    "find": "  if (saved.current !== undoSnapshot()) return false;",
+    "replace": "  if (false) return false;",
+    "expect": "describes the program it was saved from"
+  },
+  {
+    "name": "a refused history leaves the last one in place",
+    "guards": "refusing a history clears the stacks as surely as accepting one",
+    "file": "src/app.js",
+    "suite": "unit",
+    "find": "  undoStack.length = 0;\n  redoStack.length = 0;\n  if (!saved || typeof saved !== 'object') return false;",
+    "replace": "  if (!saved || typeof saved !== 'object') return false;\n  undoStack.length = 0;\n  redoStack.length = 0;",
+    "expect": "restoring always clears what was there"
+  },
+  {
+    "name": "a history file decides how deep undo goes",
+    "guards": "the app keeps its own depth whatever a file asks for",
+    "file": "src/app.js",
+    "suite": "unit",
+    "find": "  undoStack.push(...clean(saved.undo).slice(-UNDO_DEPTH));",
+    "replace": "  undoStack.push(...clean(saved.undo));",
+    "expect": "what comes back is what went in"
   }
 ]
