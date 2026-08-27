@@ -595,7 +595,7 @@ function showReplaceDialog() {
   list.innerHTML = '';
   for (const check of report.checks) {
     const row = document.createElement('li');
-    row.className = `check ${check.level}`;
+    row.className = `check is-${check.level}`;
     const head = document.createElement('span');
     head.className = 'check-head';
     head.textContent = check.head;
@@ -606,9 +606,15 @@ function showReplaceDialog() {
     list.appendChild(row);
   }
 
+  /* Filled red rather than the ordinary blue when something is wrong — the same
+     rule the rest of the app follows: the step that could cost you something
+     looks like it, and only on the confirmation itself. `primary` comes off,
+     because the two together are red text on a blue ground. */
   const go = $('btnReplaceGo');
-  go.textContent = report.worst === 'warn' ? 'Replace anyway' : 'Replace';
-  go.classList.toggle('danger', report.worst === 'warn');
+  const risky = report.worst === 'warn';
+  go.textContent = risky ? 'Replace anyway' : 'Replace';
+  go.classList.toggle('primary', !risky);
+  go.classList.toggle('danger-solid', risky);
 
   rememberFocus();
   $('replaceDialog').classList.remove('hidden');

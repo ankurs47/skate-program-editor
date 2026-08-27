@@ -622,16 +622,20 @@ section {
 .checks .check .hint {
   font-size: 12px;
 }
-.checks .check.good {
+/* `is-` prefixed, because `.warn` is already a filled red panel elsewhere in
+   this app and a bare `.check.warn` inherits all of it — border, background and
+   padding — turning the rule into a box. Found in a screenshot, which is the
+   only place a cascade collision shows up. */
+.checks .check.is-good {
   border-left-color: var(--good);
 }
-.checks .check.note {
+.checks .check.is-note {
   border-left-color: var(--muted);
 }
-.checks .check.warn {
+.checks .check.is-warn {
   border-left-color: var(--bad);
 }
-.checks .check.warn .check-head {
+.checks .check.is-warn .check-head {
   color: var(--bad);
 }
 

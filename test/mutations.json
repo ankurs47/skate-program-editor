@@ -724,7 +724,7 @@
     "guards": "a swap that warns says so on the button that does it",
     "file": "src/library.js",
     "suite": "dom",
-    "find": "  go.textContent = report.worst === 'warn' ? 'Replace anyway' : 'Replace';",
+    "find": "  go.textContent = risky ? 'Replace anyway' : 'Replace';",
     "replace": "  go.textContent = 'Replace';",
     "expect": "a different song warns, and the button says so"
   },

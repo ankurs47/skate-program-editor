@@ -1000,7 +1000,7 @@ async function main() {
         const dialogOpen = window.__visible('replaceDialog');
         const button = document.getElementById('btnReplaceGo').textContent;
         const verdicts = [...document.querySelectorAll('#replaceChecks .check')]
-          .map(li => li.className.replace('check ', ''));
+          .map(li => li.className.replace('check is-', ''));
         await applyReplacement();
 
         const after = state.clips[0];
@@ -1111,7 +1111,7 @@ async function main() {
         window.__reset([['a.mp3', window.__tune(11, 20)]]);
         await offerReplacement('a.mp3', window.__asFile('other.wav', window.__tune(29, 20)));
         const song = [...document.querySelectorAll('#replaceChecks .check')]
-          .find(li => li.classList.contains('warn'));
+          .find(li => li.classList.contains('is-warn'));
         return {
           open: window.__visible('replaceDialog'),
           button: document.getElementById('btnReplaceGo').textContent,
@@ -1205,7 +1205,7 @@ async function main() {
         state.clips[0].srcEnd = 25;
         refresh();
         await offerReplacement('a.mp3', window.__asFile('short.wav', window.__tune(8, 15)));
-        const heads = [...document.querySelectorAll('#replaceChecks .check.warn .check-head')]
+        const heads = [...document.querySelectorAll('#replaceChecks .check.is-warn .check-head')]
           .map(el => el.textContent);
         const button = document.getElementById('btnReplaceGo').textContent;
         await applyReplacement();
