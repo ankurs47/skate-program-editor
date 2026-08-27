@@ -32,12 +32,17 @@ Any change has to keep all three. They are the reason the project looks the way
 it does, and a change that breaks one is not a small change.
 
 1. **No runtime dependencies.** eslint is the only devDependency and the app
-   never touches it. The one thing fetched at runtime is the MP3 encoder, from a
-   CDN, pinned with an integrity hash — and export still works without it.
+   never touches it. Nothing is fetched at runtime: the MP3 encoder is a
+   generated bundle committed under `src/vendor/`, and rebuilding it is the one
+   job that downloads anything — `npm run build:encoder`, which installs its
+   pinned packages into a temporary directory and throws them away.
 2. **No build step.** Plain script tags sharing one global scope. What is in the
    repository is what runs.
-3. **It opens from disk.** `file://` has to work, which rules out ES modules,
-   fetch of local files, and anything needing a server.
+3. **It opens from disk.** `file://` has to work, which rules out fetch of local
+   files and anything needing a server. None of the app's own files is a module:
+   an opaque origin cannot load a local one. The MP3 encoder is a module and is
+   fine, because it comes from a CDN over https — verified from `file://`, not
+   assumed.
 
 Two more that matter nearly as much:
 
@@ -49,8 +54,8 @@ Two more that matter nearly as much:
 ## Running the checks
 
 ```sh
-npm test              # 191 unit checks, no browser, about a second
-npm run test:dom      # 40 checks driving real Chrome over CDP
+npm test              # 193 unit checks, no browser, about a second
+npm run test:dom      # 41 checks driving real Chrome over CDP
 npm run lint          # eslint
 pre-commit run --all-files    # everything CI runs
 npm run test:mutate   # breaks the code on purpose to see if the tests notice

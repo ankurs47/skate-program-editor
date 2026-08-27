@@ -33,15 +33,24 @@ jobs:
       - name: Pre-commit hooks
         uses: pre-commit/action@v3.0.1
         env:
-          # The unit suite runs again below, with --net for the CDN hash and
-          # --report for the summary this workflow posts. Running it here too
-          # would be the same checks twice for no extra answer.
+          # The unit suite runs again below, with --net for the encoder's
+          # published versions and --report for the summary this workflow
+          # posts. Running it here too would be the same checks twice for no
+          # extra answer.
           SKIP: unit-tests
 
-      # --net also re-checks that the pinned MP3 encoder hash still matches
-      # what the CDN serves. If that ever fails, the CDN changed under us.
+      # --net also asks npm whether the versions the vendored MP3 encoder was
+      # built from are still the bytes that were published.
       - name: Test
         run: npm run test:net -- --report report/unit.json
+
+      # The encoder in src/vendor is generated and committed, which is only
+      # worth anything if the committed bytes are what its sources build. This
+      # rebuilds it from the pinned versions and fails if they differ — the one
+      # step here that installs anything, which is why it is its own step and
+      # not part of the suite.
+      - name: Vendored encoder matches its sources
+        run: npm run check:encoder
 
       # The browser checks drive real Chrome over the DevTools Protocol, which
       # is why they are not part of `npm test` — that has to keep working on a

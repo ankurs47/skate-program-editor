@@ -11,7 +11,7 @@
 # about how the files fit together: a check that every id index.html mentions
 # exists cannot be answered by looking at index.html alone.
 
-exclude: '^(docs/(screenshot|social-card)\.png|package-lock\.json)$'
+exclude: '^(docs/(screenshot|social-card)\.png|package-lock\.json|src/vendor/mp3-encoder\.js)$'
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks

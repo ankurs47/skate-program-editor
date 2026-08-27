@@ -621,11 +621,12 @@ winget install yt-dlp.yt-dlp    # Windows</code></pre>
         no per-user cost, and no third-party audio on your infrastructure.
       </p>
       <p>
-        The one outbound request the page makes is for
-        <a href="https://github.com/zhuker/lamejs">lamejs</a>, the MP3 encoder, from a CDN &mdash;
-        browsers can play MP3 but none of them can create one. It is loaded in the background with a
-        Subresource Integrity hash pinning the exact bytes, and if it cannot be reached the editor
-        still works and export falls back to WAV.
+        The page makes no outbound requests at all. Browsers can play MP3 but none of them can
+        create one, so the editor carries its own encoder &mdash;
+        <a href="https://github.com/Vanilagy/mediabunny/tree/main/packages/mp3-encoder"
+          >mediabunny&rsquo;s MP3 encoder</a
+        >, a WebAssembly build of LAME, sitting in <code>src/vendor/</code> with the rest of the
+        files. Once the page has loaded, everything it does works with the network switched off.
       </p>
 
       <h2 id="limits">What it deliberately doesn&rsquo;t do</h2>

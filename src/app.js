@@ -1331,7 +1331,7 @@ function init() {
 
   bind();
   bindStartDialog();
-  tryLoadLame();
+  tryLoadMp3Encoder();
 
   let saved = null;
   const folder = hostProject();

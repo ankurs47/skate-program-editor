@@ -72,8 +72,12 @@ async function main() {
     await check('the page starts clean, with every script loaded', async () => {
       const state = await run(`
         return {
+          /* The encoder is injected rather than listed in the page, and it may
+             or may not have arrived by now — either way it is not what this
+             check is about. The export check below is what proves it loads. */
           scripts: [...document.querySelectorAll('script[src]')]
-            .map(s => s.getAttribute('src')).filter(s => !s.startsWith('http')),
+            .map(s => s.getAttribute('src'))
+            .filter(s => !s.startsWith('http') && !s.startsWith('src/vendor/')),
           crossFile: ['clamp', 'analyzeBeats', 'qualityKind', 'layout', 'drawWave',
             'playProgram', 'renderLibrary', 'renderTimeline', 'drawClipEditor',
             'openDialog', 'refresh']
@@ -1489,6 +1493,69 @@ async function main() {
       ok(result.stale === 'rgb(1, 2, 3)', 'the cache should have been consulted');
       eq(result.after, result.before, 'repainting must go back to the stylesheet: ');
       ok(result.cacheSize > 0, 'and fill the cache again as it draws');
+    });
+
+    await check('a program encodes to a real MP3, without freezing the page', async () => {
+      /* The encoder is a file in this repository now, so this can run in a suite
+         that never reaches the network — with the CDN it could not. What it
+         asserts is the export path end to end: render, encode, and a file whose
+         first bytes are an MPEG frame rather than whatever an error produced.
+
+         The freeze is measured, not assumed. A 4 ms ticker cannot fire while the
+         thread is busy, so the largest gap between its firings is the longest
+         the page was unresponsive. The encoder before this one blocked in
+         half-second stretches; the assertion is loose enough not to fail on a
+         loaded CI machine, and tight enough that running the encode on the main
+         thread again could not pass it. */
+      const out = await run(`
+        window.__reset([['a.mp3', window.__tone(220, 20)]]);
+
+        /* Injected on the way past, so a check this early in a cold page can
+           arrive before it does. */
+        for (let i = 0; i < 100 && !mp3Ready; i++) {
+          await new Promise((done) => setTimeout(done, 100));
+        }
+        if (!mp3Ready) return { encoderArrived: false };
+
+        const rendered = await renderProgram();
+
+        let last = performance.now(), longestFreeze = 0;
+        const ticker = setInterval(() => {
+          const now = performance.now();
+          if (now - last > longestFreeze) longestFreeze = now - last;
+          last = now;
+        }, 4);
+        const progress = [];
+        const blob = await encodeMp3(rendered, (p) => progress.push(p));
+        clearInterval(ticker);
+
+        const head = new Uint8Array(await blob.slice(0, 2).arrayBuffer());
+        return {
+          encoderArrived: true,
+          type: blob.type,
+          bytes: blob.size,
+          seconds: rendered.duration,
+          frameSync: head[0] === 0xff && (head[1] & 0xe0) === 0xe0,
+          longestFreeze: Math.round(longestFreeze),
+          progressCalls: progress.length,
+          climbs: progress.every((v, i) => i === 0 || v >= progress[i - 1]),
+          endsAtOne: progress[progress.length - 1] === 1,
+        };
+      `);
+      eq(out.encoderArrived, true, 'the vendored encoder never loaded: ');
+      eq(out.type, 'audio/mpeg', 'the blob is not labeled as an MP3: ');
+      eq(out.frameSync, true, 'the file does not start with an MPEG frame header: ');
+      ok(
+        out.bytes > 20 * 1024 * out.seconds * 0.9,
+        `${out.bytes} bytes is too small for ${out.seconds}s at 320 kbps`,
+      );
+      ok(out.progressCalls > 1, 'progress was never reported while encoding');
+      eq(out.climbs, true, 'progress went backwards: ');
+      eq(out.endsAtOne, true, 'progress never reached the end: ');
+      ok(
+        out.longestFreeze < 150,
+        `the page froze for ${out.longestFreeze} ms — the encode is back on the main thread`,
+      );
     });
 
     /* -------------------------------------------------------------- close */

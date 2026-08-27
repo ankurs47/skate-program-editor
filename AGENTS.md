@@ -28,7 +28,7 @@ src/style.css    theming via CSS custom properties, light and dark
 docs/            help.html — the user guide, linked from the topbar;
                  development.md; docs.css, whose color tokens copy
                  style.css's and are held to them by a test
-test/            191 checks, no dependencies — one file per testable script
+test/            193 checks, no dependencies — one file per testable script
 test/dom/        browser checks and render budgets, driven over CDP
 tools/           music-get.sh and .cmd — optional YouTube downloader, not the app
 ```
@@ -68,8 +68,9 @@ the machine it says so and nothing checks your commits until CI does.
 ## Ground rules
 
 - **No build step and no runtime dependencies.** Anyone must be able to clone
-  and open `index.html`. The single exception is the MP3 encoder, loaded from a
-  CDN with an integrity hash.
+  and open `index.html`. The single exception is the MP3 encoder, which is
+  generated — committed under `src/vendor/`, so what runs is still what is in
+  the repository, and rebuilding it is a maintainer's job rather than a user's.
 - **Audio never leaves the machine.** Files are read with the File API and
   decoded in memory. Nothing is uploaded, and nothing should become uploadable.
 - **No personal information in shipped files.** There is a test asserting this.
@@ -465,9 +466,17 @@ visible rather than hidden, and saved projects store the actual target seconds
 rather than only a level id — so reopening an old project never silently
 retargets it. Keep both properties.
 
-**The pinned CDN hash** (`LAME_SRI`) is checked against jsDelivr by
-`npm run test:net`. If it fails, find out why the bytes changed before updating
-it.
+**The vendored MP3 encoder** (`src/vendor/mp3-encoder.js`) is generated and
+committed. `npm run check:encoder` rebuilds it from the versions pinned in
+`tools/build-mp3-encoder.js` and fails if the bytes differ, which is what makes
+400 KB of somebody else's code reviewable: it is traceable to two npm versions
+and a bundler, and to nothing else. `npm run test:net` asks npm whether those
+versions are still the bytes that were published.
+
+It is a classic script, not a module, and that is not a style choice. A page
+opened from `file://` is an opaque origin and cannot load a local ES module at
+all — the import is refused before the file is read — while an injected classic
+script loads fine. Both were checked in a browser before this was written.
 
 ## Conventions
 

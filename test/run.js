@@ -23,9 +23,8 @@
  */
 'use strict';
 
-const crypto = require('crypto');
-const { execFileSync } = require('child_process');
-const { app, check, runAll, eq, results, writeReport, reportPath } = require('./harness.js');
+const { check, runAll, results, writeReport, reportPath } = require('./harness.js');
+const build = require('../tools/build-mp3-encoder.js');
 
 require('./analysis.test.js');
 require('./formats.test.js');
@@ -37,17 +36,15 @@ require('./repo.test.js');
 /* Off by default: it reaches the network, and a test suite that fails when the
    wifi does is a test suite people stop trusting. CI runs it. */
 if (process.argv.includes('--net')) {
-  check('the pinned MP3 encoder hash still matches the CDN', () => {
-    const body = execFileSync('curl', ['-sSL', '--max-time', '30', app.LAME_URL], {
-      maxBuffer: 1 << 24,
-    });
-    const got = `sha384-${crypto.createHash('sha384').update(body).digest('base64')}`;
-    eq(
-      got,
-      app.LAME_SRI,
-      'the CDN now serves different bytes; update LAME_SRI after checking why: ',
+  /* The encoder is committed, so nothing has to be downloaded for it to work.
+     What this asks is narrower: are the versions it was built from still the
+     bytes npm published? A republished version is the one way the file in
+     src/vendor could stop being traceable to anything. */
+  for (const name of Object.keys(build.PINS)) {
+    check(`${name}@${build.PINS[name].version} is still what npm published`, () =>
+      build.verifyPublished(name),
     );
-  });
+  }
 }
 
 /* ---------------------------------------------------------------- report */

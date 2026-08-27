@@ -12,7 +12,8 @@
 
 const fs = require('fs');
 const path = require('path');
-const { check, eq, ok, html, css, ROOT, SCRIPTS } = require('./harness.js');
+const { app, check, eq, ok, html, css, ROOT, SCRIPTS } = require('./harness.js');
+const build = require('../tools/build-mp3-encoder.js');
 
 check('every element the code reaches for exists in the HTML', () => {
   // Every script, not just app.js: the day one of the others grows a $()
@@ -121,6 +122,44 @@ check('the page loads every script, in the order the tests assume', () => {
      could be added to one and forgotten in the other. */
   const order = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map((m) => m[1]);
   eq(order, SCRIPTS, 'the page must load exactly these, in this order: ');
+});
+
+check('the vendored MP3 encoder is the one the build script pins', () => {
+  /* The bundle is generated and 400 KB of it is not ours, so nothing here reads
+     it — but the header names what it was built from, and that has to keep
+     agreeing with the versions `tools/build-mp3-encoder.js` installs. A file
+     rebuilt from other versions, or edited by hand and no longer traceable to
+     any, is the thing worth catching. */
+  const file = path.join(ROOT, app.MP3_ENCODER_FILE);
+  ok(fs.existsSync(file), `${app.MP3_ENCODER_FILE} is missing — run npm run build:encoder`);
+  const header = fs.readFileSync(file, 'utf8').slice(0, 1200);
+
+  for (const [name, { version }] of Object.entries(build.PINS)) {
+    ok(
+      header.includes(`${name}@${version}`),
+      `the vendored encoder does not say it was built from ${name}@${version}`,
+    );
+  }
+  ok(
+    header.includes('GENERATED FILE'),
+    'the vendored encoder should say it is generated, so nobody edits it',
+  );
+  ok(
+    new RegExp(`var ${build.GLOBAL}\\b`).test(fs.readFileSync(file, 'utf8').slice(0, 2000)),
+    `the bundle should define the global ${build.GLOBAL} that audio.js reaches for`,
+  );
+});
+
+check('the page does not load the encoder, and audio.js does', () => {
+  /* 400 KB that most sessions never need, so it is fetched on the way past
+     rather than by the page. If it ever appears in a script tag, startup is
+     paying for something almost nobody uses. */
+  ok(
+    !html.includes(app.MP3_ENCODER_FILE),
+    'the page loads the encoder directly; it should be injected by audio.js instead',
+  );
+  const audio = fs.readFileSync(path.join(ROOT, 'src/audio.js'), 'utf8');
+  ok(audio.includes('MP3_ENCODER_FILE'), 'audio.js no longer names the file it injects');
 });
 
 check('every CSS custom property used is defined', () => {

@@ -30,9 +30,10 @@ test framework, so the harness is forty lines. There is no headless-browser
 library, so the DOM tests drive Chrome over the DevTools Protocol using the
 `WebSocket` that Node 22 already has.
 
-The one outbound request the page makes is for the MP3 encoder, from a CDN,
-pinned with a Subresource Integrity hash. If it cannot be reached the editor
-still works and export falls back to WAV.
+The page makes no outbound requests. The MP3 encoder — the one thing here that
+is not hand-written, since no browser can create an MP3 — is a generated bundle
+committed under `src/vendor/`, built by `tools/build-mp3-encoder.js` and loaded
+from disk when export first needs it.
 
 ## Setup
 
@@ -108,7 +109,7 @@ thing that will not run.
 ## Commands
 
 ```bash
-npm test             # 191 unit, wiring and asset checks — fast, no browser
+npm test             # 193 unit, wiring and asset checks — fast, no browser
 npm run lint
 npm run check        # lint + test, which is what the pre-commit hook runs
 npm run test:net     # also re-verifies the pinned CDN hash over the network
@@ -200,7 +201,7 @@ mistake.
 
 ### Unit checks
 
-`npm test` — 191 checks across six files, no browser, under a second.
+`npm test` — 193 checks across six files, no browser, under a second.
 
 They cover the parts that are easy to get quietly wrong: timeline math with
 overlapping blends, fade and crossfade envelopes summing correctly, filename
@@ -234,7 +235,7 @@ did none of what they described.
 
 ### Browser checks
 
-`npm run test:dom` — 40 checks in real headless Chrome, driven over the DevTools
+`npm run test:dom` — 41 checks in real headless Chrome, driven over the DevTools
 Protocol. No dependency: Node 22 has a global `WebSocket`, and Chrome speaks CDP
 over one.
 
@@ -332,8 +333,9 @@ mutation survives it opens — or comments on — an issue labeled `mutation`.
 These are the ones that will get a change rejected, and they are the same list
 `AGENTS.md` gives:
 
-- **No build step and no runtime dependencies.** The CDN-hosted MP3 encoder,
-  integrity-pinned, is the single exception.
+- **No build step and no runtime dependencies.** Cloning and opening
+  `index.html` has to work. The MP3 encoder is generated rather than written,
+  but it is committed, so what runs is still what is in the repository.
 - **Audio never leaves the machine.** Files are read with the File API and
   decoded in memory. Nothing is uploaded, and nothing should become uploadable.
 - **No personal information in shipped files.** There is a test asserting it,

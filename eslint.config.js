@@ -57,6 +57,9 @@ const browser = {
   OfflineAudioContext: 'readonly',
   FileReader: 'readonly',
   Blob: 'readonly',
+  // Only for the encoder's integrity check — the app fetches nothing else, and
+  // never anything of the user's.
+  fetch: 'readonly',
   // Built from bytes a desktop shell hands over, so music from a project
   // folder goes in through the same door as a drop or the file picker.
   File: 'readonly',
@@ -91,7 +94,10 @@ const rules = {
 };
 
 module.exports = [
-  { ignores: ['node_modules/**'] },
+  /* Generated and not ours: 400 KB of minified third-party bundle, rebuilt by
+     tools/build-mp3-encoder.js. Linting it would report on somebody else's
+     code and on a minifier's choices. */
+  { ignores: ['node_modules/**', 'src/vendor/**'] },
   ...PARTS.map((part) => ({
     files: [`src/${part}.js`],
     languageOptions: {

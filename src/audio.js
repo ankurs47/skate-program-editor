@@ -314,38 +314,38 @@ function encodeWav(buffer) {
   return new Blob([view], { type: 'audio/wav' });
 }
 
+/**
+ * Encode the rendered program to MP3.
+ *
+ * The work happens in a worker the encoder starts for itself, so there is no
+ * loop here to yield from and nothing to keep the page responsive by hand.
+ * Progress comes from the packets as they come out.
+ */
 async function encodeMp3(buffer, onProgress) {
-  const channels = Math.min(2, buffer.numberOfChannels);
-  const encoder = new window.lamejs.Mp3Encoder(channels, buffer.sampleRate, 320);
-  const left = buffer.getChannelData(0);
-  const right = channels > 1 ? buffer.getChannelData(1) : null;
-  const block = 1152;
-  const chunks = [];
+  if (!mp3Lib) throw new Error('the MP3 encoder never arrived — save as WAV instead');
+  const { Output, Mp3OutputFormat, BufferTarget, AudioBufferSource } = mp3Lib;
 
-  const toInt16 = (src, start, len) => {
-    const out = new Int16Array(len);
-    for (let i = 0; i < len; i++) {
-      const v = clamp(src[start + i] || 0, -1, 1);
-      out[i] = v < 0 ? v * 0x8000 : v * 0x7fff;
-    }
-    return out;
-  };
+  const output = new Output({ format: new Mp3OutputFormat(), target: new BufferTarget() });
+  const total = buffer.duration;
+  const source = new AudioBufferSource({
+    codec: 'mp3',
+    /* 320 kbps, as before. `quality` is what this library would rather be
+       given, but a named quality is a promise about how it sounds and this is
+       a promise about the file — the same bitrate that has been shipping. */
+    bitrate: MP3_BITRATE,
+    onEncodedPacket: (packet) => {
+      if (total > 0) onProgress(clamp(packet.timestamp / total, 0, 1));
+    },
+  });
+  output.addAudioTrack(source);
 
-  for (let i = 0; i < buffer.length; i += block) {
-    const len = Math.min(block, buffer.length - i);
-    const l = toInt16(left, i, len);
-    const r = right ? toInt16(right, i, len) : null;
-    const encoded = r ? encoder.encodeBuffer(l, r) : encoder.encodeBuffer(l);
-    if (encoded.length) chunks.push(encoded);
-    if (i % (block * 200) === 0) {
-      onProgress(i / buffer.length);
-      await new Promise((r2) => setTimeout(r2, 0)); // keep the UI responsive
-    }
-  }
-  const tail = encoder.flush();
-  if (tail.length) chunks.push(tail);
+  await output.start();
+  await source.add(buffer);
+  source.close();
+  await output.finalize();
+
   onProgress(1);
-  return new Blob(chunks, { type: 'audio/mpeg' });
+  return new Blob([output.target.buffer], { type: 'audio/mpeg' });
 }
 
 async function renderProgram() {
@@ -444,26 +444,53 @@ function updateExportAvailability() {
 }
 
 /*
- * MP3 encoder. Browsers can decode MP3 but none can encode it, so the encoder
- * has to come from somewhere — lamejs is a 156 KB JS port of LAME.
+ * MP3 encoder. Browsers can decode MP3 but none of them can create one —
+ * WebCodecs now exposes an AudioEncoder everywhere, and `mp3` is not among the
+ * codecs any of them will encode — so the encoder has to come from somewhere.
+ * It is LAME either way; the only question is what runs it.
  *
- * Loaded from a CDN so the app is a single HTML file you can drop on any host
- * with nothing to install. It is fetched asynchronously and the app does not
- * wait for it: if it is slow the editor still starts, and if it never arrives
- * WAV export carries on working. The integrity hash pins the exact bytes, so a
- * compromised or altered CDN copy is refused rather than executed.
+ * This is LAME compiled to WebAssembly, and it encodes in a worker it starts
+ * for itself. Both halves matter. The pure-JS port that came before it ran on
+ * the main thread and froze the page in half-second blocks — on the one
+ * operation nobody can afford to have look broken — and this is about three
+ * times faster besides.
+ *
+ * It is a file in this repository rather than something fetched from a CDN, so
+ * the editor works with no network at all once the page is open, and there is
+ * no third party who can change what it does. `tools/build-mp3-encoder.js`
+ * builds it and can prove the committed bytes are what its sources produce.
+ *
+ * Loaded on the way past rather than with the page: it is 400 KB that most
+ * sessions never reach for, and nothing about starting up needs it. If it is
+ * slow the editor is already usable, and if it fails to load at all the export
+ * dialog says so and offers WAV.
  */
-const LAME_URL = 'https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js';
-const LAME_SRI = 'sha384-xuasJXVcyv3hZq0eYpelEkBC8l4yufatZXDsKuyCU2rqfhDCb+ftuE/mSfZAteiK';
+const MP3_BITRATE = 320000;
+const MP3_ENCODER_FILE = 'src/vendor/mp3-encoder.js';
 
-function tryLoadLame() {
+let mp3Lib = null; // the library itself, once it is there
+
+function tryLoadMp3Encoder() {
   const script = document.createElement('script');
-  script.src = LAME_URL;
-  script.integrity = LAME_SRI;
-  script.crossOrigin = 'anonymous';
+  script.src = MP3_ENCODER_FILE;
   script.async = true;
-  script.onload = () => {
-    mp3Ready = typeof window.lamejs !== 'undefined';
+  script.onload = async () => {
+    try {
+      const lib = window.MediabunnyMp3;
+      /* Never override a browser that has grown its own MP3 encoder. None has
+         yet; the day one does, its encoder is the better one to use. */
+      if (!(await lib.canEncodeAudio('mp3'))) lib.registerMp3Encoder();
+      mp3Ready = await lib.canEncodeAudio('mp3', {
+        numberOfChannels: 2,
+        sampleRate: SR,
+        bitrate: MP3_BITRATE,
+      });
+      if (mp3Ready) mp3Lib = lib;
+    } catch (_) {
+      /* Loaded, but not something this app can encode with. Same outcome as
+         never arriving, and the same thing to say about it. */
+      mp3Ready = false;
+    }
     updateExportOptions();
   };
   script.onerror = updateExportOptions;
@@ -522,13 +549,13 @@ if (typeof module !== 'undefined' && module.exports) {
     channelsOf,
     encodeWav,
     encodeMp3,
+    MP3_BITRATE,
     renderProgram,
     doExport,
     playFromPlayhead,
     updateExportAvailability,
-    LAME_URL,
-    LAME_SRI,
-    tryLoadLame,
+    MP3_ENCODER_FILE,
+    tryLoadMp3Encoder,
     FORMAT_KEY,
     updateExportOptions,
   };
