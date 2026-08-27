@@ -6,7 +6,50 @@
  */
 'use strict';
 
-async function addFiles(fileList) {
+/**
+ * Take files somebody brought from outside into the project folder first.
+ *
+ * A project is a folder. A song decoded from wherever it happened to be sitting
+ * is a song the project does not have — the program names it, the folder does
+ * not hold it, and next time it opens with a hole in it. So the file is copied
+ * in and the copy is what gets decoded; nothing here ever reads the original
+ * twice or depends on it staying where it was.
+ *
+ * The name can change on the way in — one already taken gets a number — which
+ * is why the folder is read again afterwards rather than the sent names being
+ * assumed.
+ */
+async function addFromOutside(fileList, folder) {
+  const wanted = [];
+  for (const file of Array.from(fileList)) {
+    try {
+      const named = await folder.importFile(file.name, await readFileBytes(file));
+      if (named) wanted.push(named);
+    } catch (_) {
+      /* One file that will not copy is not a reason to drop the rest, and the
+         missing-music notice already says what the program cannot find. */
+    }
+  }
+  if (!wanted.length) return [];
+
+  await openHostMedia();
+  return wanted.map((name) => library.get(name)).filter(Boolean);
+}
+
+/**
+ * Put songs into the library, decoding each one.
+ *
+ * `fromFolder` says these are already the project's own — read out of the media
+ * folder rather than brought from somewhere else — and so must not be copied
+ * back into it. Everything else arrives from a drop, a picker or a reconnected
+ * handle, and gets copied first when a shell is holding the project.
+ */
+async function addFiles(fileList, { fromFolder = false } = {}) {
+  const folder = typeof hostProject === 'function' ? hostProject() : null;
+  if (folder && !fromFolder && typeof folder.importFile === 'function') {
+    return addFromOutside(fileList, folder);
+  }
+
   // The type and the name are asked separately. Testing a regex against the
   // two concatenated let "audio" match anywhere in either, so a file called
   // audiobook.txt was accepted and then failed to decode. Browsers also report
@@ -567,6 +610,7 @@ function bindFileDrops() {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     addFiles,
+    addFromOutside,
     clipsUsing,
     removeFromLibrary,
     libraryShape,
