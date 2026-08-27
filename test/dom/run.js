@@ -594,6 +594,66 @@ async function main() {
       );
     });
 
+    await check('a file from outside is handed to the shell, not written here', async () => {
+      /* This page cannot write a file and must not pretend to. What it does is
+         hand the bytes over and use the name that comes back — which may not be
+         the name it sent, because one already taken gets a number.
+
+         And a shell that offers no way to take a file keeps the old behavior,
+         because that is what every browser is. */
+      const out = await run(`
+        window.__reset([]);
+        const bytes = await window.encodeWav(window.__tone(220, 1)).arrayBuffer();
+        const asked = [];
+
+        const host = (extra) => ({
+          version: HOST_VERSION,
+          project: {
+            name: () => 'a folder', read: async () => null, write: async () => {},
+            media: async () => [{ name: 'opening (2).wav' }],
+            open: async () => bytes,
+            ...extra,
+          },
+        });
+
+        /* A shell that takes files: it is asked, and its answer is what the
+           library ends up keyed by. */
+        window.skateHost = host({
+          importFile: async (name, data) => {
+            asked.push({ name, bytes: data.byteLength });
+            return 'opening (2).wav';
+          },
+        });
+        const added = await addFiles([new File([bytes], 'opening.wav', { type: 'audio/wav' })]);
+        const throughShell = {
+          asked: asked.length,
+          sentName: asked.length ? asked[0].name : null,
+          sentBytes: asked.length ? asked[0].bytes > 0 : false,
+          keyedAs: added.length ? added[0].name : null,
+        };
+
+        /* A shell with no way to take one: the old path, unchanged. */
+        window.__reset([]);
+        window.skateHost = host({});
+        const plain = await addFiles([new File([bytes], 'straight in.wav', { type: 'audio/wav' })]);
+        const withoutShell = { added: plain.length, keyedAs: plain.length ? plain[0].name : null };
+
+        delete window.skateHost;
+        return { throughShell, withoutShell };
+      `);
+
+      eq(out.throughShell.asked, 1, 'the shell was not asked to take the file: ');
+      eq(out.throughShell.sentName, 'opening.wav', 'it sent the wrong name: ');
+      ok(out.throughShell.sentBytes, 'it sent no bytes, so there was nothing to copy');
+      /* The name that came back, not the one that went out. A shell that had to
+         number the file would otherwise be writing one song and the program
+         naming another. */
+      eq(out.throughShell.keyedAs, 'opening (2).wav', 'it kept the name it sent: ');
+
+      eq(out.withoutShell.added, 1, 'a shell that cannot take files broke adding one: ');
+      eq(out.withoutShell.keyedAs, 'straight in.wav', 'the old path renamed something: ');
+    });
+
     await check('with no shell, the page is exactly the page it was', async () => {
       /* The guarantee the whole bridge rests on. Everything above is asked for
          through hostPresent(), so with nothing offering a host none of it can
