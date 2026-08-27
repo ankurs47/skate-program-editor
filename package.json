@@ -8,7 +8,7 @@
     "test:net": "node test/run.js --net",
     "test:dom": "node test/dom/run.js",
     "test:mutate": "./tools/mutate-worktree.sh",
-    "test:mutate:here": "node test/mutate.js",
+    "test:mutate:here": "node test/mutate.js --in-place",
     "check:sources": "node tools/check-sources.js",
     "build:encoder": "node tools/build-mp3-encoder.js",
     "check:encoder": "node tools/build-mp3-encoder.js --check",

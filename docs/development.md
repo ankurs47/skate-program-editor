@@ -281,8 +281,13 @@ twice before the script existed.
 
 The worktree means you can keep editing while it runs. It also means
 **uncommitted work is not tested** — the script refuses to start on a dirty tree
-rather than quietly testing something else. `npm run test:mutate:here` runs it
-in place if you want that.
+rather than quietly testing something else.
+
+`test/mutate.js` refuses too, if it finds itself anywhere but a throwaway
+worktree. `npm run test:mutate:here` passes the `--in-place` flag that gets past
+it, for uncommitted work a checkout of HEAD would not contain. Touch nothing
+while that one runs: a `git add` or a commit in the middle records code nobody
+wrote.
 
 The runner restores from in-memory copies of the files, never from git. This is
 not a stylistic preference: `git checkout --` takes uncommitted work with it.

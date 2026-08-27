@@ -234,9 +234,15 @@ throwaway worktree from HEAD, so the tree you are working in is never touched
 and you can keep editing while it runs — which also means **uncommitted work is
 not tested**, and the script refuses to start rather than pretend otherwise.
 
-`npm run test:mutate:here` runs it in place, for when you want that. The runner
-restores from a copy in memory, never with git: a `git checkout --` takes
-uncommitted work with it.
+`test/mutate.js` refuses to run anywhere but a throwaway worktree, so the way in
+is the script. `npm run test:mutate:here` passes `--in-place` and is the way
+past it, for the case the worktree cannot cover: uncommitted work a checkout of
+HEAD would not contain. Touch nothing while that one runs — the danger is not
+the mutating, it is that a `git add` or a commit in the middle records code
+nobody wrote, and restoring afterwards does not unread what was already read.
+
+The runner restores from a copy in memory, never with git: a `git checkout --`
+takes uncommitted work with it.
 
 The unit tests follow what can be tested without a DOM —
 `test/analysis.test.js`, `test/formats.test.js` and `test/app.test.js`, the last

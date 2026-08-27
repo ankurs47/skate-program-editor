@@ -26,8 +26,19 @@
  * SAFETY: source files are edited in place and restored from a copy held in
  * memory — in a finally, and again if the process is interrupted. It never uses
  * git to undo, because that would destroy uncommitted work rather than restore
- * it. It warns if the tree is dirty so that git is at least available as a
- * backstop if something goes badly wrong.
+ * it.
+ *
+ * Which is why this refuses to run in the checkout you work in. `npm run
+ * test:mutate` builds a throwaway worktree and runs this inside it, and that is
+ * the way in. In your own tree the files are mutated for real for as long as a
+ * run takes, and anything that reads them meanwhile — a commit, `git add`, an
+ * editor saving, another test run — sees code nobody wrote. Restoring afterwards
+ * does not undo what already read them.
+ *
+ * `--in-place` is the way past it, for the case the worktree cannot cover:
+ * uncommitted work that a worktree built from HEAD would not contain. It says
+ * out loud what it is about to do, because the danger is not the mutating, it
+ * is doing anything else while it lasts.
  */
 'use strict';
 
@@ -42,6 +53,8 @@ const SUITES = {
   unit: ['test/run.js'],
   dom: ['test/dom/run.js'],
 };
+
+const inPlace = process.argv.includes('--in-place');
 
 const only = (() => {
   const at = process.argv.indexOf('--only');
@@ -86,6 +99,52 @@ function runSuite(suite) {
   return `${result.stdout || ''}${result.stderr || ''}`;
 }
 
+/**
+ * Is this a linked worktree rather than the checkout somebody works in?
+ *
+ * A linked worktree's git directory sits inside the main one — `.git/worktrees/
+ * <name>` — so the two paths differ. In the main checkout they are the same.
+ * Anything that is not a git checkout at all answers no: unknown is not a
+ * reason to start editing files.
+ */
+function inThrowawayWorktree() {
+  try {
+    /* Both resolved against ROOT before comparing. `--git-common-dir` answers
+       with a relative path in an ordinary checkout and an absolute one in a
+       linked worktree, so comparing what git prints finds a difference that is
+       only ever about spelling — which is how the first version of this check
+       waved through the very tree it exists to protect. */
+    const at = (arg) =>
+      path.resolve(
+        ROOT,
+        execFileSync('git', ['rev-parse', arg], { cwd: ROOT, encoding: 'utf8' }).trim(),
+      );
+    return at('--absolute-git-dir') !== at('--git-common-dir');
+  } catch (_) {
+    return false;
+  }
+}
+
+/** Stop, unless this is somewhere the mutating cannot cost anything. */
+function refuseUnlessSafe() {
+  if (inThrowawayWorktree()) return;
+  if (!inPlace) {
+    console.error(
+      'mutate: this edits source files in place, and this is not a throwaway worktree.\n' +
+        '        Use: npm run test:mutate\n' +
+        '        It builds a worktree from HEAD and runs this there, so the tree you\n' +
+        '        work in is never touched and you can keep editing while it runs.\n\n' +
+        '        If the point is uncommitted work a worktree would not have:\n' +
+        '        npm run test:mutate:here — and then touch nothing until it ends.',
+    );
+    process.exit(1);
+  }
+  console.log(
+    '  --in-place: the files below are really mutated until this finishes.\n' +
+      '              Do not commit, stage, or edit anything until it does.\n',
+  );
+}
+
 function warnIfDirty() {
   try {
     const dirty = execFileSync('git', ['status', '--porcelain'], { cwd: ROOT, encoding: 'utf8' })
@@ -103,6 +162,10 @@ function warnIfDirty() {
 }
 
 function main() {
+  /* First, before the argument is even looked at: everything below this reads
+     or edits source files. */
+  refuseUnlessSafe();
+
   const chosen = MUTATIONS.filter((m) => !only || m.name.includes(only) || m.guards.includes(only));
   if (!chosen.length) {
     console.error(`no mutation matches ${JSON.stringify(only)}`);
