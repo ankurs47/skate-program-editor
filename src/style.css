@@ -597,6 +597,44 @@ section {
   }
 }
 
+/* The list of checks in the replace dialog. A colored rule down the left rather
+   than a colored panel: five of these stacked as panels is a traffic light, and
+   what matters is which one is not green, not that the dialog is decorated. */
+.checks {
+  list-style: none;
+  margin: 12px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.checks .check {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 0 6px 10px;
+  border-left: 3px solid var(--line);
+}
+.checks .check-head {
+  font-size: 13px;
+  font-weight: 600;
+}
+.checks .check .hint {
+  font-size: 12px;
+}
+.checks .check.good {
+  border-left-color: var(--good);
+}
+.checks .check.note {
+  border-left-color: var(--muted);
+}
+.checks .check.warn {
+  border-left-color: var(--bad);
+}
+.checks .check.warn .check-head {
+  color: var(--bad);
+}
+
 .warn {
   border: 1px solid var(--bad);
   border-radius: 8px;
@@ -651,6 +689,15 @@ body.dropping .dropzone {
 }
 body.dropping #timelineWrap .timeline,
 body.dropping #timelineWrap[data-mode="start"] .empty {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+/* And a third place, once there is one file over one song the program plays:
+   dropping there puts that file underneath the song instead of adding it
+   alongside. Only the row being pointed at lights up — every swappable row
+   glowing at once would say the list is the target, which is the meaning the
+   dropzone already has. */
+#libraryList li.swap-target {
   border-color: var(--accent);
   background: var(--accent-soft);
 }

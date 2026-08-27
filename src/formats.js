@@ -590,6 +590,83 @@ function qualityDetail(q) {
   return `${head} — ${parts.join(', ')}`;
 }
 
+/* How much better one source has to be before it is worth calling better. Two
+   files that measure 190 and 192 kbps are the same file for every purpose a
+   skater has, and saying otherwise would turn a real question — is this an
+   upgrade? — into noise. */
+const BETTER_BY = 1.1;
+
+/**
+ * Is `candidate` a better source than `current`? Pure, and takes the two
+ * analyses `analyzeSource` produces.
+ *
+ * Answers in MP3-equivalent terms for the same reason the badge does: 128 kbps
+ * Opus is not 128 kbps MP3, and a swap that reads as a downgrade on the raw
+ * numbers can be an upgrade on the ear. Lossless outranks everything lossy
+ * whatever the bitrates say, because there is nothing left to gain past it.
+ *
+ * `null` for either measurement means unknown, and unknown is its own answer —
+ * never "the same" and never "worse".
+ */
+function compareQuality(current, candidate) {
+  if (!current || !candidate) return { direction: 'unknown', says: 'Could not compare the two' };
+
+  const rate = (q) =>
+    q.lossless
+      ? Infinity
+      : q.bitrate === null
+        ? null
+        : q.bitrate * (CODEC_EFFICIENCY[q.codec] || 1);
+  const was = rate(current);
+  const now = rate(candidate);
+
+  if (was === null || now === null) {
+    return {
+      direction: 'unknown',
+      says:
+        was === null
+          ? 'The song already here could not be measured, so there is nothing to compare against'
+          : 'This file could not be measured, so whether it is better is unknown',
+    };
+  }
+
+  const sample = (q) => q.sampleRate;
+  const rateNote =
+    sample(candidate) !== null && sample(current) !== null && sample(candidate) < sample(current)
+      ? ` — but sampled at ${(sample(candidate) / 1000).toFixed(1)} kHz rather than ${(sample(current) / 1000).toFixed(1)} kHz`
+      : '';
+
+  if (candidate.lossless && !current.lossless) {
+    return { direction: 'better', says: 'Lossless, where the song already here is compressed' };
+  }
+  if (current.lossless && !candidate.lossless) {
+    return { direction: 'worse', says: 'Compressed, where the song already here is lossless' };
+  }
+  if (now > was * BETTER_BY) {
+    return {
+      direction: 'better',
+      says: `${describeRate(candidate)}, up from ${describeRate(current)}${rateNote}`,
+    };
+  }
+  if (was > now * BETTER_BY) {
+    return {
+      direction: 'worse',
+      says: `${describeRate(candidate)}, down from ${describeRate(current)}${rateNote}`,
+    };
+  }
+  return {
+    direction: 'same',
+    says: `About the same quality as the song already here${rateNote || ' — both around ' + describeRate(current)}`,
+  };
+}
+
+/** A source's bitrate as a person would say it, or what it is when there is none. */
+function describeRate(q) {
+  if (q.lossless) return 'lossless';
+  if (q.bitrate === null) return 'an unknown bitrate';
+  return `${q.bitrate} kbps ${q.codec || 'audio'}`;
+}
+
 /* Under Node — the test suite — hand the parsing over. In a browser these are
    already global and this block does nothing. */
 if (typeof module !== 'undefined' && module.exports) {
@@ -611,5 +688,8 @@ if (typeof module !== 'undefined' && module.exports) {
     qualityLabel,
     qualityDetail,
     fingerprint,
+    BETTER_BY,
+    compareQuality,
+    describeRate,
   };
 }

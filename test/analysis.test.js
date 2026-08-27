@@ -73,11 +73,12 @@ function tone(seconds, hz = 220, sampleRate = 44100) {
   return out;
 }
 
-function fakeBuffer(samples, sampleRate = 44100) {
+function fakeBuffer(samples, { sampleRate = 44100, channels = 1 } = {}) {
   return {
     sampleRate,
     length: samples.length,
-    numberOfChannels: 1,
+    duration: samples.length / sampleRate,
+    numberOfChannels: channels,
     getChannelData: () => samples,
   };
 }
@@ -1307,4 +1308,149 @@ check('describeLevels: plain language, no audio jargon', () => {
       }
     }
   }
+});
+
+/* ------------------------------------------------ 5. is this the same song? */
+
+/* The claim is that a recording keeps the shape of its loudness through being
+   encoded again, and that two different songs do not share one. Both halves are
+   checked here against audio built so the answer is known — and the second half
+   matters more, because a matcher that says yes to everything passes every
+   check that only ever shows it the same song twice. */
+
+/**
+ * Music-shaped audio: notes at a seeded-random pitch struck on a beat, each one
+ * decaying, over a slow swell. The decays are what make the loudness move, and
+ * moving loudness is the whole of what this matches on.
+ */
+function tune(seed, { seconds = 30, beat = 0.5, sampleRate = 44100, ring = 3, swell = 0.6 } = {}) {
+  const random = rng(seed);
+  const n = Math.round(seconds * sampleRate);
+  const out = new Float32Array(n);
+  for (let at = 0; at < seconds; at += beat) {
+    const hz = 220 * Math.pow(2, Math.floor(random() * 12) / 12);
+    /* `ring` is how long a note lasts. A small number is a piano pedalled
+       through the bar, which is most of what skaters use and, as the shared-
+       swell check below shows, the harder case for telling two songs apart. */
+    const decay = ring * (0.5 + random());
+    const from = Math.round(at * sampleRate);
+    for (let i = 0; i + from < n && i < beat * 6 * sampleRate; i++) {
+      const t = i / sampleRate;
+      out[from + i] += Math.sin(2 * Math.PI * hz * t) * Math.exp(-t * decay) * 0.5;
+    }
+  }
+  /* The slow rise and fall a piece of music has on top of its notes. Identical
+     for every seed on purpose: it is the thing two different songs really do
+     share, and the thing the matcher has to see past. */
+  for (let i = 0; i < n; i++) {
+    out[i] *= 1 - swell + swell * Math.abs(Math.sin((i / sampleRate) * 0.35));
+  }
+  return out;
+}
+
+/** The same audio, moved later by `seconds` — a fresh download's encoder delay. */
+function delayed(samples, seconds, sampleRate = 44100) {
+  const pad = Math.round(seconds * sampleRate);
+  const out = new Float32Array(samples.length + pad);
+  out.set(samples, pad);
+  return out;
+}
+
+check('sameRecording: one song encoded differently is still one song', () => {
+  const song = tune(11);
+  /* What an encoder does to a waveform, roughly: everything moves a little, and
+     the quiet parts move proportionally more. The loudness shape survives it,
+     which is the property being relied on. */
+  const reencoded = Float32Array.from(song, (v) => v * 0.62 + (v > 0 ? 0.004 : -0.004));
+  const match = app.sameRecording(fakeBuffer(song), fakeBuffer(reencoded));
+  ok(match.same, `expected the same recording, correlation was ${match.correlation.toFixed(3)}`);
+  near(match.shift, 0, 0.02, 'nothing moved, so the shift should be nothing: ');
+});
+
+check('sameRecording: mono against stereo is still the same recording', () => {
+  const song = tune(11);
+  const match = app.sameRecording(fakeBuffer(song), fakeBuffer(song, { channels: 2 }));
+  ok(match.same, 'the same audio in two channels rather than one');
+});
+
+check('sameRecording: a different song is not it', () => {
+  /* Same tempo and same swell as the first, so the only thing telling them
+     apart is which notes are struck when. A matcher that leaned on how loud
+     music is, or on the shape of a whole track, would call these one song. */
+  const match = app.sameRecording(fakeBuffer(tune(11)), fakeBuffer(tune(29)));
+  ok(!match.same, `two different songs were called the same, at ${match.correlation.toFixed(3)}`);
+});
+
+check('sameRecording: finds how far a fresh download has moved', () => {
+  const song = tune(7);
+  const later = app.sameRecording(fakeBuffer(song), fakeBuffer(delayed(song, 0.4)));
+  ok(later.same, 'a delayed copy is still the same recording');
+  near(later.shift, 0.4, 0.03, 'music that starts later reports a positive shift: ');
+
+  const earlier = app.sameRecording(fakeBuffer(delayed(song, 0.4)), fakeBuffer(song));
+  near(earlier.shift, -0.4, 0.03, 'and the other way round is negative: ');
+});
+
+check('sameRecording: says nothing rather than guessing about a scrap of audio', () => {
+  const scrap = tune(3, { seconds: 2 });
+  eq(app.sameRecording(fakeBuffer(scrap), fakeBuffer(scrap)), null);
+});
+
+check('sameRecording: two songs that swell alike are still two songs', () => {
+  /* The check that pins why the shape is a rate of change and not a level.
+
+     Sustained notes and a strong slow swell, identical in both — which is what
+     any two pieces of music have in common: loud in the middle, quiet at the
+     ends. Correlate the loudness itself and these score about 0.87 and get
+     called one song. Correlate how it changes and they score about 0.14.
+
+     Written after a mutation survived: the check it replaces compared a song
+     against itself at a quarter of the volume and expected them to match, which
+     they do either way — Pearson subtracts the mean, so a constant offset
+     cancels before the differencing is reached. It was asserting a property of
+     the correlation and calling it a property of the shape. */
+  const together = { ring: 0.7, swell: 0.9 };
+  const match = app.sameRecording(fakeBuffer(tune(11, together)), fakeBuffer(tune(29, together)));
+  ok(
+    !match.same,
+    'two songs with the same swell were called one recording, at ' + match.correlation.toFixed(3),
+  );
+});
+
+check('loudnessShape: a quieter copy of a song is the same song', () => {
+  const song = tune(5);
+  const a = app.loudnessShape(fakeBuffer(song));
+  const b = app.loudnessShape(fakeBuffer(Float32Array.from(song, (v) => v * 0.25)));
+  near(app.correlateAt(a, b, 0, 0, a.length), 1, 0.001, 'twelve dB down is the same shape: ');
+});
+
+check('loudnessShape: the same shape whatever the sample rate', () => {
+  /* Frames are a length of time, not a count of samples, so a file at 32 kHz
+     and the same file at 44.1 kHz have to produce comparable measurements —
+     otherwise every swap to a differently-sampled copy would look like a
+     different song. */
+  const at44 = tune(13, { seconds: 20, sampleRate: 44100 });
+  const at32 = tune(13, { seconds: 20, sampleRate: 32000 });
+  const a = app.loudnessShape(fakeBuffer(at44));
+  const b = app.loudnessShape(fakeBuffer(at32, { sampleRate: 32000 }));
+  near(a.length, b.length, 2, 'the same song makes the same number of frames: ');
+  const found = app.alignShapes(a, b);
+  ok(found.correlation > app.MATCH.same, `matched at ${found.correlation.toFixed(3)}`);
+});
+
+check('correlateAt: reads each side from its own offset', () => {
+  const a = Float64Array.from([9, 9, 1, 2, 3, 4]);
+  const b = Float64Array.from([1, 2, 3, 4, 0, 0]);
+  near(app.correlateAt(a, b, 2, 0, 4), 1, 1e-9, 'lined up: ');
+  ok(app.correlateAt(a, b, 0, 0, 4) < 1, 'and not lined up is not a perfect match');
+});
+
+check('correlateAt: a flat signal correlates with nothing rather than dividing by zero', () => {
+  const flat = Float64Array.from([2, 2, 2, 2]);
+  eq(app.correlateAt(flat, Float64Array.from([1, 2, 3, 4]), 0, 0, 4), 0);
+});
+
+check('alignShapes: refuses to compare stretches too short to mean anything', () => {
+  const short = Float64Array.from({ length: 10 }, (_, i) => i);
+  eq(app.alignShapes(short, short), null);
 });

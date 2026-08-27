@@ -7,6 +7,52 @@
 'use strict';
 
 /**
+ * Everything this app knows how to learn about one audio file.
+ *
+ * Its own function rather than the body of a loop because there are two callers
+ * now: adding a song, and offering one as a replacement for a song already
+ * here. The second has to measure a file fully before anything is committed —
+ * asking whether it is better, and whether it is even the same recording, is
+ * the whole point of it — and measuring it a second, different way would be a
+ * way for the two answers to disagree.
+ *
+ * Never throws. A file that will not play comes back with `state: 'error'` and
+ * whatever was learned before it failed — which is the tags, and matters: a
+ * song that will not decode should still be able to say what it claims to be
+ * rather than becoming an anonymous failure.
+ */
+async function readSong(file) {
+  const entry = { name: file.name, tags: {}, state: 'error' };
+  try {
+    const bytes = await readFileBytes(file);
+    // Copy a window at the first audio frame before decoding — decodeAudioData
+    // detaches the buffer, and the source bitrate exists only in those bytes,
+    // not in the decoded PCM. The window has to start past the ID3v2 tag,
+    // which is ~430 KB on anything with embedded artwork.
+    // Ogg keeps its cover art in the comment header rather than an ID3 tag,
+    // so ask whichever container this is where its audio really starts.
+    const tagEnd = id3Size(bytes) || oggAudioStart(bytes);
+    const head = bytes.slice(tagEnd, Math.min(bytes.byteLength, tagEnd + 32768));
+    /* Before decoding, for the same reason as the window above: the tags live
+       in these bytes and decodeAudioData takes the buffer away. */
+    entry.tags = readTags(bytes);
+    const buffer = await ctx().decodeAudioData(bytes);
+    entry.buffer = buffer;
+    entry.duration = buffer.duration;
+    entry.peaks = computePeaks(buffer);
+    entry.quality = analyzeSource(head, tagEnd, file, buffer);
+    entry.bytes = file.size;
+    entry.fingerprint = fingerprint(head);
+    entry.state = 'ready';
+  } catch (_) {
+    /* Left as it was, tags and all. The caller says what to do about it — one
+       unreadable file in a drop of six is not the same event as the one file
+       somebody offered as a replacement. */
+  }
+  return entry;
+}
+
+/**
  * Take files somebody brought from outside into the project folder first.
  *
  * A project is a folder. A song decoded from wherever it happened to be sitting
@@ -80,35 +126,15 @@ async function addFiles(fileList, { fromFolder = false } = {}) {
   for (const file of files) {
     const entry = library.get(file.name);
     if (entry.buffer) continue;
-    try {
-      const bytes = await readFileBytes(file);
-      // Copy a window at the first audio frame before decoding — decodeAudioData
-      // detaches the buffer, and the source bitrate exists only in those bytes,
-      // not in the decoded PCM. The window has to start past the ID3v2 tag,
-      // which is ~430 KB on anything with embedded artwork.
-      // Ogg keeps its cover art in the comment header rather than an ID3 tag,
-      // so ask whichever container this is where its audio really starts.
-      const tagEnd = id3Size(bytes) || oggAudioStart(bytes);
-      const head = bytes.slice(tagEnd, Math.min(bytes.byteLength, tagEnd + 32768));
-      /* Before decoding, for the same reason as the window above: the tags live
-         in these bytes and decodeAudioData takes the buffer away. */
-      entry.tags = readTags(bytes);
-      const buffer = await ctx().decodeAudioData(bytes);
-      entry.buffer = buffer;
-      entry.duration = buffer.duration;
-      entry.peaks = computePeaks(buffer);
-      entry.quality = analyzeSource(head, tagEnd, file, buffer);
-      entry.bytes = file.size;
-      entry.fingerprint = fingerprint(head);
-      entry.state = 'ready';
+    Object.assign(entry, await readSong(file));
+    if (entry.state === 'error') {
+      toast(`Could not read ${file.name}`);
+    } else {
       const complaint = describeWrongFile(state.expectedFiles.get(file.name), entry);
       if (complaint) wrongFile.push(complaint);
       // Now that there is a real duration, the trims can finally be checked
       // against it. Silently playing silence off the end is the alternative.
       shortened += clampClipsToFile(state.clips, entry);
-    } catch (err) {
-      entry.state = 'error';
-      toast(`Could not read ${file.name}`);
     }
     renderLibrary();
     updateMissingNotice();
@@ -214,6 +240,9 @@ function renderLibrary() {
   list.innerHTML = '';
   for (const entry of library.values()) {
     const li = document.createElement('li');
+    /* So a file dropped onto this row can be offered as a replacement for the
+       song in it, rather than added alongside it. */
+    li.dataset.song = entry.name;
     if (entry.state === 'loading') li.classList.add('loading');
 
     /* What the song is called, with the file name under it when they differ.
@@ -269,10 +298,27 @@ function renderLibrary() {
       row.appendChild(add);
     }
 
+    /* Exactly one of Replace and Remove is ever available, and which one says
+       whether the program depends on this song. A song nothing uses is removed
+       and a better one added; a song the program is built on cannot be removed
+       without gutting the edit, and swapping underneath it is the only way to
+       change which file it plays from. */
+    const used = clipsUsing(entry.name);
+    if (used && entry.state === 'ready') {
+      li.classList.add('swappable');
+      const swap = document.createElement('button');
+      swap.className = 'small';
+      swap.textContent = 'Replace';
+      swap.title =
+        'Put a different file under this song — a better copy, say — keeping every ' +
+        'trim, blend and level exactly as they are';
+      swap.onclick = () => pickReplacement(entry.name);
+      row.appendChild(swap);
+    }
+
     const drop = document.createElement('button');
     drop.className = 'small danger';
     drop.textContent = 'Remove';
-    const used = clipsUsing(entry.name);
     drop.disabled = used > 0;
     drop.title = used
       ? `This song is in your program ${used === 1 ? 'once' : `${used} times`} — ` +
@@ -441,6 +487,249 @@ function storedHandles() {
   });
 }
 
+/* ------------------------------------------- putting a better file underneath */
+
+/* What is being replaced, and by what, while the dialog is open. Held here
+   rather than passed through the buttons because the dialog is markup in the
+   page and its Replace button is bound once, at startup. */
+let pendingSwap = null;
+
+/**
+ * Ask for one file to put under `name`.
+ *
+ * Deliberately not the remembering picker `pickFiles` uses. A handle is worth
+ * keeping for a song the program plays; this file is a candidate that may be
+ * turned down, and remembering it before anybody has agreed to it would put a
+ * rejected file in the list of songs to reconnect next time.
+ */
+async function pickReplacement(name) {
+  let file = null;
+  if (typeof window.showOpenFilePicker === 'function') {
+    try {
+      const [handle] = await window.showOpenFilePicker({
+        multiple: false,
+        types: audioPickerTypes(),
+      });
+      file = await handle.getFile();
+    } catch (_) {
+      return; // the picker was closed; not an error
+    }
+  } else {
+    file = await pickOneFile();
+    if (!file) return;
+  }
+  await offerReplacement(name, file);
+}
+
+/**
+ * The fallback picker, as a promise for one file.
+ *
+ * `fileInput` is the app's one hidden input and its `onchange` adds whatever
+ * arrives, which is the opposite of what a replacement wants. So this makes its
+ * own, uses it once and drops it — no page markup, and no way for the two paths
+ * to interfere.
+ */
+function pickOneFile() {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = AUDIO_EXTENSION_LIST.join(',') + ',audio/*';
+    input.onchange = () => resolve(input.files && input.files[0] ? input.files[0] : null);
+    /* Browsers fire this when the picker is closed without choosing. Not every
+       one does, and one that does not leaves a promise nobody settles — which
+       is a dropped promise rather than a leak, since the only thing waiting on
+       it is the click that started it. */
+    input.oncancel = () => resolve(null);
+    input.click();
+  });
+}
+
+/**
+ * Measure a candidate against the song it would replace, and ask.
+ *
+ * Everything is measured before anything is shown and nothing is committed
+ * until the dialog is answered — including, where a shell is holding the
+ * project, copying the file into the project folder. A file that turns out to
+ * be the wrong song should leave no trace of having been considered.
+ */
+async function offerReplacement(name, file) {
+  const current = library.get(name);
+  if (!current || !current.buffer) return;
+
+  const candidate = await readSong(file);
+  if (candidate.state !== 'ready') {
+    toast(`Could not read “${file.name}” — nothing has changed`);
+    return;
+  }
+
+  /* The same bytes, so there is nothing to replace. Worth saying rather than
+     opening a dialog whose every line reads "no change". */
+  if (candidate.fingerprint && candidate.fingerprint === current.fingerprint) {
+    toast(`“${file.name}” is the file already here — nothing to change`);
+    return;
+  }
+
+  const report = checkReplacement({
+    current,
+    candidate,
+    match: sameRecording(current.buffer, candidate.buffer),
+    quality: compareQuality(current.quality, candidate.quality),
+    clips: state.clips,
+  });
+  pendingSwap = { name, file, current, candidate, report };
+  showReplaceDialog();
+}
+
+function showReplaceDialog() {
+  const { name, current, candidate, report } = pendingSwap;
+  $('replaceFrom').textContent = current.name;
+  $('replaceTo').textContent = candidate.name;
+  $('replaceUsed').textContent = (() => {
+    const used = clipsUsing(name);
+    return used === 1
+      ? 'One clip in your program plays from this song.'
+      : `${used} clips in your program play from this song.`;
+  })();
+
+  const list = $('replaceChecks');
+  list.innerHTML = '';
+  for (const check of report.checks) {
+    const row = document.createElement('li');
+    row.className = `check ${check.level}`;
+    const head = document.createElement('span');
+    head.className = 'check-head';
+    head.textContent = check.head;
+    const says = document.createElement('span');
+    says.className = 'hint';
+    says.textContent = check.says;
+    row.append(head, says);
+    list.appendChild(row);
+  }
+
+  const go = $('btnReplaceGo');
+  go.textContent = report.worst === 'warn' ? 'Replace anyway' : 'Replace';
+  go.classList.toggle('danger', report.worst === 'warn');
+
+  rememberFocus();
+  $('replaceDialog').classList.remove('hidden');
+  /* When something is wrong, the keyboard route out of this dialog is the one
+     that changes nothing — the same rule the export dialog follows when the
+     program is the wrong length. */
+  (report.worst === 'warn' ? $('btnReplaceCancel') : go).focus();
+}
+
+function closeReplaceDialog() {
+  $('replaceDialog').classList.add('hidden');
+  pendingSwap = null;
+  restoreFocus();
+}
+
+/**
+ * Do the swap that was agreed to.
+ *
+ * The order matters. The file goes into the project folder first, because that
+ * is the step that can fail and the one that decides what the song ends up
+ * called — a shell renames a file whose name is already taken. Only once it is
+ * safely in does anything about the program change.
+ */
+async function applyReplacement() {
+  if (!pendingSwap) return;
+  const { name, file, candidate, report } = pendingSwap;
+  closeReplaceDialog();
+
+  const folder = typeof hostProject === 'function' ? hostProject() : null;
+  let named = candidate.name;
+  if (folder && typeof folder.importFile === 'function') {
+    try {
+      /* Read again rather than keeping a copy: `decodeAudioData` took the bytes
+         when the file was measured, and a second read of a file on disk costs
+         less than holding a second copy of every candidate that gets turned
+         down. */
+      named = await folder.importFile(file.name, await readFileBytes(file));
+      if (!named) throw new Error('the folder gave back no name');
+    } catch (_) {
+      /* Said in full because the dialog has already closed: without this, a
+         failed copy looks exactly like a swap that quietly did nothing. */
+      toast(`Could not put “${file.name}” in the project folder — nothing has changed`, 6000);
+      return;
+    }
+  }
+
+  const entry = { ...candidate, name: named };
+  library.set(named, entry);
+
+  /* Everything below this line is the edit changing, so it is one undo step.
+     Pushed after the file is safely in and before anything is touched, which is
+     the only order where an undo puts back a program that still has all its
+     music.
+
+     Which is also why the song being replaced stays in the list. Dropping it
+     would tidy the list and make Ctrl+Z restore clips playing from a song that
+     no longer exists — and the list is what files are loaded, not what the
+     program uses. It has no clips now, so Remove is available on it, which is
+     how audio is given back everywhere else in this app.
+
+     The exception is a new file that happens to share the old one's name. There
+     is one entry in that case and it now holds the new audio, so an undo brings
+     the edit back but not the file underneath it. A shell never gets here — it
+     renames a file whose name is taken before this runs. */
+  pushUndo();
+
+  /* What the music is called follows the music, which has not changed — but
+     only where the name was ever a decision. Every song gets a title written
+     into the project, and for a file with no tags that title is just its own
+     name with the extension taken off. Carrying that over would put
+     "track03" on a replacement whose tags say the music is Albinoni's Adagio.
+     So a title that is merely the old file's name is not carried, and the new
+     file gets to speak for itself. */
+  const wasCalled = songTitle(state.expectedFiles.get(name), name);
+  const chosen = wasCalled === songTitle(null, name) ? null : wasCalled;
+  const nowCalled = songTitle({ title: chosen || (entry.tags && entry.tags.title) }, named);
+
+  for (const clip of state.clips) {
+    if (clip.file !== name) continue;
+    /* A clip called after its song follows the song. One called something else
+       was renamed by hand, and renaming it back would undo that silently. */
+    if (clip.title === wasCalled) clip.title = nowCalled;
+    clip.file = named;
+    if (report.shift) {
+      clip.srcStart += report.shift;
+      clip.srcEnd += report.shift;
+    }
+  }
+  const shortened = clampClipsToFile(state.clips, entry);
+
+  /* What the project said about the old song described the old file — its size,
+     its length, its fingerprint, and where a shell fetched it from — so the new
+     song starts with none of it. The old record stays where it is rather than
+     being deleted: nothing points at it now, so nothing writes it out, and it
+     is exactly what an undo needs to find. */
+  state.expectedFiles.set(named, chosen ? { name: named, title: chosen } : { name: named });
+
+  /* The list is rebuilt from a signature that has not changed — same songs,
+     same durations — so it has to be told to look again. Everything else the
+     swap touches is what `refresh` already redraws and saves. */
+  forgetLibraryShape();
+  refresh();
+
+  const moved = report.shift
+    ? `, and every trim moved ${fmt(Math.abs(report.shift))} ${report.shift > 0 ? 'later' : 'earlier'} to match`
+    : '';
+  const cut = shortened
+    ? shortened === 1
+      ? ' One clip was shortened to fit.'
+      : ` ${shortened} clips were shortened to fit.`
+    : '';
+  const kept =
+    named === name ? '' : ` “${name}” is still in the list — Remove it when you are sure.`;
+  toast(`“${named}” is now the song your program plays${moved}.${cut}${kept}`, 7000);
+}
+
+function bindReplace() {
+  $('btnReplaceCancel').onclick = closeReplaceDialog;
+  $('btnReplaceGo').onclick = applyReplacement;
+}
+
 /** Load the names we know about, so the missing-file notice can offer them. */
 async function loadRememberedNames() {
   const handles = await storedHandles();
@@ -587,18 +876,43 @@ function bindFileDrops() {
     if (!depth) show(false);
   });
   // Without this the browser navigates to the file instead of handing it over.
-  document.addEventListener('dragover', (e) => e.preventDefault());
+  document.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    if (!draggingFiles(e)) return;
+    /* One file, and a song the program is built on: that row is where this
+       would land, and it means something different from anywhere else. */
+    const row = e.target.closest && e.target.closest('#libraryList li.swappable');
+    const one = e.dataTransfer.items ? e.dataTransfer.items.length === 1 : true;
+    for (const el of document.querySelectorAll('#libraryList li.swap-target')) {
+      if (el !== row) el.classList.remove('swap-target');
+    }
+    if (row && one) row.classList.add('swap-target');
+  });
 
   document.addEventListener('drop', async (e) => {
     e.preventDefault();
     depth = 0;
     show(false);
+    for (const el of document.querySelectorAll('#libraryList li.swap-target')) {
+      el.classList.remove('swap-target');
+    }
     if (!draggingFiles(e)) return; // a clip being reordered; not our business
 
     // Read these now: the awaits below outlive the event, and dataTransfer is
     // emptied once the handler returns.
     const ontoTimeline = Boolean(e.target.closest && e.target.closest('#timelineWrap'));
+    const ontoSong = e.target.closest && e.target.closest('#libraryList li[data-song]');
     const dropped = e.dataTransfer.files;
+
+    /* One file onto a song already in the list means "put this under that one",
+       which is the only reading of it that is not already what dropping
+       anywhere else does. Several files cannot mean that, so they are added the
+       ordinary way and the row they landed on is ignored. */
+    if (ontoSong && dropped.length === 1 && ontoSong.classList.contains('swappable')) {
+      await offerReplacement(ontoSong.dataset.song, dropped[0]);
+      return;
+    }
+
     await rememberDropped(e.dataTransfer);
     const added = await addFiles(dropped);
     if (ontoTimeline) for (const entry of added) addClip(entry);
@@ -611,6 +925,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     addFiles,
     addFromOutside,
+    readSong,
     clipsUsing,
     removeFromLibrary,
     libraryShape,
@@ -629,6 +944,13 @@ if (typeof module !== 'undefined' && module.exports) {
     storedHandles,
     loadRememberedNames,
     pickFiles,
+    pickReplacement,
+    pickOneFile,
+    offerReplacement,
+    showReplaceDialog,
+    closeReplaceDialog,
+    applyReplacement,
+    bindReplace,
     rememberDropped,
     reconnectableFiles,
     reconnectMissing,

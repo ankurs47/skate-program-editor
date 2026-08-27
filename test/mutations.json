@@ -472,8 +472,8 @@
     "guards": "the title, composer and rights a file carries reach the screen",
     "file": "src/library.js",
     "suite": "dom",
-    "find": "      entry.tags = readTags(bytes);",
-    "replace": "      entry.tags = {};",
+    "find": "    entry.tags = readTags(bytes);",
+    "replace": "    entry.tags = {};",
     "expect": "says about itself"
   },
   {
@@ -628,5 +628,176 @@
     "find": "  undoStack.push(...clean(saved.undo).slice(-UNDO_DEPTH));",
     "replace": "  undoStack.push(...clean(saved.undo));",
     "expect": "what comes back is what went in"
+  },
+  {
+    "name": "everything counts as the same recording",
+    "guards": "a different song cannot be swapped in under an edit unnoticed",
+    "file": "src/analysis.js",
+    "suite": "unit",
+    "find": "  same: 0.8, // at or above this, the same recording",
+    "replace": "  same: 0, // at or above this, the same recording",
+    "expect": "a different song is not it"
+  },
+  {
+    "name": "the alignment search stops looking past nothing",
+    "guards": "a fresh download that starts later is found and corrected for",
+    "file": "src/analysis.js",
+    "suite": "unit",
+    "find": "  for (let step = -reach; step <= reach; step++) {",
+    "replace": "  for (let step = 0; step <= 0; step++) {",
+    "expect": "finds how far a fresh download has moved"
+  },
+  {
+    "name": "loudness is compared instead of how it changes",
+    "guards": "two songs that share a slow swell are not called one recording",
+    "file": "src/analysis.js",
+    "suite": "unit",
+    "find": "    if (f) shape[f - 1] = db - previous;",
+    "replace": "    if (f) shape[f - 1] = db;",
+    "expect": "two songs that swell alike are still two songs"
+  },
+  {
+    "name": "frames stop being a length of time",
+    "guards": "a file at another sample rate is still measured comparably",
+    "file": "src/analysis.js",
+    "suite": "unit",
+    "find": "  const step = Math.max(1, Math.round(buffer.sampleRate / rate));",
+    "replace": "  const step = Math.max(1, Math.round(44100 / rate));",
+    "expect": "the same shape whatever the sample rate"
+  },
+  {
+    "name": "an offset found against a song that did not match is used anyway",
+    "guards": "a mismatched song never moves the trims in a program",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "  const shift = match && match.same && Math.abs(match.shift) >= MATCH.shift ? match.shift : 0;",
+    "replace": "  const shift = match && Math.abs(match.shift) >= MATCH.shift ? match.shift : 0;",
+    "expect": "an offset found against a song that did not match is not used"
+  },
+  {
+    "name": "the fit is checked against the trims before they move",
+    "guards": "clips the shift itself pushes past the end are still caught",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "  const past = clipsPastEnd(clips, current.name, candidate.duration, shift);",
+    "replace": "  const past = clipsPastEnd(clips, current.name, candidate.duration, 0);",
+    "expect": "the shift is counted when working out what fits"
+  },
+  {
+    "name": "clips from every song are counted, not just this one",
+    "guards": "replacing one song says nothing about clips playing from another",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "  return clips.filter((c) => c.file === file && c.srcEnd + shift > duration + 0.001).length;",
+    "replace": "  return clips.filter((c) => c.srcEnd + shift > duration + 0.001).length;",
+    "expect": "only clips playing from this song are counted"
+  },
+  {
+    "name": "bitrates are compared raw, ignoring the codec",
+    "guards": "a swap to a more efficient codec is not reported as a downgrade",
+    "file": "src/formats.js",
+    "suite": "unit",
+    "find": "        : q.bitrate * (CODEC_EFFICIENCY[q.codec] || 1);",
+    "replace": "        : q.bitrate;",
+    "expect": "judged in MP3 terms"
+  },
+  {
+    "name": "an unmeasurable file is treated as no different",
+    "guards": "unknown quality is never reported as the same quality",
+    "file": "src/formats.js",
+    "suite": "unit",
+    "find": "  if (was === null || now === null) {",
+    "replace": "  if (false) {",
+    "expect": "unmeasured is its own answer"
+  },
+  {
+    "name": "Replace is offered on songs nothing plays from",
+    "guards": "Replace and Remove are never both available on one song",
+    "file": "src/library.js",
+    "suite": "dom",
+    "find": "    if (used && entry.state === 'ready') {",
+    "replace": "    if (entry.state === 'ready') {",
+    "expect": "Replace is offered on exactly the songs Remove is not"
+  },
+  {
+    "name": "the button reads the same whether or not anything is wrong",
+    "guards": "a swap that warns says so on the button that does it",
+    "file": "src/library.js",
+    "suite": "dom",
+    "find": "  go.textContent = report.worst === 'warn' ? 'Replace anyway' : 'Replace';",
+    "replace": "  go.textContent = 'Replace';",
+    "expect": "a different song warns, and the button says so"
+  },
+  {
+    "name": "the trims are left where they were when the music has moved",
+    "guards": "a replacement that starts later still plays the same moments",
+    "file": "src/library.js",
+    "suite": "dom",
+    "find": "    if (report.shift) {",
+    "replace": "    if (false) {",
+    "expect": "moves every trim to match"
+  },
+  {
+    "name": "a replacement is applied without bringing the clips inside it",
+    "guards": "a shorter replacement never leaves a clip playing off the end",
+    "file": "src/library.js",
+    "suite": "dom",
+    "find": "  const shortened = clampClipsToFile(state.clips, entry);",
+    "replace": "  const shortened = 0;",
+    "expect": "shortens what will not fit"
+  },
+  {
+    "name": "the same bytes are offered as a replacement for themselves",
+    "guards": "an identical file is refused rather than opening a dialog about nothing",
+    "file": "src/library.js",
+    "suite": "dom",
+    "find": "  if (candidate.fingerprint && candidate.fingerprint === current.fingerprint) {",
+    "replace": "  if (false) {",
+    "expect": "the same file offered again is refused"
+  },
+  {
+    "name": "what a file said about itself is lost when it will not play",
+    "guards": "an unplayable file still says what it claims to be",
+    "file": "src/library.js",
+    "suite": "dom",
+    "find": "  return entry;\n}\n\n/**\n * Take files somebody brought from outside",
+    "replace": "  return entry.state === 'ready' ? entry : { name: file.name, state: 'error' };\n}\n\n/**\n * Take files somebody brought from outside",
+    "expect": "says about itself"
+  },
+  {
+    "name": "a replacement is not an undo step",
+    "guards": "a swap can be taken back like any other edit",
+    "file": "src/library.js",
+    "suite": "dom",
+    "find": "  pushUndo();\n\n  /* What the music is called follows the music",
+    "replace": "  /* What the music is called follows the music",
+    "expect": "a replacement can be undone"
+  },
+  {
+    "name": "the song replaced is dropped from the list",
+    "guards": "an undone replacement still has its music",
+    "file": "src/library.js",
+    "suite": "dom",
+    "find": "  const entry = { ...candidate, name: named };\n  library.set(named, entry);",
+    "replace": "  const entry = { ...candidate, name: named };\n  library.set(named, entry);\n  if (named !== name) library.delete(name);",
+    "expect": "a replacement can be undone"
+  },
+  {
+    "name": "a title that is only the old file's name is carried over",
+    "guards": "a replacement with real tags gets to say what the music is",
+    "file": "src/library.js",
+    "suite": "dom",
+    "find": "  const chosen = wasCalled === songTitle(null, name) ? null : wasCalled;",
+    "replace": "  const chosen = wasCalled;",
+    "expect": "a title that was only a file name does not follow the music"
+  },
+  {
+    "name": "every clip is renamed after the song, hand-picked names included",
+    "guards": "a clip somebody renamed keeps its name through a swap",
+    "file": "src/library.js",
+    "suite": "dom",
+    "find": "    if (clip.title === wasCalled) clip.title = nowCalled;",
+    "replace": "    clip.title = nowCalled;",
+    "expect": "a name somebody chose survives the swap"
   }
 ]

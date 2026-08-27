@@ -1844,3 +1844,166 @@ check('support check: passes a modern browser, blocks a hopeless one', () => {
   ok(app.unsupportedReasons().length >= 2, 'a browser with no Web Audio should be blocked');
   Object.assign(global, saved);
 });
+
+/* ------------------------------------ swapping a song out from under an edit */
+
+/* The verdicts and the wording, fed the numbers rather than the audio. What
+   `sameRecording` and `compareQuality` produce is tested where they live; this
+   is about what gets said, which is the part a person acts on. */
+
+const swap = (over = {}) => ({
+  current: { name: 'rough.mp3', duration: 200 },
+  candidate: { name: 'good.flac', duration: 200 },
+  match: { correlation: 0.99, shift: 0, same: true },
+  quality: { direction: 'better', says: 'lossless, up from 128 kbps mp3' },
+  clips: [{ file: 'rough.mp3', srcStart: 10, srcEnd: 60 }],
+  ...over,
+});
+
+const find = (report, id) => report.checks.find((c) => c.id === id);
+
+check('checkReplacement: a clean upgrade has nothing to warn about', () => {
+  const report = app.checkReplacement(swap());
+  eq(report.worst, 'good');
+  eq(report.shift, 0);
+  eq(report.shortened, 0);
+  eq(find(report, 'song').level, 'good');
+  eq(find(report, 'quality').level, 'good');
+  eq(find(report, 'timing').level, 'good');
+  eq(find(report, 'length'), undefined, 'the same length is not worth a line: ');
+  eq(find(report, 'fit'), undefined);
+});
+
+check('checkReplacement: a song that does not match is the warning', () => {
+  const report = app.checkReplacement(
+    swap({ match: { correlation: 0.4, shift: 1.2, same: false } }),
+  );
+  eq(report.worst, 'warn');
+  eq(find(report, 'song').level, 'warn');
+  ok(/every trim/i.test(find(report, 'song').says), 'says what goes wrong');
+});
+
+check('checkReplacement: an offset found against a song that did not match is not used', () => {
+  /* Where two different songs happen to line up best is not a fact about
+     either. Moving every trim in a program by it would turn one mistake into
+     two. */
+  const report = app.checkReplacement(
+    swap({ match: { correlation: 0.4, shift: 1.2, same: false } }),
+  );
+  eq(report.shift, 0);
+  eq(find(report, 'timing'), undefined, 'and it is not offered as a thing that will happen: ');
+});
+
+check('checkReplacement: a real offset moves the trims, and says so', () => {
+  const later = app.checkReplacement(
+    swap({ match: { correlation: 0.98, shift: 0.4, same: true } }),
+  );
+  eq(later.shift, 0.4);
+  eq(find(later, 'timing').level, 'note');
+  ok(/later/.test(find(later, 'timing').head), `${find(later, 'timing').head}`);
+
+  const earlier = app.checkReplacement(
+    swap({ match: { correlation: 0.98, shift: -0.4, same: true } }),
+  );
+  eq(earlier.shift, -0.4);
+  ok(/earlier/.test(find(earlier, 'timing').head), `${find(earlier, 'timing').head}`);
+});
+
+check('checkReplacement: an offset too small to matter is left alone', () => {
+  const report = app.checkReplacement(
+    swap({ match: { correlation: 0.99, shift: 0.01, same: true } }),
+  );
+  eq(report.shift, 0, 'nothing moves: ');
+  eq(find(report, 'timing').level, 'good');
+});
+
+check('checkReplacement: a clip that would run past the end is a warning', () => {
+  const report = app.checkReplacement(
+    swap({
+      candidate: { name: 'good.flac', duration: 40 },
+      clips: [{ file: 'rough.mp3', srcStart: 10, srcEnd: 60 }],
+    }),
+  );
+  eq(report.shortened, 1);
+  eq(find(report, 'fit').level, 'warn');
+  eq(report.worst, 'warn');
+});
+
+check('checkReplacement: the shift is counted when working out what fits', () => {
+  /* A clip ending at 199 in a file that is 200 long fits — until every trim is
+     moved two seconds later, at which point it does not. Checking the fit
+     against the untouched trims would miss exactly the clips the swap itself
+     pushes over the edge. */
+  const clips = [{ file: 'rough.mp3', srcStart: 100, srcEnd: 199 }];
+  eq(app.checkReplacement(swap({ clips })).shortened, 0);
+  eq(
+    app.checkReplacement(swap({ clips, match: { correlation: 0.98, shift: 2, same: true } }))
+      .shortened,
+    1,
+  );
+});
+
+check('checkReplacement: only clips playing from this song are counted', () => {
+  const report = app.checkReplacement(
+    swap({
+      candidate: { name: 'good.flac', duration: 40 },
+      clips: [
+        { file: 'rough.mp3', srcStart: 0, srcEnd: 30 },
+        { file: 'other.mp3', srcStart: 0, srcEnd: 300 },
+      ],
+    }),
+  );
+  eq(report.shortened, 0);
+});
+
+check('checkReplacement: a real difference in length is mentioned', () => {
+  const longer = app.checkReplacement(swap({ candidate: { name: 'good.flac', duration: 230 } }));
+  eq(find(longer, 'length').level, 'note');
+  ok(/3:50/.test(find(longer, 'length').head), `${find(longer, 'length').head}`);
+  ok(/3:20/.test(find(longer, 'length').head), 'and what it was: ' + find(longer, 'length').head);
+
+  const barely = app.checkReplacement(swap({ candidate: { name: 'good.flac', duration: 200.5 } }));
+  eq(find(barely, 'length'), undefined, 'half a second is not a difference: ');
+});
+
+check('checkReplacement: lower quality warns but does not stop', () => {
+  const report = app.checkReplacement(
+    swap({ quality: { direction: 'worse', says: '96 kbps mp3, down from 320 kbps mp3' } }),
+  );
+  eq(find(report, 'quality').level, 'warn');
+  eq(report.worst, 'warn');
+  eq(report.shift, 0, 'and the swap itself is still described in full: ');
+});
+
+check('checkReplacement: too short to compare is unknown, not a mismatch', () => {
+  const report = app.checkReplacement(swap({ match: null }));
+  eq(find(report, 'song').level, 'note');
+  eq(report.worst, 'note', 'unknown is not a reason to shout: ');
+  eq(find(report, 'timing'), undefined, 'and nothing is claimed about the timing: ');
+});
+
+check('checkReplacement: every check says something, so the dialog is never blank', () => {
+  for (const direction of ['better', 'same', 'worse', 'unknown']) {
+    const report = app.checkReplacement(swap({ quality: { direction, says: 'something' } }));
+    for (const c of report.checks) {
+      ok(c.head && c.says, `${direction}/${c.id} is missing its wording`);
+      ok(['good', 'note', 'warn'].includes(c.level), `${c.id} has level ${c.level}`);
+    }
+  }
+});
+
+check('clipsPastEnd: counts what would not fit, and does not change it', () => {
+  const clips = [
+    { file: 'a.mp3', srcStart: 0, srcEnd: 100 },
+    { file: 'a.mp3', srcStart: 0, srcEnd: 20 },
+    { file: 'b.mp3', srcStart: 0, srcEnd: 500 },
+  ];
+  eq(app.clipsPastEnd(clips, 'a.mp3', 50), 1);
+  eq(app.clipsPastEnd(clips, 'a.mp3', 50, 40), 2, 'with a shift applied: ');
+  eq(app.clipsPastEnd(clips, 'a.mp3', 200), 0);
+  eq(clips[0].srcEnd, 100, 'and nothing was touched: ');
+});
+
+check('clipsPastEnd: a clip ending exactly at the end fits', () => {
+  eq(app.clipsPastEnd([{ file: 'a.mp3', srcStart: 0, srcEnd: 50 }], 'a.mp3', 50), 0);
+});

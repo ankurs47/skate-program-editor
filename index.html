@@ -649,7 +649,9 @@
         </p>
         <p class="hint">
           Saving your program at higher quality can&rsquo;t fix a song that was already poor. You
-          need a better copy of the song itself.
+          need a better copy of the song itself &mdash; and once you have one, <b>Replace</b>
+          beside the song puts it underneath without disturbing a single trim you have made. It
+          checks that it really is the same recording first.
         </p>
       </div>
 
@@ -674,6 +676,22 @@
           <dt><kbd>Delete</kbd></dt>
           <dd>take the selected song out of the program</dd>
         </dl>
+      </div>
+    </div>
+
+    <div id="replaceDialog" class="modal hidden">
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="replaceTitle">
+        <h2 id="replaceTitle">Put a different file under this song</h2>
+        <p class="hint">
+          <b id="replaceFrom"></b> becomes <b id="replaceTo"></b>. Every trim, blend, fade and
+          volume you have set stays exactly as it is.
+        </p>
+        <p class="hint" id="replaceUsed"></p>
+        <ul id="replaceChecks" class="checks"></ul>
+        <div class="modal-actions">
+          <button id="btnReplaceCancel">Cancel</button>
+          <button id="btnReplaceGo" class="primary">Replace</button>
+        </div>
       </div>
     </div>
 

@@ -423,3 +423,91 @@ check('tags: a file with nothing to say is not a file that fails', () => {
   // And a real tag still reads, so the above is not passing by reading nothing.
   eq(app.readTags(id3File(3, [['TIT2', 'Still works']])).title, 'Still works');
 });
+
+/* ------------------------------------------------- is this one better? */
+
+/* The judgment, not the measurement. Fed plain analyses rather than files, so
+   the thresholds are checked against the numbers that matter and not against
+   whichever files happened to be to hand. */
+
+const source = (over = {}) => ({
+  bitrate: 192,
+  sampleRate: 44100,
+  channels: 2,
+  lossless: false,
+  codec: 'mp3',
+  ...over,
+});
+
+check('compareQuality: more of the same codec is better', () => {
+  const better = app.compareQuality(source({ bitrate: 128 }), source({ bitrate: 320 }));
+  eq(better.direction, 'better');
+  ok(/320 kbps/.test(better.says), `says the new figure: ${better.says}`);
+  ok(/128 kbps/.test(better.says), `and the old one: ${better.says}`);
+  eq(app.compareQuality(source({ bitrate: 320 }), source({ bitrate: 128 })).direction, 'worse');
+});
+
+check('compareQuality: a difference too small to hear is no difference', () => {
+  eq(app.compareQuality(source({ bitrate: 190 }), source({ bitrate: 192 })).direction, 'same');
+  eq(app.compareQuality(source({ bitrate: 192 }), source({ bitrate: 190 })).direction, 'same');
+});
+
+check('compareQuality: judged in MP3 terms, so a codec swap is not a downgrade', () => {
+  /* 160 kbps Opus is worth 240 in MP3 terms, which is more than 192 kbps MP3.
+     On the raw numbers it reads as a downgrade, and telling a skater their
+     better file is worse is exactly the mistake CODEC_EFFICIENCY exists to
+     stop. */
+  const swap = app.compareQuality(
+    source({ bitrate: 192, codec: 'mp3' }),
+    source({ bitrate: 160, codec: 'opus' }),
+  );
+  eq(swap.direction, 'better');
+});
+
+check('compareQuality: nothing beats lossless, and nothing lossy is lossless', () => {
+  eq(
+    app.compareQuality(source({ bitrate: 320 }), source({ lossless: true, codec: 'flac' }))
+      .direction,
+    'better',
+  );
+  eq(
+    app.compareQuality(source({ lossless: true, codec: 'flac' }), source({ bitrate: 320 }))
+      .direction,
+    'worse',
+  );
+  eq(
+    app.compareQuality(
+      source({ lossless: true, codec: 'wav' }),
+      source({ lossless: true, codec: 'flac' }),
+    ).direction,
+    'same',
+  );
+});
+
+check('compareQuality: unmeasured is its own answer, never "the same"', () => {
+  const unknownNew = app.compareQuality(source(), source({ bitrate: null }));
+  eq(unknownNew.direction, 'unknown');
+  ok(/this file/i.test(unknownNew.says), `names which one: ${unknownNew.says}`);
+
+  const unknownOld = app.compareQuality(source({ bitrate: null }), source());
+  eq(unknownOld.direction, 'unknown');
+  ok(/already here/i.test(unknownOld.says), `names the other one: ${unknownOld.says}`);
+
+  eq(app.compareQuality(null, source()).direction, 'unknown');
+  eq(app.compareQuality(source(), null).direction, 'unknown');
+});
+
+check('compareQuality: a drop in sample rate is said out loud even when it wins', () => {
+  const says = app.compareQuality(
+    source({ bitrate: 128, sampleRate: 44100 }),
+    source({ bitrate: 320, sampleRate: 32000 }),
+  );
+  eq(says.direction, 'better');
+  ok(/32\.0 kHz/.test(says.says), `mentions the lower rate: ${says.says}`);
+});
+
+check('describeRate: says what a source is, including when it is nothing', () => {
+  eq(app.describeRate(source({ bitrate: 256, codec: 'aac' })), '256 kbps aac');
+  eq(app.describeRate(source({ lossless: true })), 'lossless');
+  eq(app.describeRate(source({ bitrate: null })), 'an unknown bitrate');
+});

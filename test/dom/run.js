@@ -959,6 +959,270 @@ async function main() {
       ok(result.stillThere, 'a file still in the program was removed anyway');
     });
 
+    /* ------------------------------------------------ replacing a song */
+
+    await check('Replace is offered on exactly the songs Remove is not', async () => {
+      const result = await run(`
+        window.__reset([['a.mp3', window.__tune(1)]]);
+        window.__addToLibrary('spare.mp3', window.__tune(2));
+        renderLibrary();
+        return [...document.querySelectorAll('#libraryList li')].map(li => ({
+          file: li.dataset.song,
+          canReplace: [...li.querySelectorAll('button')].some(b => b.textContent === 'Replace'),
+          canRemove: ![...li.querySelectorAll('button')].find(b => b.textContent === 'Remove').disabled,
+          swappable: li.classList.contains('swappable'),
+        }));
+      `);
+      eq(
+        result,
+        [
+          { file: 'a.mp3', canReplace: true, canRemove: false, swappable: true },
+          { file: 'spare.mp3', canReplace: false, canRemove: true, swappable: false },
+        ],
+        'one or the other, never both and never neither: ',
+      );
+    });
+
+    await check('a better copy of the same song keeps every trim', async () => {
+      const result = await run(`
+        window.__reset([['rough.mp3', window.__tune(4, 20)]]);
+        state.clips[0].srcStart = 3;
+        state.clips[0].srcEnd = 12;
+        state.clips[0].fadeIn = 1.5;
+        state.clips[0].gain = 0.5;
+        refresh();
+        const before = { ...state.clips[0] };
+
+        /* The same music, quieter and with a touch of distortion — what a
+           different encode of one recording looks like. */
+        const better = window.__tune(4, 20, (v) => v * 0.7 + (v > 0 ? 0.003 : -0.003));
+        await offerReplacement('rough.mp3', window.__asFile('good.wav', better));
+        const dialogOpen = window.__visible('replaceDialog');
+        const button = document.getElementById('btnReplaceGo').textContent;
+        const verdicts = [...document.querySelectorAll('#replaceChecks .check')]
+          .map(li => li.className.replace('check ', ''));
+        await applyReplacement();
+
+        const after = state.clips[0];
+        return {
+          dialogOpen, button, verdicts,
+          closed: !window.__visible('replaceDialog'),
+          plays: after.file,
+          keptTrim: after.srcStart === before.srcStart && after.srcEnd === before.srcEnd,
+          keptFade: after.fadeIn === before.fadeIn,
+          keptGain: after.gain === before.gain,
+          oldKept: library.has('rough.mp3'),
+          newThere: library.has('good.wav'),
+          nothingUsesOld: clipsUsing('rough.mp3'),
+        };
+      `);
+      ok(result.dialogOpen, 'the dialog should have opened before anything changed');
+      eq(result.button, 'Replace', 'a clean swap should not read as a warning: ');
+      ok(!result.verdicts.includes('warn'), `nothing should warn, got ${result.verdicts}`);
+      eq(result.plays, 'good.wav', 'the clip should play from the new file: ');
+      ok(result.keptTrim, 'the trim was not kept');
+      ok(result.keptFade, 'the fade was not kept');
+      ok(result.keptGain, 'the level was not kept');
+      ok(result.newThere, 'the new song should be in the list');
+      ok(
+        result.oldKept,
+        'the song replaced should stay in the list, so undo has something to go back to',
+      );
+      eq(result.nothingUsesOld, 0, 'but nothing should play from it any more: ');
+      ok(result.closed, 'the dialog should have closed');
+    });
+
+    await check('a replacement can be undone, music and all', async () => {
+      const result = await run(`
+        window.__reset([['rough.mp3', window.__tune(4, 20)]]);
+        state.clips[0].srcStart = 3;
+        state.clips[0].srcEnd = 12;
+        refresh();
+        const better = window.__tune(4, 20, (v) => v * 0.7);
+        await offerReplacement('rough.mp3', window.__asFile('good.wav', better));
+        await applyReplacement();
+        const swapped = state.clips[0].file;
+        undo();
+        const back = state.clips[0];
+        return {
+          swapped,
+          plays: back.file,
+          /* The whole point: whatever the clips point at after an undo has to
+             still be in the list, or the program comes back with a hole in it. */
+          playable: library.has(back.file) && !!library.get(back.file).buffer,
+          keptTrim: back.srcStart === 3 && back.srcEnd === 12,
+        };
+      `);
+      eq(result.swapped, 'good.wav', 'the swap should have happened first: ');
+      eq(result.plays, 'rough.mp3', 'undo should put the original song back: ');
+      ok(result.playable, 'undo left the program playing from a song that is not there');
+      ok(result.keptTrim, 'the trims should have survived the round trip');
+    });
+
+    await check('a title that was only a file name does not follow the music', async () => {
+      const result = await run(`
+        window.__reset([['track03.mp3', window.__tune(4, 20)]]);
+        /* What loading a project does: a title is written down for every song,
+           and for a file with no tags it is just the name without the
+           extension. That is not a decision anybody made. */
+        state.expectedFiles.set('track03.mp3', { name: 'track03.mp3', title: 'track03' });
+        state.clips[0].title = 'track03';
+
+        await offerReplacement('track03.mp3', window.__asFile('adagio.wav', window.__tune(4, 20)));
+        await applyReplacement();
+        return {
+          clip: state.clips[0].title,
+          recorded: state.expectedFiles.get('adagio.wav'),
+          inProject: project().songs.map((s) => [s.name, s.title]),
+        };
+      `);
+      eq(result.clip, 'adagio', "the clip should take the new file's name, not keep the old: ");
+      eq(result.recorded, { name: 'adagio.wav' }, 'and nothing should be carried over: ');
+      eq(result.inProject, [['adagio.wav', 'adagio']], 'the project should say the same: ');
+    });
+
+    await check('a name somebody chose survives the swap', async () => {
+      const result = await run(`
+        window.__reset([['track03.mp3', window.__tune(4, 20)]]);
+        state.expectedFiles.set('track03.mp3', { name: 'track03.mp3', title: 'Adagio in G minor' });
+        state.clips[0].title = 'Adagio in G minor';
+        /* And a second clip renamed by hand, which is a different decision and
+           has to survive too. */
+        addClip(library.get('track03.mp3'));
+        state.clips[1].title = 'the slow bit';
+
+        await offerReplacement('track03.mp3', window.__asFile('better.wav', window.__tune(4, 20)));
+        await applyReplacement();
+        return {
+          followed: state.clips[0].title,
+          renamed: state.clips[1].title,
+          recorded: state.expectedFiles.get('better.wav').title,
+          plays: state.clips.map((c) => c.file),
+        };
+      `);
+      eq(result.followed, 'Adagio in G minor', 'a chosen name should follow the music: ');
+      eq(result.renamed, 'the slow bit', 'a clip renamed by hand should keep its name: ');
+      eq(result.recorded, 'Adagio in G minor', 'and the project should still record it: ');
+      eq(result.plays, ['better.wav', 'better.wav'], 'both clips should play the new file: ');
+    });
+
+    await check('a different song warns, and the button says so', async () => {
+      const result = await run(`
+        window.__reset([['a.mp3', window.__tune(11, 20)]]);
+        await offerReplacement('a.mp3', window.__asFile('other.wav', window.__tune(29, 20)));
+        const song = [...document.querySelectorAll('#replaceChecks .check')]
+          .find(li => li.classList.contains('warn'));
+        return {
+          open: window.__visible('replaceDialog'),
+          button: document.getElementById('btnReplaceGo').textContent,
+          warned: song ? song.querySelector('.check-head').textContent : null,
+          focused: document.activeElement.id,
+          stillPlaying: state.clips[0].file,
+        };
+      `);
+      eq(result.open, true);
+      eq(result.button, 'Replace anyway', 'a warning should change what the button offers: ');
+      ok(/not look like the same recording/i.test(result.warned || ''), `warned: ${result.warned}`);
+      eq(result.focused, 'btnReplaceCancel', 'the safe option should take focus: ');
+      eq(result.stillPlaying, 'a.mp3', 'nothing should have changed yet: ');
+    });
+
+    await check('cancelling a replacement changes nothing at all', async () => {
+      const result = await run(`
+        window.__reset([['a.mp3', window.__tune(11, 20)]]);
+        const before = JSON.stringify(state.clips);
+        await offerReplacement('a.mp3', window.__asFile('other.wav', window.__tune(29, 20)));
+        document.getElementById('btnReplaceCancel').click();
+        return {
+          closed: !window.__visible('replaceDialog'),
+          clipsUnchanged: JSON.stringify(state.clips) === before,
+          libraryUnchanged: [...library.keys()].join(),
+        };
+      `);
+      eq(result, { closed: true, clipsUnchanged: true, libraryUnchanged: 'a.mp3' });
+    });
+
+    await check('Escape closes the replace dialog like every other one', async () => {
+      const result = await run(`
+        window.__reset([['a.mp3', window.__tune(11, 20)]]);
+        await offerReplacement('a.mp3', window.__asFile('other.wav', window.__tune(29, 20)));
+        window.__key('Escape');
+        return { closed: !window.__visible('replaceDialog'), plays: state.clips[0].file };
+      `);
+      eq(result, { closed: true, plays: 'a.mp3' });
+    });
+
+    await check('the same file offered again is refused rather than swapped in', async () => {
+      const result = await run(`
+        window.__reset([['a.mp3', window.__tune(11, 20)]]);
+        /* Give the song a fingerprint, which decoding would have. The file
+           offered is built from the same bytes, so it fingerprints the same. */
+        const file = window.__asFile('a.mp3', window.__tune(11, 20));
+        const first = await readSong(file);
+        library.get('a.mp3').fingerprint = first.fingerprint;
+        await offerReplacement('a.mp3', window.__asFile('copy.wav', window.__tune(11, 20)));
+        return {
+          open: window.__visible('replaceDialog'),
+          library: [...library.keys()].join(),
+        };
+      `);
+      eq(result.open, false, 'there is nothing to decide about identical bytes: ');
+      eq(result.library, 'a.mp3', 'and nothing should have been added: ');
+    });
+
+    await check('a file that starts later moves every trim to match', async () => {
+      const result = await run(`
+        window.__reset([['a.mp3', window.__tune(6, 20)]]);
+        state.clips[0].srcStart = 5;
+        state.clips[0].srcEnd = 12;
+        refresh();
+
+        /* The same music with half a second of silence in front, which is what
+           a fresh download of one song routinely is. */
+        const song = window.__tune(6, 20);
+        const later = ctx().createBuffer(2, song.length + Math.round(0.5 * 44100), 44100);
+        for (let c = 0; c < 2; c++) {
+          later.getChannelData(c).set(song.getChannelData(c), Math.round(0.5 * 44100));
+        }
+        await offerReplacement('a.mp3', window.__asFile('later.wav', later));
+        const timing = [...document.querySelectorAll('#replaceChecks .check')]
+          .map(li => li.querySelector('.check-head').textContent)
+          .find(t => /starts/.test(t));
+        await applyReplacement();
+        return { timing, srcStart: state.clips[0].srcStart, srcEnd: state.clips[0].srcEnd };
+      `);
+      ok(/later/.test(result.timing || ''), `should say the music moved: ${result.timing}`);
+      near(result.srcStart, 5.5, 0.08, 'the trim should have moved with the music: ');
+      near(result.srcEnd, 12.5, 0.08, 'and so should its end: ');
+    });
+
+    await check(
+      'a shorter file shortens what will not fit rather than playing silence',
+      async () => {
+        const result = await run(`
+        window.__reset([['a.mp3', window.__tune(8, 30)]]);
+        state.clips[0].srcStart = 2;
+        state.clips[0].srcEnd = 25;
+        refresh();
+        await offerReplacement('a.mp3', window.__asFile('short.wav', window.__tune(8, 15)));
+        const heads = [...document.querySelectorAll('#replaceChecks .check.warn .check-head')]
+          .map(el => el.textContent);
+        const button = document.getElementById('btnReplaceGo').textContent;
+        await applyReplacement();
+        return { heads, button, srcEnd: state.clips[0].srcEnd, duration: library.get('short.wav').duration };
+      `);
+        ok(
+          result.heads.some((h) => /runs past the end/i.test(h)),
+          `should say what will not fit, got ${JSON.stringify(result.heads)}`,
+        );
+        eq(result.button, 'Replace anyway');
+        ok(
+          result.srcEnd <= result.duration + 0.01,
+          `the clip should have been brought inside the file: ${result.srcEnd} of ${result.duration}`,
+        );
+      },
+    );
+
     /* -------------------------------------------------------- audio graph */
 
     await check('auditioning a clip applies its level and its fades', async () => {
