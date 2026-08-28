@@ -979,5 +979,50 @@
     "find": "    for (const key of ['fadeIn', 'fadeOut']) {",
     "replace": "    for (const key of ['fadeIn', 'fadeOut', 'crossfade']) {",
     "expect": "a blend is not its business"
+  },
+  {
+    "name": "a marker past the end of the clip is clamped instead of refused",
+    "guards": "a trim key never collapses a clip to the shortest it can be",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "      return { refuse: 'The marker is past the end of this song \u2014 move it inside the song first' };",
+    "replace": "      return { at: latest };",
+    "expect": "a marker that would turn the clip inside out is refused"
+  },
+  {
+    "name": "a marker before the start is clamped instead of refused",
+    "guards": "the same, from the other end",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "      refuse: 'The marker is before the start of this song \u2014 move it inside the song first',",
+    "replace": "      at: earliest,",
+    "expect": "a marker that would turn the clip inside out is refused"
+  },
+  {
+    "name": "a missing marker is read as the very start of the song",
+    "guards": "no marker is refused rather than taken as time zero",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "  const at = typeof cursor === 'number' && isFinite(cursor) ? cursor : null;",
+    "replace": "  const at = isFinite(Number(cursor)) ? Number(cursor) : null;",
+    "expect": "no marker at all is refused rather than read as zero"
+  },
+  {
+    "name": "a refused trim key still pushes an undo step",
+    "guards": "Ctrl-Z after a refused key steps back over a real edit",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "    if (found.refuse) {\n      toast(found.refuse);\n      return;\n    }\n    pushUndo(",
+    "replace": "    pushUndo(`trim-${edge}:${clip.id}`);\n    if (found.refuse) {\n      toast(found.refuse);\n      return;\n    }\n    pushUndo(",
+    "expect": "says no rather than flattening the clip"
+  },
+  {
+    "name": "a trim key that is refused says nothing about it",
+    "guards": "a key that does nothing explains why",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "      toast(found.refuse);\n      return;",
+    "replace": "      return;",
+    "expect": "says no rather than flattening the clip"
   }
 ]

@@ -1233,14 +1233,20 @@ function onKey(e) {
 
   // Tagged, so holding one of these down is a single undo step rather than
   // thirty that bury everything before them.
-  if (e.key === 'i' || e.key === 'I') {
-    pushUndo(`trim-in:${clip.id}`);
-    clip.srcStart = clamp(state.cursor, 0, clip.srcEnd - 0.1);
-    refresh();
-  } else if (e.key === 'o' || e.key === 'O') {
+  if (e.key === 'i' || e.key === 'I' || e.key === 'o' || e.key === 'O') {
+    const edge = e.key === 'i' || e.key === 'I' ? 'start' : 'end';
     const entry = library.get(clip.file);
-    pushUndo(`trim-out:${clip.id}`);
-    clip.srcEnd = clamp(state.cursor, clip.srcStart + 0.1, entry ? entry.duration : clip.srcEnd);
+    const found = trimEdge(clip, edge, state.cursor, entry ? entry.duration : clip.srcEnd);
+    /* Before the undo entry rather than after it. A refused key that had
+       already pushed one would leave a step in the history that undoes
+       nothing, and Ctrl-Z would look broken. */
+    if (found.refuse) {
+      toast(found.refuse);
+      return;
+    }
+    pushUndo(`trim-${edge === 'start' ? 'in' : 'out'}:${clip.id}`);
+    if (edge === 'start') clip.srcStart = found.at;
+    else clip.srcEnd = found.at;
     refresh();
   } else if (e.key === 'Delete' || e.key === 'Backspace') {
     e.preventDefault();

@@ -2119,3 +2119,51 @@ check('clampFades: a clip trimmed to nothing keeps no fade at all', () => {
   eq(clips[0].fadeIn, 0);
   eq(clips[0].fadeOut, 0);
 });
+
+/* ------------------------------------- a trim key needs a marker it can use */
+
+const trimClip = { srcStart: 10, srcEnd: 20 };
+
+check('trimEdge: a marker inside the song is where the edge goes', () => {
+  eq(app.trimEdge(trimClip, 'start', 12, 30), { at: 12 });
+  eq(app.trimEdge(trimClip, 'end', 18, 30), { at: 18 });
+  /* Outside the kept region but still a sensible answer: trimming the start
+     earlier, or the end later, is exactly what these keys are for. */
+  eq(app.trimEdge(trimClip, 'start', 2, 30), { at: 2 });
+  eq(app.trimEdge(trimClip, 'end', 27, 30), { at: 27 });
+});
+
+check('trimEdge: a marker that would turn the clip inside out is refused', () => {
+  /* This used to be a clamp, which kept the clip valid by collapsing it to a
+     tenth of a second — ten seconds of trimming gone on one keystroke, with
+     nothing said about it. */
+  const late = app.trimEdge(trimClip, 'start', 27, 30);
+  eq(late.at, undefined, 'a start past the end still produced an edge: ');
+  ok(/past the end/.test(late.refuse), late.refuse);
+
+  const early = app.trimEdge(trimClip, 'end', 3, 30);
+  eq(early.at, undefined, 'an end before the start still produced an edge: ');
+  ok(/before the start/.test(early.refuse), early.refuse);
+});
+
+check('trimEdge: the boundary is the shortest a clip may be, exactly', () => {
+  /* At the limit it is still a trim; a hair past it is not. */
+  eq(app.trimEdge(trimClip, 'start', 20 - app.MIN_CLIP, 30).at, 20 - app.MIN_CLIP);
+  ok(app.trimEdge(trimClip, 'start', 20 - app.MIN_CLIP / 2, 30).refuse, 'half a MIN_CLIP past: ');
+  eq(app.trimEdge(trimClip, 'end', 10 + app.MIN_CLIP, 30).at, 10 + app.MIN_CLIP);
+  ok(app.trimEdge(trimClip, 'end', 10 + app.MIN_CLIP / 2, 30).refuse, 'half a MIN_CLIP before: ');
+});
+
+check('trimEdge: asking for more music than the file holds gets all of it', () => {
+  /* Different from the refusals above, and still a clamp. "Past the end of the
+     file" has an obvious best answer; "past the end of the clip" does not. */
+  eq(app.trimEdge(trimClip, 'end', 999, 30), { at: 30 });
+  eq(app.trimEdge(trimClip, 'start', -5, 30), { at: 0 }, 'and before the file starts: ');
+});
+
+check('trimEdge: no marker at all is refused rather than read as zero', () => {
+  for (const cursor of [NaN, undefined, null, 'x', Infinity]) {
+    const found = app.trimEdge(trimClip, 'start', cursor, 30);
+    ok(found.refuse, `${String(cursor)} was taken as a trim point: ${JSON.stringify(found)}`);
+  }
+});
