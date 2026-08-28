@@ -79,6 +79,41 @@ function scheduleProgram(context, destination, when, fromTime) {
   return nodes;
 }
 
+/**
+ * What identifies a clip for the purpose of "is this still the thing playing?".
+ *
+ * Its identity and the file it plays from, together. The id alone would say a
+ * replaced song is still the same clip — which it is, and it is also playing
+ * different music, so the sound in the room no longer matches what is on
+ * screen. One definition, used to record the schedule and to check it, because
+ * two would eventually disagree.
+ */
+function playingKey(clip) {
+  return `${clip.id}:${clip.file}`;
+}
+
+/**
+ * Stop if what is playing is no longer part of the program.
+ *
+ * Every clip is handed to Web Audio ahead of time, which is what makes playback
+ * gapless — and what makes it outlive the thing it came from. Removing the clip
+ * being played, loading another project, starting a new program, replacing the
+ * song underneath it or undoing back past it all left the music going, with an
+ * empty timeline behind it and a button offering to pause a program that was
+ * not there.
+ *
+ * The test is deliberately narrow: a clip that has gone, or that now plays from
+ * a different file. Changing a trim or a level while listening is a thing
+ * people do on purpose, and it leaves both alone — the schedule is stale until
+ * the next play either way, which is how this has always worked.
+ */
+function stopIfGone() {
+  if (!playing || !playing.scheduled) return;
+  const here = new Set(state.clips.map(playingKey));
+  if (playing.scheduled.every((was) => here.has(was))) return;
+  stopPlayback();
+}
+
 function stopPlayback() {
   if (playing) {
     for (const node of playing.nodes) {
@@ -107,7 +142,18 @@ function playProgram(fromTime = 0, until = Infinity) {
     toast('Add some music files first');
     return;
   }
-  playing = { nodes, startedAt: when, fromTime, mode: 'program', total, until };
+  playing = {
+    nodes,
+    startedAt: when,
+    fromTime,
+    mode: 'program',
+    total,
+    until,
+    /* What this schedule was built from. Web Audio has already been told when
+       every clip starts and stops, so the sound outlives the program it came
+       from unless somebody notices the program has gone — see `stopIfGone`. */
+    scheduled: state.clips.map(playingKey),
+  };
   $('btnPlayLabel').textContent = 'Pause';
   tickPlayhead();
 }
@@ -144,7 +190,14 @@ function playClipAudition(clip, fromSource) {
   applyEnvelope(fade.gain, fadeEnvelope(clip), when - skip, skip, context.currentTime);
 
   src.start(when, from, clip.srcEnd - from);
-  playing = { nodes: [src], startedAt: when, fromTime: from, mode: 'clip', clip };
+  playing = {
+    nodes: [src],
+    startedAt: when,
+    fromTime: from,
+    mode: 'clip',
+    clip,
+    scheduled: [playingKey(clip)],
+  };
   $('btnPlayLabel').textContent = 'Pause';
   tickPlayhead();
 }
@@ -598,6 +651,8 @@ if (typeof module !== 'undefined' && module.exports) {
     applyEnvelope,
     scheduleProgram,
     stopPlayback,
+    stopIfGone,
+    playingKey,
     playProgram,
     playClipAudition,
     tickPlayhead,

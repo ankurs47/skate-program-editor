@@ -916,5 +916,32 @@
     "find": "  $('exportTags').checked = describe === 'yes';",
     "replace": "  $('exportTags').checked = describe !== 'no';",
     "expect": "remembers whether to describe the program"
+  },
+  {
+    "name": "the music plays on after its program has gone",
+    "guards": "audio scheduled ahead of time does not outlive the program",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "  stopIfGone();\n  updateMissingNotice();",
+    "replace": "  updateMissingNotice();",
+    "expect": "the music stops when the program it is playing goes"
+  },
+  {
+    "name": "any change at all stops the music",
+    "guards": "adjusting a level or a fade while listening is left alone",
+    "file": "src/audio.js",
+    "suite": "dom",
+    "find": "  if (playing.scheduled.every((was) => here.has(was))) return;",
+    "replace": "  if (false) return;",
+    "expect": "carries on through the changes people make while listening"
+  },
+  {
+    "name": "a clip playing from a different file is still the same clip",
+    "guards": "replacing the song underneath a playing clip stops it",
+    "file": "src/audio.js",
+    "suite": "dom",
+    "find": "  return `${clip.id}:${clip.file}`;",
+    "replace": "  return `${clip.id}`;",
+    "expect": "the music stops when the program it is playing goes"
   }
 ]

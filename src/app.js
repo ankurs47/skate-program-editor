@@ -843,6 +843,10 @@ function updateMissingNotice() {
 }
 
 function refresh() {
+  /* Before anything is drawn. Audio scheduled ahead of time outlives the
+     program it came from, and the first thing every redraw should settle is
+     whether what you can hear is still a thing that exists. */
+  stopIfGone();
   updateMissingNotice();
   updateExportAvailability();
   updateEvenOutAvailability();
