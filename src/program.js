@@ -327,6 +327,47 @@ function clampFades(clips) {
 }
 
 /**
+ * Where a trim key would put an edge, or why it will not.
+ *
+ * The clip editor draws the whole file with the kept region picked out, so a
+ * marker outside that region is one click away — and clicking ahead to hear
+ * what comes next is a normal thing to do. Pressing I there used to run the
+ * marker through a clamp, which kept the clip valid by collapsing it: ten
+ * seconds of trimming became a tenth of a second, silently, on one keystroke.
+ *
+ * The clamp was not wrong so much as unable to tell "a little past the end"
+ * from "nowhere near this clip", and it turned both into the same answer. This
+ * separates them: a marker outside the clip is not a trim point for it, and
+ * saying so is better than obeying an instruction nobody meant.
+ *
+ * Running past the end of the *file* is different and stays a clamp. Asking for
+ * more music than the file holds has an obvious best answer, which is all of it.
+ */
+function trimEdge(clip, edge, cursor, fileDuration = Infinity) {
+  /* Not `Number(cursor)` and then `isFinite`: `Number(null)` is 0, which is a
+     perfectly finite number and a real place in the song, so a missing marker
+     would have trimmed to the very start. */
+  const at = typeof cursor === 'number' && isFinite(cursor) ? cursor : null;
+  if (at === null) return { refuse: 'There is no marker to trim to' };
+
+  if (edge === 'start') {
+    const latest = clip.srcEnd - MIN_CLIP;
+    if (at > latest) {
+      return { refuse: 'The marker is past the end of this song — move it inside the song first' };
+    }
+    return { at: clamp(at, 0, latest) };
+  }
+
+  const earliest = clip.srcStart + MIN_CLIP;
+  if (at < earliest) {
+    return {
+      refuse: 'The marker is before the start of this song — move it inside the song first',
+    };
+  }
+  return { at: clamp(at, earliest, fileDuration) };
+}
+
+/**
  * The clip list with one clip moved, or null if that is not a real move.
  *
  * Both indices are checked, not just the destination. `fromIndex` arrives from
@@ -939,6 +980,7 @@ if (typeof module !== 'undefined' && module.exports) {
     computePeaks,
     clampClipsToFile,
     clampFades,
+    trimEdge,
     reordered,
     JOIN_PREVIEW,
     joinPreviewRange,

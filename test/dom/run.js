@@ -1243,6 +1243,73 @@ async function main() {
       eq(out.label, '1.5s', 'the label claims a blend longer than either clip: ');
     });
 
+    await check('a trim key says no rather than flattening the clip', async () => {
+      /* The clip canvas draws the whole file, so a marker outside the kept
+         region is one click away — and clicking ahead to hear what comes next
+         is a normal thing to do. Pressing I there used to collapse ten seconds
+         of trimming into a tenth of a second without a word. */
+      const out = await run(`
+        window.__reset([['a.wav', window.__tone(220, 30)]]);
+        state.clips[0].srcStart = 10; state.clips[0].srcEnd = 20;
+        state.selected = state.clips[0].id;
+        refresh();
+
+        const canvas = document.getElementById('clipCanvas');
+        const box = canvas.getBoundingClientRect();
+        canvas.dispatchEvent(new PointerEvent('pointerdown', {
+          clientX: box.left + box.width * 0.9, clientY: box.top + box.height / 2,
+          bubbles: true, pointerId: 1,
+        }));
+        const marker = state.cursor;
+
+        /* One reused element, not one per message — so it is emptied rather
+           than removed, which would take the app's only way of speaking. */
+        const line = document.getElementById('toast');
+        line.textContent = '';
+        const undoBefore = undoStack.length;
+        window.__key('i');
+
+        return {
+          marker,
+          kept: { start: state.clips[0].srcStart, end: state.clips[0].srcEnd },
+          said: line.classList.contains('hidden') ? '' : line.textContent,
+          /* A refused key must not leave a step behind, or Ctrl-Z undoes
+             nothing and looks broken. */
+          undoGrew: undoStack.length - undoBefore,
+        };
+      `);
+      ok(
+        out.marker > 20,
+        `the marker landed inside the clip, so this proves nothing: ${out.marker}`,
+      );
+      eq(out.kept, { start: 10, end: 20 }, 'the clip was trimmed anyway: ');
+      ok(/past the end/.test(out.said), `nothing was said about it: "${out.said}"`);
+      eq(out.undoGrew, 0, 'a refused key still pushed an undo step: ');
+    });
+
+    await check('a trim key with a marker it can use still works', async () => {
+      const out = await run(`
+        window.__reset([['a.wav', window.__tone(220, 30)]]);
+        state.clips[0].srcStart = 10; state.clips[0].srcEnd = 20;
+        state.selected = state.clips[0].id;
+        refresh();
+
+        state.cursor = 12;
+        window.__key('i');
+        const afterIn = { start: state.clips[0].srcStart, end: state.clips[0].srcEnd };
+
+        state.cursor = 25;
+        window.__key('o');
+        const afterOut = { start: state.clips[0].srcStart, end: state.clips[0].srcEnd };
+
+        undo();
+        return { afterIn, afterOut, undone: { start: state.clips[0].srcStart, end: state.clips[0].srcEnd } };
+      `);
+      eq(out.afterIn, { start: 12, end: 20 }, 'I did not move the start: ');
+      eq(out.afterOut, { start: 12, end: 25 }, 'O did not move the end: ');
+      eq(out.undone, { start: 12, end: 20 }, 'undo did not step back exactly one trim: ');
+    });
+
     /* ------------------------------------------------ replacing a song */
 
     await check('a song taken out of the list is taken out of the folder too', async () => {
