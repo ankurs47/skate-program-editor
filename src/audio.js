@@ -278,10 +278,26 @@ function channelsOf(buffer) {
 
 /* ---------------------------------------------------------------- export */
 
-function encodeWav(buffer) {
+function encodeWav(buffer, tags = null, doc = null) {
   const channels = buffer.numberOfChannels;
   const frames = buffer.length;
-  const bytes = 44 + frames * channels * 2;
+  const audio = 44 + frames * channels * 2;
+
+  /* After the samples, never before them.
+
+     Put between `fmt ` and `data` — which is also legal — the audio would start
+     at some offset that depends on how long the program's name is. Put here,
+     `data` stays at offset 36 and the samples still start at byte 44, so the
+     only byte that changes in the whole file up to that point is the RIFF size
+     field. A reader naive enough to assume PCM begins at 44 is unaffected, and
+     one that does not understand LIST skips it and plays exactly what it played
+     before. */
+  const info = tags ? infoChunk(tags) : null;
+  /* The program itself, so the file can be turned back into a project. Its own
+     chunk, after the samples like the other one, and skipped by any reader that
+     does not know the id. */
+  const program = doc ? projectChunk(doc) : null;
+  const bytes = audio + (info ? info.length : 0) + (program ? program.length : 0);
   const view = new DataView(new ArrayBuffer(bytes));
 
   const ascii = (offset, text) => {
@@ -311,6 +327,9 @@ function encodeWav(buffer) {
       offset += 2;
     }
   }
+  const out = new Uint8Array(view.buffer);
+  if (info) out.set(info, audio);
+  if (program) out.set(program, audio + (info ? info.length : 0));
   return new Blob([view], { type: 'audio/wav' });
 }
 
@@ -321,11 +340,15 @@ function encodeWav(buffer) {
  * a bar that stops at 97% because a library counted differently is this app's
  * problem to solve, not something to ask every future encoder to remember.
  */
-async function encodeMp3(buffer, onProgress) {
+async function encodeMp3(buffer, onProgress, describe = null) {
   if (!mp3Ready || !mp3Encoder) {
     throw new Error('the MP3 encoder never arrived — save as WAV instead');
   }
-  const blob = await mp3Encoder.encode(buffer, mp3Spec(), onProgress);
+  /* Alongside the spec rather than as another argument, so an encoder that has
+     no way to write tags — or does not want to — ignores one more key and is
+     otherwise unchanged. The contract in `mp3.js` is what an encoder must
+     honor; this is what it may. */
+  const blob = await mp3Encoder.encode(buffer, { ...mp3Spec(), ...describe }, onProgress);
   onProgress(1);
   return blob;
 }
@@ -347,8 +370,10 @@ async function renderProgram() {
 
 async function doExport() {
   const format = $('exportFormat').value;
+  const describe = $('exportTags').checked;
   try {
     localStorage.setItem(FORMAT_KEY, format);
+    localStorage.setItem(TAGS_KEY, describe ? 'yes' : 'no');
   } catch (_) {
     /* private mode */
   }
@@ -375,12 +400,16 @@ async function doExport() {
 
     let blob, ext;
     if (format === 'mp3') {
-      blob = await encodeMp3(rendered, (p) => {
-        bar.style.width = `${40 + p * 58}%`;
-      });
+      blob = await encodeMp3(
+        rendered,
+        (p) => {
+          bar.style.width = `${40 + p * 58}%`;
+        },
+        describe ? { tags: tagsForExport(), doc: project() } : null,
+      );
       ext = 'mp3';
     } else {
-      blob = encodeWav(rendered);
+      blob = encodeWav(rendered, describe ? tagsForExport() : null, describe ? project() : null);
       ext = 'wav';
     }
     bar.style.width = '100%';
@@ -496,8 +525,45 @@ async function tryLoadMp3Encoder() {
    WAV and being handed MP3 again next time is the app overruling a choice that
    was already made, which is the only reason this is remembered at all. */
 const FORMAT_KEY = 'skate.exportFormat';
+/* Remembered the same way the format is, and separately from it. Somebody who
+   has decided once that their programs may carry their name has decided it for
+   next time too, and being asked again every export is how a considered answer
+   turns into a reflex. */
+const TAGS_KEY = 'skate.exportTags';
+
+/**
+ * What this program says about itself, gathered from what is on screen.
+ *
+ * The artists come from the songs' own tags where they had any, which is the
+ * one field here that is somebody else's writing rather than this app's.
+ */
+function tagsForExport() {
+  return programTags({
+    name: state.name,
+    level: state.level,
+    targetSeconds: state.targetSeconds,
+    toleranceSeconds: state.toleranceSeconds,
+    clips: state.clips,
+    artists: state.clips.map((clip) => {
+      const entry = library.get(clip.file);
+      return entry && entry.tags ? entry.tags.artist : '';
+    }),
+  });
+}
 
 function updateExportOptions() {
+  /* Off unless it has been turned on before. What goes into the file is
+     whatever was typed into the program's name, and plenty of skaters put their
+     own name there — so this cannot be a default that somebody discovers after
+     the file has been through an entry system. */
+  let describe = null;
+  try {
+    describe = localStorage.getItem(TAGS_KEY);
+  } catch (_) {
+    /* private mode */
+  }
+  $('exportTags').checked = describe === 'yes';
+
   const select = $('exportFormat');
   const mp3Option = select.querySelector('option[value=mp3]');
   mp3Option.disabled = !mp3Ready;
@@ -553,6 +619,8 @@ if (typeof module !== 'undefined' && module.exports) {
     updateExportAvailability,
     tryLoadMp3Encoder,
     FORMAT_KEY,
+    TAGS_KEY,
+    tagsForExport,
     updateExportOptions,
   };
 }

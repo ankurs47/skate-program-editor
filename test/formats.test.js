@@ -511,3 +511,130 @@ check('describeRate: says what a source is, including when it is nothing', () =>
   eq(app.describeRate(source({ lossless: true })), 'lossless');
   eq(app.describeRate(source({ bitrate: null })), 'an unknown bitrate');
 });
+
+/* --------------------------------- writing what our own file says about itself */
+
+check('riffText: null-terminated, padded to even, and readable back', () => {
+  const read = (bytes) => Buffer.from(bytes).toString('latin1').replace(/\0+$/, '');
+  for (const text of ['a', 'ab', 'abc', 'abcd', '']) {
+    const bytes = app.riffText(text);
+    ok(bytes.length % 2 === 0, `"${text}" made ${bytes.length} bytes, which is odd`);
+    ok(bytes[bytes.length - 1] === 0, `"${text}" was not terminated`);
+    eq(read(bytes), text, 'what went in did not come back: ');
+  }
+});
+
+check('riffText: spells out what INFO cannot hold rather than dropping it', () => {
+  const read = (text) => Buffer.from(app.riffText(text)).toString('latin1').replace(/\0+$/, '');
+  /* Stripping these left "Junior  target 3:30.0 10s" — a double space where the
+     dash was, and a tolerance with no sign, which reads as ten seconds of
+     something. Both halves matter, so both are checked. */
+  eq(read('Junior — target 3:30.0 ±10s'), 'Junior - target 3:30.0 +/-10s');
+  eq(read('the skater’s “cut”'), 'the skater\'s "cut"');
+  /* Accents need no table: NFKD splits the mark off the letter by itself. */
+  eq(read('Adiós Nonino'), 'Adios Nonino');
+  /* Anything left with no spelling goes, rather than becoming a byte a reader
+     would render as something else entirely. */
+  eq(read('a 中 b'), 'a  b');
+});
+
+check('riffText: newlines survive, because the cue sheet is lines', () => {
+  const read = Buffer.from(app.riffText('one\ntwo')).toString('latin1').replace(/\0+$/, '');
+  eq(read, 'one\ntwo');
+});
+
+check('infoChunk: a LIST/INFO whose size counts the INFO too', () => {
+  const chunk = app.infoChunk({ title: 'a program', software: 'Skate Program Editor' });
+  const text = (at) => Buffer.from(chunk.slice(at, at + 4)).toString('latin1');
+  eq(text(0), 'LIST');
+  eq(text(8), 'INFO', 'the list is not an INFO list: ');
+  const size = new DataView(chunk.buffer).getUint32(4, true);
+  /* The size counts everything after itself, which includes the four bytes
+     spelling INFO. Getting this wrong by four is the mistake a reader cannot
+     recover from — it lands mid-field and reads nothing else in the file. */
+  eq(size, chunk.length - 8, 'the declared size does not match the chunk: ');
+  ok(chunk.length % 2 === 0, 'the chunk is an odd number of bytes');
+});
+
+check('infoChunk: writes the fields it is given, under the right tags', () => {
+  const chunk = app.infoChunk({
+    title: 'my long',
+    artist: 'Chopin',
+    software: 'Skate Program Editor',
+    comment: 'a line',
+  });
+  const whole = Buffer.from(chunk).toString('latin1');
+  for (const [, tag] of app.INFO_FIELDS) {
+    ok(whole.includes(tag), `${tag} is missing from the chunk`);
+  }
+  ok(whole.indexOf('INAM') < whole.indexOf('ICMT'), 'the fields are not in a fixed order: ');
+});
+
+check('infoChunk: nothing to say produces nothing at all', () => {
+  /* Null rather than an empty chunk, so a program with no tags exports exactly
+     the file it exported before any of this existed. */
+  eq(app.infoChunk({}), null);
+  eq(app.infoChunk(null), null);
+  eq(app.infoChunk({ title: '   ', comment: '' }), null);
+  ok(app.infoChunk({ title: 'x' }) !== null, 'one field should still make a chunk');
+});
+
+/* ------------------------------------------ the program, inside its own file */
+
+const riff = (chunks) => {
+  const body = Buffer.concat(chunks.map((c) => Buffer.from(c)));
+  const head = Buffer.alloc(12);
+  head.write('RIFF', 0);
+  head.writeUInt32LE(4 + body.length, 4);
+  head.write('WAVE', 8);
+  return new Uint8Array(Buffer.concat([head, body]));
+};
+const chunk = (id, body) => {
+  const bytes = Buffer.from(body);
+  const out = Buffer.alloc(8 + bytes.length + (bytes.length % 2));
+  out.write(id, 0);
+  out.writeUInt32LE(bytes.length, 4);
+  bytes.copy(out, 8);
+  return out;
+};
+
+check('projectChunk: the document goes in and comes back out', () => {
+  const doc = { format: 'skate-program', version: 1, name: 'my long', clips: [{ id: 'a' }] };
+  const file = riff([chunk('data', [1, 0, 2, 0]), app.projectChunk(doc)]);
+  eq(app.readProjectChunk(file), doc);
+});
+
+check('projectChunk: UTF-8, so a name is not flattened the way INFO is', () => {
+  /* Nothing but this app reads this chunk, so there is no convention to honor
+     and no reason to lose an accent that the display fields have to lose. */
+  const doc = { name: 'Adiós Nonino — ±10s' };
+  eq(app.readProjectChunk(riff([app.projectChunk(doc)])).name, 'Adiós Nonino — ±10s');
+});
+
+check('readProjectChunk: every way of not finding one is the same answer', () => {
+  eq(app.readProjectChunk(riff([chunk('data', [1, 0])])), null, 'no chunk: ');
+  eq(app.readProjectChunk(new Uint8Array([1, 2, 3])), null, 'not a RIFF file at all: ');
+  eq(app.readProjectChunk(new Uint8Array(0)), null, 'nothing: ');
+  eq(
+    app.readProjectChunk(riff([chunk('skPJ', 'not json')])),
+    null,
+    'a chunk that will not parse: ',
+  );
+});
+
+check('readProjectChunk: a size larger than the file stops the walk', () => {
+  /* Sizes come out of the file, so every one is a number somebody could have
+     edited. A walk that trusts one runs off the end or loops. */
+  const file = Buffer.from(riff([chunk('skPJ', '{"name":"x"}')]));
+  file.writeUInt32LE(0xffffff, 16); // the chunk now claims more than exists
+  eq(app.readProjectChunk(new Uint8Array(file)), null);
+});
+
+check('eachRiffChunk: steps over the pad byte an odd chunk carries', () => {
+  /* A chunk is padded to an even length and the pad is not counted in its
+     size. A walk that forgets it lands one byte into the next id and reads
+     nothing after it. */
+  const seen = [];
+  app.eachRiffChunk(riff([chunk('data', [1, 2, 3]), chunk('skPJ', '{}')]), (id) => seen.push(id));
+  eq(seen, ['data', 'skPJ'], 'an odd-length chunk hid what followed it: ');
+});

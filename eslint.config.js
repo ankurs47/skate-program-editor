@@ -63,6 +63,9 @@ const browser = {
   URL: 'readonly',
   DataView: 'readonly',
   TextDecoder: 'readonly',
+  // The other direction: the project document a program writes into its own
+  // music file, so the file can be turned back into a project.
+  TextEncoder: 'readonly',
   matchMedia: 'readonly',
   getComputedStyle: 'readonly',
   // Used to tell an Element apart from the document, which also receives

@@ -13,7 +13,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { check, eq, ok, ROOT, SHIPPED } = require('./harness.js');
+const { app, check, eq, ok, ROOT, SHIPPED } = require('./harness.js');
 
 /* The words this guards against are a family name and a skater's, and writing
    them here would publish, in a public repo, exactly what the check exists to
@@ -226,4 +226,56 @@ check('every mutation still patches the code it names', () => {
       `"${mutation.name}" does not say what it guards or which check should catch it`,
     );
   }
+});
+
+/* ------------------------------------------- rebuilding a project from a file */
+
+/** A RIFF chunk, for building a file to read back. */
+function riffChunk(id, body) {
+  const out = Buffer.alloc(8 + body.length + (body.length % 2));
+  out.write(id, 0);
+  out.writeUInt32LE(body.length, 4);
+  body.copy(out, 8);
+  return out;
+}
+
+check('project-from-music: reads a program back out of a WAV', () => {
+  const tool = require(path.join(ROOT, 'tools', 'project-from-music.js'));
+  const doc = { format: 'skate-program', version: 1, name: 'my long', clips: [] };
+
+  const body = Buffer.concat([
+    Buffer.from(riffChunk('data', Buffer.from([1, 0, 2, 0]))),
+    Buffer.from(app.projectChunk(doc)),
+  ]);
+  const head = Buffer.alloc(12);
+  head.write('RIFF', 0);
+  head.writeUInt32LE(4 + body.length, 4);
+  head.write('WAVE', 8);
+
+  const found = tool.readProgram(new Uint8Array(Buffer.concat([head, body])));
+  eq(found.doc, doc);
+  eq(found.from, 'a RIFF chunk', 'it should say where it found it: ');
+});
+
+check('project-from-music: a file carrying nothing is not an error', () => {
+  const tool = require(path.join(ROOT, 'tools', 'project-from-music.js'));
+  /* The common case by a distance: describing the program is off by default,
+     so most exports carry none of this and the tool has to say so plainly
+     rather than failing in a way that reads like the file is broken. */
+  eq(tool.readProgram(new Uint8Array([1, 2, 3, 4])).doc, null);
+});
+
+check('project-from-music: what it says about a program is what the program says', () => {
+  const tool = require(path.join(ROOT, 'tools', 'project-from-music.js'));
+  const said = tool.describe({
+    format: 'skate-program',
+    version: 1,
+    name: 'my 2027 junior long',
+    event: { level: 'usfs-jr', targetSeconds: 210, toleranceSeconds: 10 },
+    songs: [{ name: 'a.mp3' }, { name: 'b.mp3' }],
+    clips: [{ id: 'x', song: 'a.mp3', start: 0, end: 10 }],
+  });
+  ok(/my 2027 junior long/.test(said), said);
+  ok(/usfs-jr/.test(said), said);
+  ok(/a\.mp3, b\.mp3/.test(said), 'it should name the songs to go looking for: ' + said);
 });

@@ -2007,3 +2007,69 @@ check('clipsPastEnd: counts what would not fit, and does not change it', () => {
 check('clipsPastEnd: a clip ending exactly at the end fits', () => {
   eq(app.clipsPastEnd([{ file: 'a.mp3', srcStart: 0, srcEnd: 50 }], 'a.mp3', 50), 0);
 });
+
+/* --------------------------------------- what a program says about itself */
+
+const cut = (over = {}) => ({
+  name: 'my 2027 junior long',
+  level: 'usfs-jr',
+  targetSeconds: 210,
+  toleranceSeconds: 10,
+  clips: [
+    { file: 'nocturne.mp3', title: 'Nocturne in E-flat', srcStart: 42.5, srcEnd: 78, crossfade: 0 },
+    { file: 'tango.mp3', title: 'Libertango', srcStart: 130, srcEnd: 184.2, crossfade: 2 },
+  ],
+  ...over,
+});
+
+check('programTags: the event, what it was cut to, and what it came out at', () => {
+  const tags = app.programTags(cut());
+  ok(/Junior/.test(tags.comment), tags.comment);
+  ok(/target 3:30/.test(tags.comment), 'the target is missing: ' + tags.comment);
+  ok(/±10s/.test(tags.comment), 'the tolerance is missing: ' + tags.comment);
+  /* The length actually rendered, which is the number somebody is checking
+     against the rulebook and the one the file name does not carry. */
+  ok(/actual 1:27/.test(tags.comment), 'the real length is missing: ' + tags.comment);
+});
+
+check('programTags: a line per clip, with the seconds it came from', () => {
+  const lines = app.programTags(cut()).comment.split('\n').slice(1);
+  eq(lines.length, 2);
+  /* Where it falls in the finished cut, then which part of the song it is.
+     The second half is what nobody writes down and what somebody rebuilding
+     this program actually needs. */
+  ok(/^0:00\.0 .*Nocturne in E-flat — from 0:42\.5 to 1:18\.0$/.test(lines[0]), lines[0]);
+  ok(/^0:33\.5 .*Libertango — from 2:10\.0 to 3:04\.2$/.test(lines[1]), lines[1]);
+});
+
+check('programTags: a clip with no title of its own falls back to its file', () => {
+  const lines = app
+    .programTags(cut({ clips: [{ file: 'track03.mp3', srcStart: 0, srcEnd: 30, crossfade: 0 }] }))
+    .comment.split('\n');
+  ok(/track03\.mp3/.test(lines[1]), lines[1]);
+});
+
+check('programTags: artists only where the source files had any', () => {
+  eq(app.programTags(cut({ artists: ['Chopin', 'Piazzolla'] })).artist, 'Chopin, Piazzolla');
+  eq(app.programTags(cut({ artists: ['Chopin', 'Chopin'] })).artist, 'Chopin', 'deduplicated: ');
+  /* Absent, not empty. A reader shows an empty artist field as a blank line
+     rather than as nothing, which is worse than never writing it. */
+  eq('artist' in app.programTags(cut({ artists: [] })), false);
+  eq('artist' in app.programTags(cut({ artists: ['', '  '] })), false, 'blank tags: ');
+});
+
+check('programTags: the title is the program name, and the software is us', () => {
+  const tags = app.programTags(cut());
+  eq(tags.title, 'my 2027 junior long');
+  eq(tags.software, app.APP_NAME);
+  /* No date. Two exports of one program differ byte for byte if there is one,
+     and it is the least useful field of the set. */
+  eq('date' in tags, false);
+});
+
+check('describeEvent: a program with no level still says what it is', () => {
+  const said = app.describeEvent({ level: 'nonsense', targetSeconds: 0, total: 90 });
+  ok(/Custom/.test(said), said);
+  ok(/actual 1:30/.test(said), said);
+  ok(!/target/.test(said), 'a target of nothing was announced anyway: ' + said);
+});
