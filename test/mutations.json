@@ -906,7 +906,7 @@
     "suite": "dom",
     "find": "      blob = encodeWav(rendered, describe ? tagsForExport() : null, describe ? project() : null);",
     "replace": "      blob = encodeWav(rendered, tagsForExport(), project());",
-    "expect": "turned back into the program"
+    "expect": "exporting honors the box"
   },
   {
     "name": "describing the program is on unless turned off",

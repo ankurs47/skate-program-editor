@@ -1013,6 +1013,49 @@ async function main() {
       ok(out.plainCarriesNothing, 'an export nobody asked to describe carried a program anyway');
     });
 
+    await check('exporting honors the box, and nothing else decides it', async () => {
+      /* The check above this one calls `encodeWav` directly with arguments it
+         chooses, which proves the encoder can do both and proves nothing about
+         which one an export asks for. A mutation that made `doExport` describe
+         every file survived exactly that gap — on the one line where getting it
+         wrong puts a skater's name in every copy of their music. So this drives
+         the real export, both ways, through the button. */
+      const out = await run(`
+        window.__reset([['a.wav', window.__tone(220, 3)]]);
+        state.name = 'my 2027 junior long';
+        state.clips[0].srcEnd = 2;
+        refresh();
+
+        /* The one thing that cannot happen in a test: handing a file to the
+           browser. Swapped for something that keeps it. */
+        const realDownload = window.download;
+        const saved = [];
+        window.download = (blob, name) => saved.push({ blob, name });
+
+        const runExport = async (describe) => {
+          document.getElementById('exportFormat').value = 'wav';
+          document.getElementById('exportTags').checked = describe;
+          saved.length = 0;
+          await doExport();
+          const bytes = new Uint8Array(await saved[0].blob.arrayBuffer());
+          return { carries: readProjectChunk(bytes) !== null, bytes: bytes.length };
+        };
+
+        const off = await runExport(false);
+        const on = await runExport(true);
+
+        window.download = realDownload;
+        localStorage.removeItem(TAGS_KEY);
+        return { off, on };
+      `);
+      eq(out.off.carries, false, 'an export nobody asked to describe carried the program: ');
+      eq(out.on.carries, true, 'an export that was asked to describe carried nothing: ');
+      ok(
+        out.on.bytes > out.off.bytes,
+        `the described file is not larger: ${out.on.bytes} vs ${out.off.bytes}`,
+      );
+    });
+
     await check('the export dialog remembers whether to describe the program', async () => {
       const out = await run(`
         localStorage.removeItem(TAGS_KEY);
