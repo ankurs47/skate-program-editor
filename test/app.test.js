@@ -2073,3 +2073,49 @@ check('describeEvent: a program with no level still says what it is', () => {
   ok(/actual 1:30/.test(said), said);
   ok(!/target/.test(said), 'a target of nothing was announced anyway: ' + said);
 });
+
+/* ------------------------------------------ a fade is never longer than its clip */
+
+check('clampFades: a trim brings the fades in with it', () => {
+  /* `rampEnvelope` always clamped these on the way to the speakers, so the
+     sound was never wrong. Everything else disagreed with it — the label, the
+     slider, and the project file. */
+  const clips = [{ srcStart: 0, srcEnd: 3, fadeIn: 8, fadeOut: 5 }];
+  eq(app.clampFades(clips), 1, 'the clip should have been counted as moved: ');
+  eq(clips[0].fadeIn, 3);
+  eq(clips[0].fadeOut, 3);
+});
+
+check('clampFades: a fade that already fits is left exactly alone', () => {
+  const clips = [{ srcStart: 0, srcEnd: 20, fadeIn: 2, fadeOut: 0 }];
+  eq(app.clampFades(clips), 0, 'nothing moved, so nothing should be counted: ');
+  eq(clips[0].fadeIn, 2);
+  eq(clips[0].fadeOut, 0);
+});
+
+check('clampFades: a blend is not its business', () => {
+  /* A blend belongs to a pair, and the clip on the other side can change length
+     later. `crossfadeOf` works it out on every read; clamping the stored value
+     here would throw away something that becomes valid again. */
+  const clips = [{ srcStart: 0, srcEnd: 2, fadeIn: 0, fadeOut: 0, crossfade: 9 }];
+  app.clampFades(clips);
+  eq(clips[0].crossfade, 9);
+});
+
+check('clampFades: a clip with no fades, and one with nonsense in them', () => {
+  const clips = [
+    { srcStart: 0, srcEnd: 5 },
+    { srcStart: 0, srcEnd: 5, fadeIn: -3, fadeOut: NaN },
+  ];
+  app.clampFades(clips);
+  eq(clips[0].fadeIn, undefined, 'a clip that never had a fade should not gain one: ');
+  eq(clips[1].fadeIn, 0, 'a negative fade should come back to nothing: ');
+  eq(clips[1].fadeOut, 0, 'a fade that is not a number should too: ');
+});
+
+check('clampFades: a clip trimmed to nothing keeps no fade at all', () => {
+  const clips = [{ srcStart: 5, srcEnd: 5, fadeIn: 2, fadeOut: 2 }];
+  app.clampFades(clips);
+  eq(clips[0].fadeIn, 0);
+  eq(clips[0].fadeOut, 0);
+});

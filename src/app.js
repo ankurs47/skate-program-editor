@@ -847,6 +847,9 @@ function refresh() {
      program it came from, and the first thing every redraw should settle is
      whether what you can hear is still a thing that exists. */
   stopIfGone();
+  /* And a fade cannot be longer than the clip it is on. Here rather than at
+     each of the seven places a trim changes, so a new one cannot forget it. */
+  clampFades(state.clips);
   updateMissingNotice();
   updateExportAvailability();
   updateEvenOutAvailability();

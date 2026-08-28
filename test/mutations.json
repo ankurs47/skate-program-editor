@@ -922,8 +922,8 @@
     "guards": "audio scheduled ahead of time does not outlive the program",
     "file": "src/app.js",
     "suite": "dom",
-    "find": "  stopIfGone();\n  updateMissingNotice();",
-    "replace": "  updateMissingNotice();",
+    "find": "  stopIfGone();\n  /* And a fade cannot be longer",
+    "replace": "  /* And a fade cannot be longer",
     "expect": "the music stops when the program it is playing goes"
   },
   {
@@ -943,5 +943,41 @@
     "find": "  return `${clip.id}:${clip.file}`;",
     "replace": "  return `${clip.id}`;",
     "expect": "the music stops when the program it is playing goes"
+  },
+  {
+    "name": "a fade is left longer than the clip it is on",
+    "guards": "the label, the slider, the sound and the file agree about a fade",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "  clampFades(state.clips);\n  updateMissingNotice();",
+    "replace": "  updateMissingNotice();",
+    "expect": "a fade never outlasts the clip it is on"
+  },
+  {
+    "name": "dragging a handle leaves the fade behind",
+    "guards": "the drag path clamps too, since it does not go through refresh",
+    "file": "src/editor.js",
+    "suite": "dom",
+    "find": "    clampFades([clip]);\n    drawClipEditor();",
+    "replace": "    drawClipEditor();",
+    "expect": "dragging a trim handle brings the fade in as it goes"
+  },
+  {
+    "name": "the blend label reads what is stored rather than what is heard",
+    "guards": "a blend limited by its neighbor is shown at its real length",
+    "file": "src/editor.js",
+    "suite": "dom",
+    "find": "    crossfade: crossfadeOf(state.clips, state.clips.indexOf(clip)),",
+    "replace": "    crossfade: clip.crossfade || 0,",
+    "expect": "a blend keeps its value but never overstates it"
+  },
+  {
+    "name": "clamping a fade throws away a blend with it",
+    "guards": "a blend outlives a trim, because its neighbor can grow again",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "    for (const key of ['fadeIn', 'fadeOut']) {",
+    "replace": "    for (const key of ['fadeIn', 'fadeOut', 'crossfade']) {",
+    "expect": "a blend is not its business"
   }
 ]

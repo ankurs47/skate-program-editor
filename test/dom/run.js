@@ -1146,6 +1146,102 @@ async function main() {
         }
       },
     );
+    await check('a fade never outlasts the clip it is on', async () => {
+      /* Four things read this number and they all used to disagree once a trim
+         had made the clip shorter than its fade: the label said 8.0s, the
+         slider sat at 3 because its max had moved under it, the envelope
+         applied 3, and the project file recorded 8. */
+      const out = await run(`
+        window.__reset([['a.wav', window.__tone(220, 30)]]);
+        state.clips[0].srcStart = 0; state.clips[0].srcEnd = 20;
+        state.clips[0].fadeIn = 8;
+        state.selected = state.clips[0].id;
+        refresh();
+
+        const read = () => ({
+          stored: state.clips[0].fadeIn,
+          slider: Number(document.getElementById('fadeIn').value),
+          label: document.getElementById('valFadeIn').textContent,
+          applied: fadeEnvelope(state.clips[0])[1][0],
+          inFile: project().clips[0].fadeIn,
+        });
+
+        const before = read();
+        state.clips[0].srcEnd = 3;
+        refresh();
+        return { before, after: read() };
+      `);
+      eq(out.before.stored, 8, 'the fade did not survive being set: ');
+      const a = out.after;
+      eq(a.stored, 3, 'the stored fade did not come in with the trim: ');
+      eq(a.slider, 3);
+      eq(a.label, '3.0s', 'the label still claims a fade nobody can hear: ');
+      eq(a.applied, 3);
+      eq(a.inFile, 3, 'the project file still records the fade that was thrown away: ');
+    });
+
+    await check('dragging a trim handle brings the fade in as it goes', async () => {
+      /* The drag deliberately avoids `refresh` — it runs at pointer rate and
+         `refresh` saves — so the clamp has to be repeated on that path. Without
+         it the number is wrong for exactly as long as somebody is watching it. */
+      const out = await run(`
+        window.__reset([['a.wav', window.__tone(220, 30)]]);
+        state.clips[0].srcStart = 0; state.clips[0].srcEnd = 25;
+        state.clips[0].fadeOut = 6;
+        state.selected = state.clips[0].id;
+        refresh();
+
+        const canvas = document.getElementById('clipCanvas');
+        const box = canvas.getBoundingClientRect();
+        const at = (t) => box.left + (t / 30) * box.width;
+        const move = (t) =>
+          canvas.dispatchEvent(new PointerEvent('pointermove', {
+            clientX: at(t), clientY: box.top + box.height / 2, bubbles: true, pointerId: 1,
+          }));
+
+        canvas.dispatchEvent(new PointerEvent('pointerdown', {
+          clientX: at(25), clientY: box.top + box.height / 2, bubbles: true, pointerId: 1,
+        }));
+        move(2);
+        const midDrag = {
+          stored: state.clips[0].fadeOut,
+          label: document.getElementById('valFadeOut').textContent,
+          duration: Number(clipDuration(state.clips[0]).toFixed(2)),
+        };
+        canvas.dispatchEvent(new PointerEvent('pointerup', {
+          clientX: at(2), clientY: box.top + box.height / 2, bubbles: true, pointerId: 1,
+        }));
+        return midDrag;
+      `);
+      ok(out.duration < 6, `the drag did not shorten the clip: ${out.duration}s`);
+      ok(
+        out.stored <= out.duration + 0.01,
+        `the fade stayed at ${out.stored}s on a ${out.duration}s clip`,
+      );
+      eq(out.label, `${out.stored.toFixed(1)}s`, 'the label disagrees with the value: ');
+    });
+
+    await check('a blend keeps its value but never overstates it', async () => {
+      /* The other half of the same disagreement, handled the other way round.
+         A blend belongs to a pair, so the stored value is left alone — the clip
+         on the other side can grow again — and the label says what is really
+         being applied rather than what is written down. */
+      const out = await run(`
+        window.__reset([['a.wav', window.__tone(220, 30)], ['b.wav', window.__tone(330, 30)]]);
+        state.clips[0].srcEnd = 1.5;
+        state.clips[1].crossfade = 9;
+        state.selected = state.clips[1].id;
+        refresh();
+        return {
+          stored: state.clips[1].crossfade,
+          label: document.getElementById('valCrossfade').textContent,
+          applied: Number(crossfadeOf(state.clips, 1).toFixed(2)),
+        };
+      `);
+      eq(out.stored, 9, 'the blend was thrown away rather than left for later: ');
+      eq(out.applied, 1.5, 'the blend is limited by the clip before it: ');
+      eq(out.label, '1.5s', 'the label claims a blend longer than either clip: ');
+    });
 
     /* ------------------------------------------------ replacing a song */
 

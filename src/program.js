@@ -281,6 +281,52 @@ function clampClipsToFile(clips, entry) {
 }
 
 /**
+ * Bring each clip's own fades inside the clip, and say how many moved.
+ *
+ * `rampEnvelope` already clamps these on the way to the speakers, so the sound
+ * was never wrong. Everything else disagreed with it: after trimming a twenty
+ * second clip with an eight second fade down to three, the label read 8.0s, the
+ * slider sat at 3 because its `max` had moved under it, the ears got 3, and the
+ * project file recorded 8 — a fade nobody could see or hear, waiting for a
+ * later trim to bring it back.
+ *
+ * The stored value is the one that gives way, rather than the display being
+ * taught to lie more carefully. A fade you cannot hear is not a fade you have,
+ * and expecting eight seconds to return after a trim means remembering a number
+ * the app stopped showing you.
+ *
+ * Only `fadeIn` and `fadeOut`, which belong to the clip alone. A blend belongs
+ * to a pair, and the clip on the other side of it can change length later —
+ * `crossfadeOf` works that out on every read and nothing here should preempt
+ * it.
+ */
+function clampFades(clips) {
+  let changed = 0;
+  for (const clip of clips) {
+    const room = clipDuration(clip);
+    let moved = false;
+    for (const key of ['fadeIn', 'fadeOut']) {
+      const stored = clip[key];
+      /* A clip that never had a fade is left without one, rather than gaining a
+         zero. Otherwise the first redraw after loading any project would report
+         every clip as changed. */
+      if (stored === undefined || stored === null) continue;
+      /* `|| 0` before the clamp and not after: `clamp` is Math.min and Math.max
+         and both hand NaN straight back, so a fade that is not a number would
+         have been written back as one. Compared against what is stored rather
+         than against that, so NaN — which is equal to nothing, itself included
+         — is corrected instead of silently kept. */
+      const now = clamp(Number(stored) || 0, 0, room);
+      if (now === stored) continue;
+      clip[key] = now;
+      moved = true;
+    }
+    if (moved) changed++;
+  }
+  return changed;
+}
+
+/**
  * The clip list with one clip moved, or null if that is not a real move.
  *
  * Both indices are checked, not just the destination. `fromIndex` arrives from
@@ -892,6 +938,7 @@ if (typeof module !== 'undefined' && module.exports) {
     valueAt,
     computePeaks,
     clampClipsToFile,
+    clampFades,
     reordered,
     JOIN_PREVIEW,
     joinPreviewRange,
