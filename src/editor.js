@@ -80,14 +80,24 @@ function drawClipEditor() {
   $('valLevel').textContent = `${levelPercent(gain)}%`;
 
   const maxFade = Math.max(0.1, clipDuration(clip));
+  /* What is really being applied, which for a blend is not what is stored. A
+     blend belongs to a pair, so `crossfadeOf` measures it against the clip
+     before this one as well — and the stored value is left alone precisely
+     because that neighbor can change length later. The label has to say what
+     you will hear rather than what is written down. */
+  const applied = {
+    fadeIn: clip.fadeIn || 0,
+    fadeOut: clip.fadeOut || 0,
+    crossfade: crossfadeOf(state.clips, state.clips.indexOf(clip)),
+  };
   for (const [key, slider, label] of [
     ['fadeIn', $('fadeIn'), $('valFadeIn')],
     ['fadeOut', $('fadeOut'), $('valFadeOut')],
     ['crossfade', $('crossfade'), $('valCrossfade')],
   ]) {
     slider.max = Math.min(10, maxFade).toFixed(1);
-    slider.value = String(clip[key] || 0);
-    label.textContent = `${(clip[key] || 0).toFixed(1)}s`;
+    slider.value = String(applied[key]);
+    label.textContent = `${applied[key].toFixed(1)}s`;
   }
   // the first clip has nothing before it to blend into
   $('crossfadeWrap').classList.toggle('hidden', state.clips.indexOf(clip) === 0);
@@ -286,6 +296,11 @@ function bindClipCanvas() {
     const t = timeAt(e);
     if (dragging === 'start') clip.srcStart = Math.min(t, clip.srcEnd - 0.1);
     else clip.srcEnd = Math.max(t, clip.srcStart + 0.1);
+    /* Dragging a handle deliberately avoids `refresh` — it runs at pointer rate
+       and `refresh` saves — so the clamp that lives there has to be repeated
+       here. Without it a fade stays too long for as long as the drag lasts,
+       which is exactly when somebody is watching the number. */
+    clampFades([clip]);
     drawClipEditor();
     renderTimeline();
     updateBudget();
