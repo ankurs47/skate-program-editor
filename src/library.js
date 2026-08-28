@@ -193,7 +193,35 @@ function removeFromLibrary(name) {
     return;
   }
   library.delete(name);
+  discardSong(name);
   renderLibrary();
+}
+
+/**
+ * Ask whoever is holding the project to be rid of a song's file too.
+ *
+ * Nothing at all in a browser, which has no file to be rid of: a song there was
+ * only ever bytes this page was handed, and dropping the entry is the whole of
+ * removing it. With a folder behind the app the two came apart — the list would
+ * forget a song and the folder would go on holding it, so the project quietly
+ * accumulated music nothing played.
+ *
+ * What "be rid of" means is not decided here. This page cannot delete a file
+ * and does not try; it says which song it has finished with, and the shell
+ * moves it to the trash. Asked for rather than awaited, because whether the
+ * list redraws is not a question about the disk.
+ */
+function discardSong(name) {
+  const folder = typeof hostProject === 'function' ? hostProject() : null;
+  if (!folder || typeof folder.discard !== 'function') return;
+  Promise.resolve(folder.discard(name))
+    .then((done) => {
+      if (done && done.ok === false && done.why) toast(done.why, 6000);
+    })
+    .catch(() => {
+      /* A shell that will not answer is one that did not delete it, and the
+         song is gone from the list either way. Not worth a second complaint. */
+    });
 }
 
 /* Nothing about the list changes as often as it was being rebuilt. It is in
@@ -320,11 +348,20 @@ function renderLibrary() {
     drop.className = 'small danger';
     drop.textContent = 'Remove';
     drop.disabled = used > 0;
+    /* Two different promises, because two different things happen. Opened as a
+       web page this has no file to touch and never did. Opened on a project
+       folder it takes the song out of that folder as well — which is the point
+       of the button there, and would be a nasty surprise described the old
+       way. */
+    const holdsFiles = typeof hostProject === 'function' && Boolean(hostProject());
     drop.title = used
       ? `This song is in your program ${used === 1 ? 'once' : `${used} times`} — ` +
         'take it out of the program first'
-      : 'Take this file out of the list and give back the memory it is holding. ' +
-        'Your program is untouched, and nothing is deleted from your computer.';
+      : holdsFiles
+        ? 'Take this song out of the list and move its file to the trash. ' +
+          'Your program is untouched, and the file can be put back from there.'
+        : 'Take this file out of the list and give back the memory it is holding. ' +
+          'Your program is untouched, and nothing is deleted from your computer.';
     drop.onclick = () => removeFromLibrary(entry.name);
     row.appendChild(drop);
 
@@ -675,6 +712,12 @@ async function applyReplacement() {
      program uses. It has no clips now, so Remove is available on it, which is
      how audio is given back everywhere else in this app.
 
+     Its file does go, where there is a folder holding one: a copy nothing plays
+     is a copy taking up room in the project for no reason. To the trash, not
+     off the disk, so an undo still has something to point at — and the decoded
+     audio is in this page's memory regardless, so the swap can be taken back
+     for as long as the window is open whatever the folder now holds.
+
      The exception is a new file that happens to share the old one's name. There
      is one entry in that case and it now holds the new audio, so an undo brings
      the edit back but not the file underneath it. A shell never gets here — it
@@ -712,6 +755,10 @@ async function applyReplacement() {
      is exactly what an undo needs to find. */
   state.expectedFiles.set(named, chosen ? { name: named, title: chosen } : { name: named });
 
+  /* The file it replaces, once nothing points at it. Not when the names match:
+     there is one file then and it is the new one. */
+  if (named !== name) discardSong(name);
+
   /* The list is rebuilt from a signature that has not changed — same songs,
      same durations — so it has to be told to look again. Everything else the
      swap touches is what `refresh` already redraws and saves. */
@@ -726,8 +773,16 @@ async function applyReplacement() {
       ? ' One clip was shortened to fit.'
       : ` ${shortened} clips were shortened to fit.`
     : '';
+  /* Where a folder is holding the project, the old file has gone to the trash
+     and the entry is only still in the list so this can be undone. Where there
+     is none, the song is simply still loaded. */
+  const holdsFiles = typeof hostProject === 'function' && Boolean(hostProject());
   const kept =
-    named === name ? '' : ` “${name}” is still in the list — Remove it when you are sure.`;
+    named === name
+      ? ''
+      : holdsFiles
+        ? ` “${name}” has been moved to the trash.`
+        : ` “${name}” is still in the list — Remove it when you are sure.`;
   toast(`“${named}” is now the song your program plays${moved}.${cut}${kept}`, 7000);
 }
 
@@ -934,6 +989,7 @@ if (typeof module !== 'undefined' && module.exports) {
     readSong,
     clipsUsing,
     removeFromLibrary,
+    discardSong,
     libraryShape,
     CLICKNCLEAR_SEARCH,
     forgetLibraryShape,

@@ -961,6 +961,95 @@ async function main() {
 
     /* ------------------------------------------------ replacing a song */
 
+    await check('a song taken out of the list is taken out of the folder too', async () => {
+      /* A list that forgets a song while the folder goes on holding it is a
+         project quietly accumulating music nothing plays. And a browser, which
+         has no folder, must keep the behavior it always had — there is no file
+         there to be rid of, and pretending otherwise would be inventing one. */
+      const out = await run(`
+        window.__reset([]);
+        const discarded = [];
+        const host = (extra) => ({
+          version: HOST_VERSION,
+          project: {
+            name: () => 'a folder', read: async () => null, write: async () => {},
+            media: async () => [], open: async () => new ArrayBuffer(0),
+            ...extra,
+          },
+        });
+
+        window.skateHost = host({
+          discard: async (name) => { discarded.push(name); return { ok: true }; },
+        });
+        window.__addToLibrary('spare.mp3', window.__tone(330, 5));
+        removeFromLibrary('spare.mp3');
+        const hosted = { discarded: discarded.slice(), gone: !library.has('spare.mp3') };
+
+        /* A song the program plays is refused, and nothing is asked of the
+           folder — the refusal has to come before the file, not after. */
+        window.__reset([['used.mp3', window.__tone(220, 5)]]);
+        window.skateHost = host({
+          discard: async (name) => { discarded.push(name); return { ok: true }; },
+        });
+        discarded.length = 0;
+        removeFromLibrary('used.mp3');
+        const refused = { discarded: discarded.slice(), stillThere: library.has('used.mp3') };
+
+        /* And a shell that offers no way to be rid of one keeps the old
+           behavior, which is what every plain browser is. */
+        window.__reset([]);
+        window.skateHost = host({});
+        window.__addToLibrary('spare.mp3', window.__tone(330, 5));
+        let threw = null;
+        try { removeFromLibrary('spare.mp3'); } catch (e) { threw = String(e.message); }
+        const withoutShell = { gone: !library.has('spare.mp3'), threw };
+
+        delete window.skateHost;
+        return { hosted, refused, withoutShell };
+      `);
+      eq(out.hosted.discarded, ['spare.mp3'], 'the folder was not asked to be rid of the song: ');
+      ok(out.hosted.gone, 'the song stayed in the list');
+      eq(out.refused.discarded, [], 'a song the program plays had its file deleted: ');
+      ok(out.refused.stillThere, 'a song the program plays was removed from the list');
+      ok(out.withoutShell.gone, 'a plain browser could not remove a song');
+      eq(out.withoutShell.threw, null, 'removing without a shell threw: ');
+    });
+
+    await check('a replaced song takes its file with it, but never the new one', async () => {
+      const out = await run(`
+        window.__reset([['rough.mp3', window.__tune(4, 20)]]);
+        const discarded = [];
+        window.skateHost = {
+          version: HOST_VERSION,
+          project: {
+            name: () => 'a folder', read: async () => null, write: async () => {},
+            media: async () => [], open: async () => new ArrayBuffer(0),
+            importFile: async (name) => name,
+            discard: async (name) => { discarded.push(name); return { ok: true }; },
+          },
+        };
+
+        const better = window.__tune(4, 20, (v) => v * 0.7);
+        await offerReplacement('rough.mp3', window.__asFile('good.wav', better));
+        await applyReplacement();
+
+        const out = {
+          discarded: discarded.slice(),
+          plays: state.clips[0].file,
+          /* Still in the list, so the swap can be undone. The file is in the
+             trash and the audio is in this page's memory. */
+          oldStillLoaded: library.has('rough.mp3'),
+          undoWorks: (() => { undo(); return state.clips[0].file === 'rough.mp3'; })(),
+        };
+        delete window.skateHost;
+        return out;
+      `);
+      eq(out.discarded, ['rough.mp3'], 'the replaced file was not sent to the trash: ');
+      ok(!out.discarded.includes('good.wav'), 'the new file was deleted');
+      ok(out.oldStillLoaded, 'the replaced song left the list, so undo has nothing to go back to');
+      ok(out.undoWorks, 'the swap could not be undone');
+    });
+
     await check('Replace is offered on exactly the songs Remove is not', async () => {
       const result = await run(`
         window.__reset([['a.mp3', window.__tune(1)]]);

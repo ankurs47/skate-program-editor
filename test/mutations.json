@@ -799,5 +799,41 @@
     "find": "    if (clip.title === wasCalled) clip.title = nowCalled;",
     "replace": "    clip.title = nowCalled;",
     "expect": "a name somebody chose survives the swap"
+  },
+  {
+    "name": "a song leaves the list but stays in the folder",
+    "guards": "a project does not fill up with music nothing plays",
+    "file": "src/library.js",
+    "suite": "dom",
+    "find": "  library.delete(name);\n  discardSong(name);",
+    "replace": "  library.delete(name);",
+    "expect": "taken out of the folder too"
+  },
+  {
+    "name": "the file goes before the program is asked whether it needs it",
+    "guards": "a song the program plays never loses its file",
+    "file": "src/library.js",
+    "suite": "dom",
+    "find": "  infoOpen.delete(name);\n  if (clipsUsing(name)) {",
+    "replace": "  infoOpen.delete(name);\n  discardSong(name);\n  if (clipsUsing(name)) {",
+    "expect": "taken out of the folder too"
+  },
+  {
+    "name": "a replacement deletes the file it just brought in",
+    "guards": "only the song being replaced is thrown away",
+    "file": "src/library.js",
+    "suite": "dom",
+    "find": "  if (named !== name) discardSong(name);",
+    "replace": "  discardSong(name);\n  discardSong(named);",
+    "expect": "takes its file with it"
+  },
+  {
+    "name": "a plain browser is asked to delete files it does not have",
+    "guards": "a page with no folder behind it behaves exactly as it always did",
+    "file": "src/library.js",
+    "suite": "dom",
+    "find": "  if (!folder || typeof folder.discard !== 'function') return;",
+    "replace": "  if (!folder) return;",
+    "expect": "taken out of the folder too"
   }
 ]
