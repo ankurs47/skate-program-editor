@@ -1372,6 +1372,71 @@ async function main() {
       eq(out.stored, true, 'the program was not actually written: ');
     });
 
+    await check('a blend survives being moved to the front and back again', async () => {
+      /* `crossfadeOf` already refuses to apply a blend to the first clip, so
+         zeroing the stored value bought nothing and cost the number. Reordering
+         three songs to try an order and putting them back left every blend at
+         zero and the program quietly longer. */
+      const out = await run(`
+        window.__reset([['a.wav', window.__tone(220, 30)], ['b.wav', window.__tone(330, 30)]]);
+        state.clips[1].crossfade = 2.5;
+        refresh();
+        const started = { blends: state.clips.map(c => c.crossfade),
+                          length: Math.round(layout(state.clips).total) };
+
+        moveClip(1, 0);
+        const atFront = {
+          blends: state.clips.map(c => c.crossfade),
+          applied: crossfadeOf(state.clips, 0),
+          length: Math.round(layout(state.clips).total),
+        };
+
+        moveClip(0, 1);
+        const back = { blends: state.clips.map(c => c.crossfade),
+                       length: Math.round(layout(state.clips).total) };
+        return { started, atFront, back };
+      `);
+      eq(out.started.blends, [0, 2.5]);
+      eq(out.atFront.blends, [2.5, 0], 'the blend was thrown away on the way to the front: ');
+      eq(out.atFront.applied, 0, 'a first clip blended into nothing: ');
+      eq(out.atFront.length, 60, 'a blend was applied to the first clip after all: ');
+      eq(out.back.blends, [0, 2.5], 'the blend did not come back: ');
+      eq(out.back.length, out.started.length, 'the program did not return to its own length: ');
+    });
+
+    await check('taking a clip out leaves the blends of the ones that remain', async () => {
+      const out = await run(`
+        window.__reset([
+          ['a.wav', window.__tone(220, 30)],
+          ['b.wav', window.__tone(330, 30)],
+          ['c.wav', window.__tone(440, 30)],
+        ]);
+        state.clips[1].crossfade = 2;
+        state.clips[2].crossfade = 3;
+        refresh();
+        removeClip(state.clips[0].id);
+        return { blends: state.clips.map(c => c.crossfade), applied: crossfadeOf(state.clips, 0) };
+      `);
+      eq(out.blends, [2, 3], 'removing the first clip wiped the blend of the one behind it: ');
+      eq(out.applied, 0, 'the new first clip is blending into nothing: ');
+    });
+
+    await check('the file records no blend on the first clip, whatever is held', async () => {
+      /* The format says so plainly — "Zero for the first clip" — and every
+         reader of it assumes it. The value stays in memory so a reorder can
+         give it back; only saving while the song sits at the front lets it go. */
+      const out = await run(`
+        window.__reset([['a.wav', window.__tone(220, 30)], ['b.wav', window.__tone(330, 30)]]);
+        state.clips[0].crossfade = 4;
+        state.clips[1].crossfade = 2.5;
+        refresh();
+        const doc = project();
+        return { written: doc.clips.map(c => c.blend), held: state.clips.map(c => c.crossfade) };
+      `);
+      eq(out.held, [4, 2.5], 'the value was not kept in memory: ');
+      eq(out.written, [0, 2.5], 'the first clip was written with a blend: ');
+    });
+
     /* ------------------------------------------------ replacing a song */
 
     await check('a song taken out of the list is taken out of the folder too', async () => {
