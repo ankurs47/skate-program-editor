@@ -959,6 +959,84 @@ async function main() {
       ok(result.stillThere, 'a file still in the program was removed anyway');
     });
 
+    await check('an exported file can be turned back into the program', async () => {
+      /* The whole point of the chunk, and only checkable here: a real render,
+         a real encode, and the app's own reader on the far side. */
+      const out = await run(`
+        window.__reset([['nocturne.wav', window.__tone(220, 6)], ['tango.wav', window.__tone(330, 6)]]);
+        state.name = 'my 2027 junior long';
+        state.level = 'usfs-jr';
+        state.targetSeconds = 210;
+        state.toleranceSeconds = 10;
+        state.clips[0].srcStart = 1; state.clips[0].srcEnd = 4;
+        library.get('nocturne.wav').tags = { artist: 'Chopin' };
+        refresh();
+
+        const rendered = await renderProgram();
+        const plain = new Uint8Array(await encodeWav(rendered).arrayBuffer());
+        const told = new Uint8Array(
+          await encodeWav(rendered, tagsForExport(), project()).arrayBuffer(),
+        );
+
+        const back = readProjectChunk(told);
+        return {
+          /* The audio has to be untouched. Both files carry the same samples
+             from byte 44, and the described one is only longer. */
+          /* Everything except the RIFF size field, which has to change: it is
+             the length of the file and the file is longer. That one field is
+             the only difference before the samples, which is the whole reason
+             the chunks go after the data rather than before it. */
+          sameBeforeSize: plain.slice(0, 4).every((b, i) => b === told[i]),
+          sameAfterSize: plain.slice(8, 44).every((b, i) => b === told[8 + i]),
+          sizeGrew:
+            new DataView(told.buffer).getUint32(4, true) -
+            new DataView(plain.buffer).getUint32(4, true),
+          dataAt36: String.fromCharCode(...told.slice(36, 40)),
+          sameAudio: plain.slice(44).every((b, i) => b === told[44 + i]),
+          longerBy: told.length - plain.length,
+          /* And the program comes back. */
+          name: back && back.name,
+          clips: back ? back.clips.length : 0,
+          songs: back ? back.songs.map((s) => s.name) : null,
+          /* A file exported without asking carries nothing at all. */
+          plainCarriesNothing: readProjectChunk(plain) === null,
+        };
+      `);
+      eq(out.dataAt36, 'data', 'the data chunk moved, so samples no longer start at 44: ');
+      ok(out.sameBeforeSize && out.sameAfterSize, 'something other than the RIFF size changed');
+      eq(out.sizeGrew, out.longerBy, 'the declared size does not match how much longer it is: ');
+      ok(out.sameAudio, 'the audio bytes changed');
+      ok(out.longerBy > 0 && out.longerBy < 4096, `the tags cost ${out.longerBy} bytes`);
+      eq(out.name, 'my 2027 junior long', 'the program did not come back: ');
+      eq(out.clips, 2);
+      eq(out.songs, ['nocturne.wav', 'tango.wav']);
+      ok(out.plainCarriesNothing, 'an export nobody asked to describe carried a program anyway');
+    });
+
+    await check('the export dialog remembers whether to describe the program', async () => {
+      const out = await run(`
+        localStorage.removeItem(TAGS_KEY);
+        updateExportOptions();
+        const first = document.getElementById('exportTags').checked;
+
+        localStorage.setItem(TAGS_KEY, 'yes');
+        updateExportOptions();
+        const remembered = document.getElementById('exportTags').checked;
+
+        localStorage.setItem(TAGS_KEY, 'no');
+        updateExportOptions();
+        const off = document.getElementById('exportTags').checked;
+
+        localStorage.removeItem(TAGS_KEY);
+        return { first, remembered, off };
+      `);
+      /* Off unless somebody turned it on. What goes in includes whatever was
+         typed as the program's name, which is often a skater's own. */
+      eq(out.first, false, 'describing the program was on by default: ');
+      eq(out.remembered, true, 'a choice to describe was not remembered: ');
+      eq(out.off, false);
+    });
+
     /* ------------------------------------------------ replacing a song */
 
     await check('a song taken out of the list is taken out of the folder too', async () => {

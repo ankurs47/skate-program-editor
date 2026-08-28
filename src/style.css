@@ -1212,6 +1212,28 @@ button.primary > kbd {
   gap: 12px;
   font-size: 14px;
 }
+/* A checkbox and its explanation, which is a different shape from the label-
+   and-control rows above: the two sit together on the left rather than being
+   pushed to opposite edges, and the explanation runs under the label. */
+.modal-card .row.check {
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+.modal-card .row.check input {
+  margin-top: 3px;
+  flex: 0 0 auto;
+}
+.modal-card .row.check > span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.modal-card .row.check .hint {
+  font-size: 12px;
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;

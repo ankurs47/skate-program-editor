@@ -571,8 +571,8 @@
     "guards": "export reports finished, whatever the encoder reported",
     "file": "src/audio.js",
     "suite": "dom",
-    "find": "  const blob = await mp3Encoder.encode(buffer, mp3Spec(), onProgress);\n  onProgress(1);",
-    "replace": "  const blob = await mp3Encoder.encode(buffer, mp3Spec(), onProgress);",
+    "find": "  const blob = await mp3Encoder.encode(buffer, { ...mp3Spec(), ...describe }, onProgress);\n  onProgress(1);",
+    "replace": "  const blob = await mp3Encoder.encode(buffer, { ...mp3Spec(), ...describe }, onProgress);",
     "expect": "export reports finished even when the encoder stops short"
   },
   {
@@ -835,5 +835,86 @@
     "find": "  if (!folder || typeof folder.discard !== 'function') return;",
     "replace": "  if (!folder) return;",
     "expect": "taken out of the folder too"
+  },
+  {
+    "name": "the LIST size forgets the four bytes spelling INFO",
+    "guards": "a chunk a reader can walk without landing mid-field",
+    "file": "src/formats.js",
+    "suite": "unit",
+    "find": "  view.setUint32(4, 4 + body, true);",
+    "replace": "  view.setUint32(4, body, true);",
+    "expect": "a LIST/INFO whose size counts the INFO too"
+  },
+  {
+    "name": "a program with nothing to say still gets a chunk",
+    "guards": "an export nobody described is the file it always was",
+    "file": "src/formats.js",
+    "suite": "unit",
+    "find": "  if (!parts.length) return null;",
+    "replace": "  if (false) return null;",
+    "expect": "nothing to say produces nothing at all"
+  },
+  {
+    "name": "characters INFO cannot hold are dropped rather than spelled",
+    "guards": "a tolerance keeps its sign and a dash keeps its space",
+    "file": "src/formats.js",
+    "suite": "unit",
+    "find": "  for (const [from, to] of RIFF_SPELLINGS) spelled = spelled.split(from).join(to);",
+    "replace": "  spelled = spelled;",
+    "expect": "spells out what INFO cannot hold"
+  },
+  {
+    "name": "a chunk claiming more than the file holds is walked anyway",
+    "guards": "a size out of a file is checked before it is used to step",
+    "file": "src/formats.js",
+    "suite": "unit",
+    "find": "    if (size > data.length - at - 8) return; // says more than the file holds",
+    "replace": "    // no check",
+    "expect": "a size larger than the file stops the walk"
+  },
+  {
+    "name": "an odd chunk's pad byte is counted as content",
+    "guards": "a walk that survives a chunk of odd length",
+    "file": "src/formats.js",
+    "suite": "unit",
+    "find": "    at += 8 + size + (size % 2);",
+    "replace": "    at += 8 + size;",
+    "expect": "steps over the pad byte"
+  },
+  {
+    "name": "the trims are left out of what a program says about itself",
+    "guards": "the cue sheet says which seconds of a song were used",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "    const from = ` \u2014 from ${fmt(clip.srcStart)} to ${fmt(clip.srcEnd)}`;",
+    "replace": "    const from = '';",
+    "expect": "a line per clip, with the seconds it came from"
+  },
+  {
+    "name": "an empty artist field is written rather than left out",
+    "guards": "a reader never shows a blank where there was no artist",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "    ...(heard.length ? { artist: heard.join(', ') } : {}),",
+    "replace": "    artist: heard.join(', '),",
+    "expect": "artists only where the source files had any"
+  },
+  {
+    "name": "the program is written into every export",
+    "guards": "describing a program is a choice somebody makes",
+    "file": "src/audio.js",
+    "suite": "dom",
+    "find": "      blob = encodeWav(rendered, describe ? tagsForExport() : null, describe ? project() : null);",
+    "replace": "      blob = encodeWav(rendered, tagsForExport(), project());",
+    "expect": "turned back into the program"
+  },
+  {
+    "name": "describing the program is on unless turned off",
+    "guards": "a skater's name never leaves in a file by default",
+    "file": "src/audio.js",
+    "suite": "dom",
+    "find": "  $('exportTags').checked = describe === 'yes';",
+    "replace": "  $('exportTags').checked = describe !== 'no';",
+    "expect": "remembers whether to describe the program"
   }
 ]

@@ -345,6 +345,12 @@ const FORMAT_VERSION = 1;
 /* Written into every project file so an editor validates it and completes field
    names while it is being edited by hand. A test holds this to the schema's own
    $id, because a URL that has drifted is one that quietly 404s. */
+/* What made the file, for the field a reader shows as "software". No version
+   with it: the number would change on every release and say nothing a person
+   reading it could act on, and it would make two exports of one program differ
+   for a reason that is not about the program. */
+const APP_NAME = 'Skate Program Editor';
+
 const SCHEMA_URL = 'https://ankurs47.github.io/skate-program-editor/docs/program.skate.schema.json';
 
 /* The keys this reader knows. Anything else in a file — written by a desktop
@@ -730,6 +736,74 @@ function checkReplacement({ current, candidate, match, quality, clips }) {
   return { checks, worst, shift, shortened: past };
 }
 
+/* ------------------------------------------- what a program says about itself */
+
+/* Every step of this app reads what a music file says about itself and makes
+ * something of it — the library panel shows the tags, the licensing search is
+ * built from them, and `tools/music-get.sh` goes out of its way to ask for them
+ * because it "saves typing them onto an entry form later".
+ *
+ * The one file this app produces carried none of it. A finished cut arrived at
+ * a rink with its file name as the only thing saying what it was, and a file
+ * name is the first thing an upload form throws away.
+ *
+ * What goes in is only what is already on screen. Nothing here asks the skater
+ * a new question, and nothing here is a new field.
+ */
+
+/** The event line: what this was cut to, and what it actually came out at. */
+function describeEvent(program) {
+  const level = findLevel(program.level);
+  const name = level ? level.label : 'Custom';
+  const target = program.targetSeconds
+    ? ` — target ${fmt(program.targetSeconds)} ±${Math.round(program.toleranceSeconds || 0)}s`
+    : '';
+  return `${name}${target}, actual ${fmt(program.total)}`;
+}
+
+/**
+ * One line per clip: where it falls in the finished cut, what it is, and which
+ * part of the song it came from.
+ *
+ * The second half is the part worth having. "Libertango at 1:16" tells a person
+ * which song; "from 2:10.0 to 3:04.2" tells them which fifty-four seconds of
+ * it, which is what somebody rebuilding this program from scratch actually
+ * needs and what nobody writes down.
+ */
+function describeCut(clips, at) {
+  return clips.map((clip, i) => {
+    const start = at.parts[i] ? at.parts[i].start : 0;
+    const from = ` — from ${fmt(clip.srcStart)} to ${fmt(clip.srcEnd)}`;
+    return `${fmt(start)}  ${clip.title || clip.file}${from}`;
+  });
+}
+
+/**
+ * Everything a program can say about itself, as the fields a file can hold.
+ *
+ * Pure, and takes plain values rather than reaching for `state`, so the wording
+ * is under test rather than being whatever the exporter happened to build.
+ *
+ * `artists` comes from the source files where they were tagged and is left out
+ * entirely where they were not — an empty artist field is worse than no artist
+ * field, because a reader shows it as a blank rather than as absent.
+ */
+function programTags({ name, level, targetSeconds, toleranceSeconds, clips, artists = [] }) {
+  const at = layout(clips);
+  const heard = [...new Set(artists.filter((a) => a && a.trim()))];
+  const comment = [
+    describeEvent({ level, targetSeconds, toleranceSeconds, total: at.total }),
+    ...describeCut(clips, at),
+  ].join('\n');
+
+  return {
+    title: name || '',
+    software: APP_NAME,
+    comment,
+    ...(heard.length ? { artist: heard.join(', ') } : {}),
+  };
+}
+
 /**
  * What happened when the music was asked for again, in one sentence.
  *
@@ -787,6 +861,7 @@ if (typeof module !== 'undefined' && module.exports) {
     FORMAT,
     FORMAT_VERSION,
     SCHEMA_URL,
+    APP_NAME,
     claimId,
     KNOWN_KEYS,
     unknownKeys,
@@ -826,6 +901,9 @@ if (typeof module !== 'undefined' && module.exports) {
     clipsOnExport,
     audioPickerTypes,
     describeWrongFile,
+    describeEvent,
+    describeCut,
+    programTags,
     REPLACE,
     clipsPastEnd,
     checkReplacement,

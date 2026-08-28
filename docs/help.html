@@ -100,6 +100,7 @@
           <li><a href="#clock">The clock, and program lengths</a></li>
           <li><a href="#quality">Sound quality labels</a></li>
           <li><a href="#replacing">Swapping in a better copy</a></li>
+          <li><a href="#describing">What the music file says about itself</a></li>
           <li><a href="#song-info">What a file says about itself</a></li>
           <li><a href="#keys">Keyboard shortcuts</a></li>
           <li><a href="#saving">Saving and loading</a></li>
@@ -389,6 +390,58 @@
         plays. It is in the trash rather than gone, and <b>Remove</b> does the same thing. Opened as
         an ordinary web page there is no folder and no file to move, and neither button touches
         anything on your computer.
+      </p>
+
+      <h2 id="describing">What the music file says about itself</h2>
+
+      <p>
+        The editor reads the title, artist and composer out of every song you add. The file it makes
+        can carry the same kind of thing about your program &mdash; but only if you ask. There is a
+        checkbox in <b>Make the music file</b>: <b>Describe the program inside the file</b>.
+      </p>
+      <p>What goes in is what is already on your screen:</p>
+      <ul>
+        <li>The name of the program, and the event it is cut for with its target length.</li>
+        <li>How long it actually came out, which is the number you check against the rulebook.</li>
+        <li>
+          Every song, where it starts in the finished cut, and
+          <b>which part of the song you used</b> &mdash; not just &ldquo;Libertango at 1:16&rdquo;
+          but which fifty-four seconds of it.
+        </li>
+      </ul>
+      <p>
+        That survives being renamed, which a file name does not. If your program is uploaded
+        somewhere that renames it, or lands on a rink laptop as <code>track1.wav</code>, the file
+        still says what it is.
+      </p>
+
+      <h3>It is off unless you turn it on</h3>
+
+      <p>
+        Deliberately. Plenty of people put their own or their skater&rsquo;s name in the program
+        name, and once it is written inside the file it travels with every copy of it &mdash;
+        through entry systems, onto other people&rsquo;s computers. That should be a decision
+        somebody makes rather than something they find out about later. The editor remembers your
+        choice for next time.
+      </p>
+      <p>
+        A file exported with the box unticked is exactly the file the editor made before any of this
+        existed.
+      </p>
+
+      <h3>Getting your program back out of it</h3>
+
+      <p>
+        A described file also carries the whole project, so if you lose the project file you can
+        rebuild it from the music. That needs the copy of the editor you can download rather than
+        the page &mdash; see <a href="#self-hosting">Running it yourself</a> &mdash; and then:
+      </p>
+      <pre><code>node tools/project-from-music.js "my long program.wav"</code></pre>
+      <p>
+        It writes a <code>program.skate.json</code> beside the file.
+        <b>The music itself is not in there</b> &mdash; nothing could hold your program and every
+        song it was cut from &mdash; so the project opens with every edit in place and a list of the
+        songs it wants. Put those in the same folder and everything comes back.
       </p>
 
       <h2 id="song-info">What a file says about itself</h2>

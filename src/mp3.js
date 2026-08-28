@@ -29,6 +29,12 @@
 const MP3_ENCODER_FILE = 'src/vendor/mp3-encoder.js';
 const MP3_ENCODER_GLOBAL = 'MediabunnyMp3';
 
+/* The description on the TXXX frame holding the project document. A TXXX is
+   ID3's "anything else" — a description and a value — so this string is the
+   whole of how the frame is found again, and the utility that rebuilds a
+   project from a file looks for exactly it. */
+const MP3_PROGRAM_FRAME = 'skate-program';
+
 /**
  * Hand `audio.js` the encoder to use.
  *
@@ -93,6 +99,27 @@ async function encodeWithMediabunny(buffer, spec, onProgress) {
   const { Output, Mp3OutputFormat, BufferTarget, AudioBufferSource } = mediabunny;
 
   const output = new Output({ format: new Mp3OutputFormat(), target: new BufferTarget() });
+
+  /* What the program says about itself, where the caller asked for it. This
+     library writes an ID3v2 tag at the head of the file in `start()`, before
+     any frame, and `raw` takes frames it has no named field for — which is how
+     the project document gets in, as a TXXX with our own description.
+
+     `formats.js` already steps over a leading ID3 tag when it walks MPEG
+     frames, so an export re-imported into this app analyzes exactly as it did
+     before any of this. */
+  if (spec.tags || spec.doc) {
+    const tags = spec.tags || {};
+    output.setMetadataTags({
+      ...(tags.title ? { title: tags.title } : {}),
+      ...(tags.artist ? { artist: tags.artist } : {}),
+      ...(tags.comment ? { comment: tags.comment } : {}),
+      raw: {
+        ...(tags.software ? { TSSE: tags.software } : {}),
+        ...(spec.doc ? { TXXX: { [MP3_PROGRAM_FRAME]: JSON.stringify(spec.doc) } } : {}),
+      },
+    });
+  }
   const total = buffer.duration;
   const source = new AudioBufferSource({
     codec: 'mp3',
@@ -121,6 +148,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     MP3_ENCODER_FILE,
     MP3_ENCODER_GLOBAL,
+    MP3_PROGRAM_FRAME,
     installMp3Encoder,
     loadMediabunny,
     encodeWithMediabunny,

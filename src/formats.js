@@ -274,18 +274,25 @@ const TAG_LABELS = [
 ];
 
 /** Text out of a byte range, in whichever encoding the tag claims. */
-function tagText(bytes, from, to, encoding) {
+function tagText(bytes, from, to, encoding, all = false) {
   const labels = ['latin1', 'utf-16', 'utf-16be', 'utf-8'];
   const length = Math.max(0, Math.min(to, bytes.byteLength) - from);
-  if (from < 0 || length <= 0) return '';
+  if (from < 0 || length <= 0) return all ? [] : '';
   try {
     const text = new TextDecoder(labels[encoding] || 'utf-8').decode(
       new Uint8Array(bytes, from, length),
     );
-    // A NUL ends the text; padding, or a second value, may follow it.
-    return text.split('\u0000')[0].trim();
+    /* A NUL ends the text; padding, or a second value, may follow it. Most
+       frames hold one string and want the first; TXXX holds two with the NUL
+       between them and wants both, which is what `all` asks for. Trailing
+       padding is dropped either way — a frame is padded with NULs, so the last
+       piece is empty and not a value. */
+    const pieces = text.split('\u0000');
+    if (!all) return pieces[0].trim();
+    while (pieces.length && pieces[pieces.length - 1] === '') pieces.pop();
+    return pieces.map((piece) => piece.trim());
   } catch (_) {
-    return '';
+    return all ? [] : '';
   }
 }
 
@@ -326,6 +333,19 @@ function readId3Tags(bytes) {
       const body = at + headerLength;
       const text = tagText(bytes, body + 1, body + size, view.getUint8(body));
       if (text) found[field] = text;
+    }
+    /* TXXX is ID3's "anything else": one encoding byte, then a description and
+       a value with a null between them. Collected under their descriptions,
+       away from the named fields, because a description is written by whoever
+       made the file and could be anything at all — including the name of a
+       field above. */
+    if (name === 'TXXX') {
+      const body = at + headerLength;
+      const pair = tagText(bytes, body + 1, body + size, view.getUint8(body), true);
+      if (pair.length >= 2) {
+        found.custom = found.custom || {};
+        if (!(pair[0] in found.custom)) found.custom[pair[0]] = pair[1];
+      }
     }
     at += headerLength + size;
   }
@@ -667,6 +687,188 @@ function describeRate(q) {
   return `${q.bitrate} kbps ${q.codec || 'audio'}`;
 }
 
+/* --------------------------------------- writing what a file says about itself */
+
+/* The other direction. Everything above reads what somebody else's file claims;
+ * this writes what ours does.
+ *
+ * A WAV carries it in a `LIST` chunk of type `INFO`, which is the oldest and
+ * most widely understood way to put text in one. Four fields, and text only:
+ * artwork belongs to formats built for it, and hundreds of kilobytes of it
+ * would go into a file that gets carried to a rink on a memory stick.
+ */
+
+/* The four, and the tags they are written under. Ordered, so the same program
+   produces the same bytes every time — a chunk assembled from object key order
+   is a chunk that changes when somebody reorders an object literal. */
+const INFO_FIELDS = [
+  ['title', 'INAM'],
+  ['artist', 'IART'],
+  ['software', 'ISFT'],
+  ['comment', 'ICMT'],
+];
+
+/* RIFF counts in 32 bits and a reader that hits a wrong size stops reading. A
+   cue sheet is a few hundred bytes; anything near this is a bug upstream, and
+   truncating beats writing a length nobody can act on. */
+const INFO_LIMIT = 65536;
+
+/* Characters this app writes that INFO cannot hold, and what they become. Only
+   the ones actually emitted: a general transliteration table would be a thing
+   to maintain for no reader that exists. Accents are not here — NFKD below
+   splits those off by itself, so "Adi\u00f3s" becomes "Adios" without help. */
+const RIFF_SPELLINGS = [
+  ['\u2014', '-'],
+  ['\u2013', '-'],
+  ['\u00b1', '+/-'],
+  ['\u2019', "'"],
+  ['\u201c', '"'],
+  ['\u201d', '"'],
+];
+
+/**
+ * Latin-1 bytes for a RIFF text field, null-terminated and padded to even.
+ *
+ * `INFO` predates Unicode and has no encoding field, so a reader takes these
+ * bytes as its own idea of Latin-1. Anything outside it is transliterated where
+ * that is obvious and dropped where it is not — "Adiós Nonino" is better as
+ * "Adios Nonino" than as a field the reader renders as mojibake, and both are
+ * better than a chunk whose declared length disagrees with its contents, which
+ * is what writing UTF-8 into a byte-counted field would risk.
+ */
+function riffText(text) {
+  let spelled = String(text == null ? '' : text);
+  /* Spelled out before anything is dropped. These are characters this app puts
+     in on purpose and each carries meaning: an em dash separates, and "\u00b110s"
+     with its sign stripped reads as ten seconds of something. Dropping them
+     produced "Junior  target 3:30.0 10s", which is worse than either the
+     original or a plain rendering of it. */
+  for (const [from, to] of RIFF_SPELLINGS) spelled = spelled.split(from).join(to);
+  const flattened = spelled
+    .normalize('NFKD')
+    /* Combining marks, which NFKD has just split off from their letters. */
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^\x20-\x7e\n]/g, '');
+  const cut = flattened.slice(0, INFO_LIMIT);
+
+  const bytes = new Uint8Array(cut.length + 1 + (cut.length % 2 === 0 ? 1 : 0));
+  for (let i = 0; i < cut.length; i++) bytes[i] = cut.charCodeAt(i);
+  return bytes; // the remaining byte or two are already zero
+}
+
+/**
+ * A `LIST`/`INFO` chunk for the fields given, or null when there are none.
+ *
+ * Null rather than an empty chunk, so a program with nothing to say produces
+ * exactly the file it produced before this existed.
+ */
+function infoChunk(tags) {
+  const parts = [];
+  for (const [key, tag] of INFO_FIELDS) {
+    const value = tags && tags[key];
+    if (!value || !String(value).trim()) continue;
+    const text = riffText(value);
+    const field = new Uint8Array(8 + text.length);
+    for (let i = 0; i < 4; i++) field[i] = tag.charCodeAt(i);
+    new DataView(field.buffer).setUint32(4, text.length, true);
+    field.set(text, 8);
+    parts.push(field);
+  }
+  if (!parts.length) return null;
+
+  const body = parts.reduce((total, part) => total + part.length, 0);
+  const chunk = new Uint8Array(12 + body);
+  const view = new DataView(chunk.buffer);
+  for (let i = 0; i < 4; i++) chunk[i] = 'LIST'.charCodeAt(i);
+  /* The size counts everything after this field, which includes the four bytes
+     spelling INFO — the mistake this is easy to make and a reader cannot
+     recover from. */
+  view.setUint32(4, 4 + body, true);
+  for (let i = 0; i < 4; i++) chunk[8 + i] = 'INFO'.charCodeAt(i);
+
+  let at = 12;
+  for (const part of parts) {
+    chunk.set(part, at);
+    at += part.length;
+  }
+  return chunk;
+}
+
+/* ------------------------------------- the program itself, inside the file */
+
+/* The cue sheet above is for a person. This is for a machine: the whole project
+ * document, so a program can be rebuilt from the music file it produced.
+ *
+ * Its own chunk rather than another INFO field. INFO holds short display text
+ * in an encoding that predates Unicode, and putting a JSON document in one
+ * would be misusing a field every other reader shows to somebody. A chunk with
+ * an id of our own is the thing RIFF was designed for: a reader that does not
+ * know `skPJ` reads its length, steps over it, and never knows it was there.
+ *
+ * UTF-8 here, unlike INFO. Nothing else reads this chunk, so there is no
+ * convention to honor and no reason to flatten a composer's name.
+ */
+const PROJECT_CHUNK = 'skPJ';
+
+/** The project document as a chunk, or null when there is nothing to say. */
+function projectChunk(doc) {
+  if (!doc) return null;
+  const text = new TextEncoder().encode(JSON.stringify(doc));
+  const chunk = new Uint8Array(8 + text.length + (text.length % 2));
+  for (let i = 0; i < 4; i++) chunk[i] = PROJECT_CHUNK.charCodeAt(i);
+  new DataView(chunk.buffer).setUint32(4, text.length, true);
+  chunk.set(text, 8);
+  return chunk;
+}
+
+/**
+ * Walk a RIFF file's chunks, calling `onChunk(id, at, size)` for each.
+ *
+ * Sizes come out of the file, so every one is checked against what is actually
+ * there before it is used to step forward. A truncated or hand-edited file
+ * should stop the walk, not send it off the end or round it into a loop.
+ */
+function eachRiffChunk(bytes, onChunk) {
+  const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  if (data.length < 12) return;
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const text = (at) => String.fromCharCode(data[at], data[at + 1], data[at + 2], data[at + 3]);
+  if (text(0) !== 'RIFF' || text(8) !== 'WAVE') return;
+
+  let at = 12;
+  while (at + 8 <= data.length) {
+    const id = text(at);
+    const size = view.getUint32(at + 4, true);
+    if (size > data.length - at - 8) return; // says more than the file holds
+    onChunk(id, at + 8, size);
+    /* Chunks are padded to an even length, and the pad is not counted in the
+       size — a walk that forgets it lands one byte into the next id and reads
+       nothing else in the file. */
+    at += 8 + size + (size % 2);
+  }
+}
+
+/**
+ * The project document a WAV carries, or null.
+ *
+ * Forgiving on purpose: this is handed whole files that may have been through
+ * anything, and every way of not finding one — no chunk, a truncated chunk,
+ * text that is not JSON — is the same answer.
+ */
+function readProjectChunk(bytes) {
+  let found = null;
+  eachRiffChunk(bytes, (id, at, size) => {
+    if (id !== PROJECT_CHUNK || found) return;
+    const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    try {
+      found = JSON.parse(new TextDecoder().decode(data.subarray(at, at + size)));
+    } catch (_) {
+      found = null;
+    }
+  });
+  return found;
+}
+
 /* Under Node — the test suite — hand the parsing over. In a browser these are
    already global and this block does nothing. */
 if (typeof module !== 'undefined' && module.exports) {
@@ -688,6 +890,15 @@ if (typeof module !== 'undefined' && module.exports) {
     qualityLabel,
     qualityDetail,
     fingerprint,
+    INFO_FIELDS,
+    INFO_LIMIT,
+    RIFF_SPELLINGS,
+    riffText,
+    infoChunk,
+    PROJECT_CHUNK,
+    projectChunk,
+    eachRiffChunk,
+    readProjectChunk,
     BETTER_BY,
     compareQuality,
     describeRate,
