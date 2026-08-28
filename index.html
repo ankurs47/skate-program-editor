@@ -316,6 +316,21 @@
           <p class="hint">Saved with the project. Nothing else reads it.</p>
         </details>
 
+        <!-- Only ever shown after this browser has actually refused to keep
+             something. Everywhere else the app says the work is kept on its
+             own, and this is the one place that can say otherwise truthfully. -->
+        <div id="storageNotice" class="warn hidden">
+          <p class="warn-head">This browser is not keeping your work</p>
+          <p class="hint">
+            It refused to store your program &mdash; usually a private window, or storage that is
+            full. Everything on screen is fine and nothing has been lost, but closing this tab would
+            lose it. <b>Save project</b> writes a real file you can open again.
+          </p>
+          <div class="missing-actions">
+            <button id="btnSaveNow" class="small primary">Save project</button>
+          </div>
+        </div>
+
         <div id="missingNotice" class="warn hidden">
           <p class="warn-head">Some songs still need to be added</p>
           <p class="hint" id="missingList"></p>
@@ -627,7 +642,9 @@
         <p class="hint">
           You don&rsquo;t need to save after every change &mdash; this browser remembers your work
           between visits on its own. <b>Save project</b> is for keeping a copy, moving to another
-          computer, or going back to an older version later.
+          computer, or going back to an older version later. In a private window, or on a browser
+          with no room left, it can&rsquo;t remember &mdash; the editor says so when that happens
+          rather than letting you find out afterwards.
         </p>
       </div>
 

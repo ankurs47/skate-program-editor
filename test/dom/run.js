@@ -1310,6 +1310,68 @@ async function main() {
       eq(out.undone, { start: 12, end: 20 }, 'undo did not step back exactly one trim: ');
     });
 
+    await check(
+      'a browser that will not keep the work says so, once and then standing',
+      async () => {
+        /* This was silent, while the app told people they did not need to save
+         because the browser remembers on its own. In a private window that
+         promise is simply not kept. */
+        const out = await run(`
+        window.__reset([['a.wav', window.__tone(220, 10)]]);
+        const line = document.getElementById('toast');
+        const notice = document.getElementById('storageNotice');
+        line.textContent = ''; line.classList.add('hidden');
+
+        const quiet = { toast: line.textContent, notice: !notice.classList.contains('hidden') };
+
+        const real = localStorage.setItem.bind(localStorage);
+        localStorage.setItem = () => { throw new DOMException('quota', 'QuotaExceededError'); };
+        save();
+        const first = {
+          toast: line.classList.contains('hidden') ? '' : line.textContent,
+          notice: !notice.classList.contains('hidden'),
+        };
+
+        /* Every later edit refuses too. Saving runs after each one, so
+           complaining every time would be a toast every few seconds — which is
+           why this was left silent in the first place. */
+        line.textContent = ''; line.classList.add('hidden');
+        state.clips[0].srcEnd = 5;
+        refresh();
+        const later = {
+          toast: line.classList.contains('hidden') ? '' : line.textContent,
+          notice: !notice.classList.contains('hidden'),
+          offersSave: !!document.getElementById('btnSaveNow'),
+        };
+
+        localStorage.setItem = real;
+        return { quiet, first, later };
+      `);
+        eq(out.quiet.notice, false, 'the notice was up before anything went wrong: ');
+        eq(out.quiet.toast, '');
+        ok(/will not keep your work/.test(out.first.toast), `said nothing: "${out.first.toast}"`);
+        eq(out.first.notice, true, 'nothing standing was left behind after the toast: ');
+        eq(out.later.toast, '', 'it complained a second time: ');
+        eq(out.later.notice, true, 'the notice went away while the trouble had not: ');
+        ok(out.later.offersSave, 'the notice names Save project but does not offer it');
+      },
+    );
+
+    await check('a browser that keeps the work says nothing at all', async () => {
+      const out = await run(`
+        window.__reset([['a.wav', window.__tone(220, 10)]]);
+        save();
+        state.clips[0].srcEnd = 5;
+        refresh();
+        return {
+          notice: !document.getElementById('storageNotice').classList.contains('hidden'),
+          stored: !!localStorage.getItem(STORE_KEY),
+        };
+      `);
+      eq(out.notice, false, 'a working browser was told it is not keeping anything: ');
+      eq(out.stored, true, 'the program was not actually written: ');
+    });
+
     /* ------------------------------------------------ replacing a song */
 
     await check('a song taken out of the list is taken out of the folder too', async () => {

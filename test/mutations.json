@@ -922,8 +922,8 @@
     "guards": "audio scheduled ahead of time does not outlive the program",
     "file": "src/app.js",
     "suite": "dom",
-    "find": "  stopIfGone();\n  /* And a fade cannot be longer",
-    "replace": "  /* And a fade cannot be longer",
+    "find": "  stopIfGone();\n  updateStorageNotice();",
+    "replace": "  updateStorageNotice();",
     "expect": "the music stops when the program it is playing goes"
   },
   {
@@ -1024,5 +1024,32 @@
     "find": "      toast(found.refuse);\n      return;",
     "replace": "      return;",
     "expect": "says no rather than flattening the clip"
+  },
+  {
+    "name": "a refused save goes back to saying nothing",
+    "guards": "a browser that will not keep the work says so",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "  } catch (_) {\n    storageRefused();\n  }\n}",
+    "replace": "  } catch (_) {\n    /* silent */\n  }\n}",
+    "expect": "says so, once and then standing"
+  },
+  {
+    "name": "the refusal is announced on every edit",
+    "guards": "it is said once, and then stands rather than repeating",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "  if (keptNothing) return;\n  keptNothing = true;",
+    "replace": "  keptNothing = true;",
+    "expect": "says so, once and then standing"
+  },
+  {
+    "name": "the notice stays up after a save that worked",
+    "guards": "the notice describes the last attempt, not the worst one",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "    keptNothing = false;\n  } catch (_) {",
+    "replace": "  } catch (_) {",
+    "expect": "a browser that keeps the work says nothing at all"
   }
 ]

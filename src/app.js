@@ -161,9 +161,11 @@ function describeStored() {
         : `a way back to ${rememberedNames.size} song files`,
     );
   }
-  $('forgetNote').textContent = parts.length
-    ? `This browser is keeping ${parts.join(' and ')}. Your music itself is never uploaded.`
-    : 'This browser is not keeping anything from the editor right now.';
+  $('forgetNote').textContent = keptNothing
+    ? 'This browser refused to keep anything from the editor. Use Save project instead.'
+    : parts.length
+      ? `This browser is keeping ${parts.join(' and ')}. Your music itself is never uploaded.`
+      : 'This browser is not keeping anything from the editor right now.';
   $('btnForget').disabled = !parts.length;
 }
 
@@ -674,9 +676,44 @@ function save() {
   }
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify(project()));
+    /* A write that works clears it. Whatever was in the way — a quota somebody
+       has since freed, a setting they changed — the notice should describe the
+       last attempt rather than the worst one this session ever had. */
+    keptNothing = false;
   } catch (_) {
-    /* private mode, or quota — Save project still works */
+    storageRefused();
   }
+}
+
+/* Whether the last attempt to keep the program was refused. Usually this does
+   not change once it is set — a private window does not stop being private —
+   but a full quota can be emptied, and a notice describing the worst moment of
+   a session rather than how things stand now would be its own small lie. */
+let keptNothing = false;
+
+/**
+ * Say, once, that the work is not being kept.
+ *
+ * Once matters. `save` runs after every edit, so complaining each time would be
+ * a toast every few seconds — worse than the silence it replaces, and the
+ * reason this was left silent to begin with. What replaces the silence is a
+ * standing notice, which is a piece of state rather than an interruption, plus
+ * a single toast at the moment it first happens.
+ *
+ * The work itself is not at risk on screen, and **Save project** does not go
+ * near `localStorage` — so what this warns about is closing the tab, and it
+ * says so rather than implying everything is already lost.
+ */
+function storageRefused() {
+  if (keptNothing) return;
+  keptNothing = true;
+  toast('This browser will not keep your work — use Save project to keep a copy', 8000);
+  updateStorageNotice();
+}
+
+/** Show or hide the standing notice. Called from `refresh`, like the others. */
+function updateStorageNotice() {
+  $('storageNotice').classList.toggle('hidden', !keptNothing);
 }
 
 function loadProject(data) {
@@ -847,6 +884,7 @@ function refresh() {
      program it came from, and the first thing every redraw should settle is
      whether what you can hear is still a thing that exists. */
   stopIfGone();
+  updateStorageNotice();
   /* And a fade cannot be longer than the clip it is on. Here rather than at
      each of the seven places a trim changes, so a new one cannot forget it. */
   clampFades(state.clips);
@@ -1126,13 +1164,17 @@ function bind() {
   $('btnExportCancel').onclick = closeExportDialog;
   $('btnExportGo').onclick = doExport;
 
-  $('btnSaveProject').onclick = () => {
+  const saveProjectFile = () => {
     download(
       new Blob([JSON.stringify(project(), null, 2) + '\n'], { type: 'application/json' }),
       exportFileName('json'),
     );
     toast('Project saved to your downloads');
   };
+  $('btnSaveProject').onclick = saveProjectFile;
+  /* The same thing, offered where the trouble is described. A notice that names
+     a button somewhere else is a notice somebody has to go and find. */
+  $('btnSaveNow').onclick = saveProjectFile;
   $('btnLoadProject').onclick = () => $('projectInput').click();
   $('projectInput').onchange = async (e) => {
     const file = e.target.files[0];
