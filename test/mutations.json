@@ -1051,5 +1051,32 @@
     "find": "    keptNothing = false;\n  } catch (_) {",
     "replace": "  } catch (_) {",
     "expect": "a browser that keeps the work says nothing at all"
+  },
+  {
+    "name": "moving a clip to the front throws its blend away",
+    "guards": "a blend outlives a reorder, because crossfadeOf already ignores it",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "  pushUndo();\n  state.clips = next;\n  refresh();",
+    "replace": "  pushUndo();\n  state.clips = next;\n  if (state.clips.length) state.clips[0].crossfade = 0;\n  refresh();",
+    "expect": "a blend survives being moved to the front and back again"
+  },
+  {
+    "name": "removing a clip throws away the blend of the one behind it",
+    "guards": "the same, when the first clip is taken out rather than moved",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "    state.selected = null;\n  }\n  refresh();",
+    "replace": "    state.selected = null;\n  }\n  if (state.clips.length) state.clips[0].crossfade = 0;\n  refresh();",
+    "expect": "taking a clip out leaves the blends of the ones that remain"
+  },
+  {
+    "name": "the first clip is written with a blend it cannot have",
+    "guards": "the format's own rule that a first clip's blend is zero",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "      blend: Number((i === 0 ? 0 : c.crossfade || 0).toFixed(2)),",
+    "replace": "      blend: Number((c.crossfade || 0).toFixed(2)),",
+    "expect": "the file records no blend on the first clip"
   }
 ]

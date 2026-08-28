@@ -396,7 +396,6 @@ function removeClip(id) {
   } else {
     state.selected = null;
   }
-  if (state.clips.length) state.clips[0].crossfade = 0; // nothing to blend into
   refresh();
 }
 
@@ -405,7 +404,6 @@ function moveClip(fromIndex, toIndex) {
   if (!next) return;
   pushUndo();
   state.clips = next;
-  if (state.clips.length) state.clips[0].crossfade = 0; // nothing to blend into
   refresh();
 }
 
@@ -520,7 +518,7 @@ function project() {
        file lives, and a handle to one cannot be written to a file. A desktop
        shell can, and records it here as a source. */
     songs: usedSongs(),
-    clips: state.clips.map((c) => ({
+    clips: state.clips.map((c, i) => ({
       id: c.id,
       song: c.file,
       /* Only when the clip is called something other than its song. Three clips
@@ -533,7 +531,11 @@ function project() {
       end: Number(c.srcEnd.toFixed(3)),
       fadeIn: Number((c.fadeIn || 0).toFixed(2)),
       fadeOut: Number((c.fadeOut || 0).toFixed(2)),
-      blend: Number((c.crossfade || 0).toFixed(2)),
+      /* Zero for the first clip, which is what the format says and what every
+         reader of it assumes — there is no clip before it to overlap. The
+         value stays in memory, so moving this song back off the front brings
+         its blend with it; only saving while it sits there lets it go. */
+      blend: Number((i === 0 ? 0 : c.crossfade || 0).toFixed(2)),
       /* Clamped to the slider's own range on the way out as well, so the file
          never carries a level the interface cannot show or the reader would
          clamp on the way back in. */
