@@ -1080,6 +1080,73 @@ async function main() {
       eq(out.off, false);
     });
 
+    await check('the music stops when the program it is playing goes', async () => {
+      /* Every clip is handed to Web Audio ahead of time, which is what makes
+         playback gapless and what makes it outlive the program it came from.
+         Six ways of taking that program away, all of which left the sound
+         going with an empty timeline behind it. */
+      const gone = {
+        'the clip being played is removed': `removeClip(state.clips[0].id);`,
+        'its song is taken out of the list': `state.clips = []; refresh(); removeFromLibrary('a.wav');`,
+        'another project is loaded': `loadProject({ format: 'skate-program', version: 1,
+             name: 'other', event: { level: 'usfs-jr' }, songs: [], clips: [] });`,
+        'the song underneath it is replaced': `
+             await offerReplacement('a.wav', window.__asFile('b.wav', window.__tune(9, 20)));
+             await applyReplacement();`,
+        'it is undone away': `undo();`,
+        'everything is forgotten': `forgetEverything();`,
+      };
+      for (const [what, action] of Object.entries(gone)) {
+        const out = await run(`
+          window.__reset([['a.wav', window.__tune(4, 20)]]);
+          state.clips[0].srcEnd = 15;
+          refresh();
+          playProgram(0);
+          const started = playing !== null;
+          ${action}
+          return {
+            started,
+            stillPlaying: playing !== null,
+            button: document.getElementById('btnPlayLabel').textContent,
+          };
+        `);
+        ok(out.started, `nothing was playing before ${what}`);
+        eq(out.stillPlaying, false, `the music carried on when ${what}: `);
+        eq(out.button, 'Play', `the button still offered to pause when ${what}: `);
+      }
+    });
+
+    await check(
+      'the music carries on through the changes people make while listening',
+      async () => {
+        /* The other half, and the reason the test is what a clip *is* rather than
+         anything about it. Adjusting a level or a fade while the program plays
+         is a thing people do on purpose; so is opening the New dialog and then
+         thinking better of it, which changes nothing at all until it is
+         answered. */
+        const kept = {
+          'a level and a fade are changed': `
+             state.clips[0].gain = 0.5; state.clips[0].fadeIn = 2; refresh();`,
+          'a trim is dragged': `state.clips[0].srcEnd = 12; refresh();`,
+          'the New dialog is opened but not answered': `openStartDialog(true);`,
+        };
+        for (const [what, action] of Object.entries(kept)) {
+          const out = await run(`
+          window.__reset([['a.wav', window.__tune(4, 20)]]);
+          state.clips[0].srcEnd = 15;
+          refresh();
+          playProgram(0);
+          ${action}
+          const out = { stillPlaying: playing !== null };
+          stopPlayback();
+          closeTopDialog();
+          return out;
+        `);
+          eq(out.stillPlaying, true, `the music stopped when ${what}: `);
+        }
+      },
+    );
+
     /* ------------------------------------------------ replacing a song */
 
     await check('a song taken out of the list is taken out of the folder too', async () => {
