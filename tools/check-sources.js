@@ -33,9 +33,25 @@ const UA = 'skate-program-editor source check (+https://github.com/ankurs47/skat
    a second apart — verified by --update printing the same thing twice. */
 const EXTRACTORS = {
   /* Every ISU rule change arrives as a numbered Communication. A new number is
-     the signal; whether it touches program durations is the human's call. */
-  'isu-communications': (html) =>
-    [...new Set([...html.matchAll(/communication[^<>"]{0,8}(\d{4})/gi)].map((m) => m[1]))].sort(),
+     the signal; whether it touches program durations is the human's call.
+
+     The numbers are not in the page any more. isu.org moved to a client-side
+     app in 2026 and /isu-communications/ now answers with a shell that meta-
+     refreshes to /en/isu-communications, whose list the browser fills in from
+     the JSON below — which is why `data` is fetched and `url` is only what the
+     report points a person at. Titles read "ISU Communication 2826", sometimes
+     with a suffix ("2822 - Appendix A", "2526 UPDATED"); the number is what
+     matters. Only the first page is read, so this reports what is recent
+     rather than re-listing all 700-odd every run. */
+  'isu-communications': (json) =>
+    [
+      ...new Set(
+        JSON.parse(json)
+          .data.documents.map((d) => /\b(\d{4})\b/.exec(d.title))
+          .filter(Boolean)
+          .map((m) => m[1]),
+      ),
+    ].sort(),
 
   /* The rules hub does not link the PDFs directly, but it does carry the season
      it is describing. A new season is when the rulebook gets reissued. */
@@ -74,13 +90,20 @@ async function main() {
       continue;
     }
 
+    /* `url` is the page a person should open when this reports something;
+       `data`, where a source has one, is where the machine-readable version of
+       that same page lives. Fetching the page a reader is sent to is the
+       simpler arrangement and still the default — it is only split when the
+       page has stopped carrying its own content. */
+    const from = source.data || source.url;
+
     let seen;
     try {
-      seen = extract(await fetchText(source.url));
+      seen = extract(await fetchText(from));
     } catch (err) {
       /* Unreachable is itself worth knowing — a moved page is a change. It is
          reported rather than thrown so one dead link cannot hide the others. */
-      failures.push(`${source.id}: ${source.url} — ${err.message}`);
+      failures.push(`${source.id}: ${from} — ${err.message}`);
       continue;
     }
     if (!seen.length) {
