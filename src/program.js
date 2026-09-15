@@ -43,6 +43,11 @@ const MAX_GAIN = 16; // a shade over the +24 dB the level slider reaches
  *
  * To correct one, edit `seconds` here — nothing else refers to these values.
  * Times are m:ss; `tol` is the allowed variance in seconds either way.
+ *
+ * A level a rulebook states as a maximum rather than a target is entered so
+ * that the band ends at the maximum: U.S. Figure Skating's Novice Short
+ * Program is "2:30 max.", so it is 2:20 ±10 and nothing this app calls good
+ * runs over. Entering the stated 2:30 instead would bless a 2:40 cut.
  * ------------------------------------------------------------------------- */
 const LEVELS = [
   {
@@ -79,11 +84,11 @@ const LEVELS = [
   {
     group: 'U.S. Figure Skating — Free Skate',
     items: [
-      { id: 'usfs-prelim', label: 'Preliminary', seconds: 90, tol: 10 },
-      { id: 'usfs-pre-juv', label: 'Pre-Juvenile', seconds: 105, tol: 10 },
-      { id: 'usfs-juv', label: 'Juvenile', seconds: 135, tol: 10 },
-      { id: 'usfs-int', label: 'Intermediate', seconds: 160, tol: 10 },
-      { id: 'usfs-nov', label: 'Novice', seconds: 180, tol: 10 },
+      { id: 'usfs-prelim', label: 'Preliminary', seconds: 120, tol: 10 },
+      { id: 'usfs-pre-juv', label: 'Pre-Juvenile', seconds: 120, tol: 10 },
+      { id: 'usfs-juv', label: 'Juvenile', seconds: 150, tol: 10 },
+      { id: 'usfs-int', label: 'Intermediate', seconds: 180, tol: 10 },
+      { id: 'usfs-nov', label: 'Novice', seconds: 210, tol: 10 },
       { id: 'usfs-jr', label: 'Junior', seconds: 210, tol: 10 },
       { id: 'usfs-sr', label: 'Senior', seconds: 240, tol: 10 },
     ],
@@ -91,7 +96,7 @@ const LEVELS = [
   {
     group: 'U.S. Figure Skating — Short Program',
     items: [
-      { id: 'usfs-nov-sp', label: 'Novice Short Program', seconds: 160, tol: 10 },
+      { id: 'usfs-nov-sp', label: 'Novice Short Program', seconds: 140, tol: 10 },
       { id: 'usfs-jr-sp', label: 'Junior Short Program', seconds: 160, tol: 10 },
       { id: 'usfs-sr-sp', label: 'Senior Short Program', seconds: 160, tol: 10 },
     ],

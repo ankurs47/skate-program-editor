@@ -139,6 +139,13 @@ check('every rule source is one the checker knows how to read', () => {
   for (const source of baseline.sources) {
     ok(checker.includes(`'${source.id}':`), `no extractor for ${source.id}`);
     ok(/^https:\/\//.test(source.url), `${source.id} is not fetched over https`);
+    /* A source whose page stopped carrying its own content reads a `data` feed
+       instead, and that is the address actually fetched — so it is the one that
+       has to be https, whatever the page a reader is sent to happens to be. */
+    ok(
+      !source.data || /^https:\/\//.test(source.data),
+      `${source.id}'s data feed is not fetched over https`,
+    );
     ok(source.what && source.what.length > 10, `${source.id} does not say what it watches`);
     ok(
       Array.isArray(source.seen) && source.seen.length,

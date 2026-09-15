@@ -63,7 +63,7 @@ const SETUP = `
     }
     state.name = 'test program';
     state.level = 'usfs-juv';
-    state.targetSeconds = 135;
+    state.targetSeconds = 150;
     state.toleranceSeconds = 10;
     state.clips = [];
     state.selected = null;

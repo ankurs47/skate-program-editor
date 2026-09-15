@@ -453,7 +453,7 @@ async function main() {
             name: () => 'my 2027 junior long',
             read: async () => ({
               format: FORMAT, version: FORMAT_VERSION, name: 'from a folder',
-              event: { level: 'usfs-juv', targetSeconds: 135, toleranceSeconds: 10 },
+              event: { level: 'usfs-juv', targetSeconds: 150, toleranceSeconds: 10 },
               songs: [{ name: 'opening.wav', title: 'Adagio in G minor' }],
               clips: [{ id: 'a', song: 'opening.wav', start: 0, end: 3 }],
             }),
@@ -781,7 +781,7 @@ async function main() {
         redo();
         return { before, changed, undone, redone: state.targetSeconds };
       `);
-      eq(result.before.target, 135, 'Juvenile is 2:15: ');
+      eq(result.before.target, 150, 'Juvenile is 2:30: ');
       eq(result.changed.target, 240, 'Senior is 4:00: ');
       eq(result.undone.target, result.before.target, 'undo must restore the length: ');
       eq(result.undone.picker, result.before.picker, 'and the dropdown must follow it: ');

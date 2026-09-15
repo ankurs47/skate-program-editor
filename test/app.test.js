@@ -442,7 +442,7 @@ check('project file: the document holds exactly the fields it is documented to',
     {
       name: 'x',
       level: 'usfs-juv',
-      targetSeconds: 135,
+      targetSeconds: 150,
       toleranceSeconds: 10,
       clips: [
         {
@@ -716,7 +716,7 @@ check('project file: a clip id survives being saved and opened again', () => {
     {
       name: 'x',
       level: 'usfs-juv',
-      targetSeconds: 135,
+      targetSeconds: 150,
       toleranceSeconds: 10,
       clips: read.clips,
     },
@@ -740,7 +740,7 @@ check('project file: a note and a media folder are carried, not acted on', () =>
     format: app.FORMAT,
     version: app.FORMAT_VERSION,
     name: 'x',
-    event: { level: 'usfs-juv', targetSeconds: 135, toleranceSeconds: 10 },
+    event: { level: 'usfs-juv', targetSeconds: 150, toleranceSeconds: 10 },
     notes: 'coach wants more of the slow part',
     mediaDir: 'media',
     clips: [{ song: 'a.mp3', start: 0, end: 30 }],
@@ -774,7 +774,7 @@ check('project file: a note and a media folder are carried, not acted on', () =>
   // A project that says nothing does not gain empty fields it never had.
   const bare = app.readProject({ clips: [] });
   eq([bare.notes, bare.mediaDir], ['', ''], 'absent should read as empty: ');
-  withProgram({ name: 'x', level: 'usfs-juv', targetSeconds: 135, clips: [] }, () => {
+  withProgram({ name: 'x', level: 'usfs-juv', targetSeconds: 150, clips: [] }, () => {
     const doc = app.project();
     ok(!('notes' in doc) && !('mediaDir' in doc), 'empty fields were written out anyway');
   });
@@ -790,7 +790,7 @@ check('project file: the $schema it writes is the schema that is published', () 
   /* Read out of a document the app actually produced, not out of the constant.
      Asserting the constant leaves the writing of it untested — the mutation
      that pointed a saved file somewhere else survived exactly that way. */
-  withProgram({ name: 'x', level: 'usfs-juv', targetSeconds: 135, clips: [] }, () => {
+  withProgram({ name: 'x', level: 'usfs-juv', targetSeconds: 150, clips: [] }, () => {
     const written = app.project().$schema;
     eq(written, schema.$id, 'the written $schema and the schema $id disagree: ');
     const site = 'https://ankurs47.github.io/skate-program-editor/';
@@ -812,7 +812,7 @@ check('project file: a field this app has never heard of survives a save', () =>
     format: app.FORMAT,
     version: app.FORMAT_VERSION,
     name: 'from a shell',
-    event: { level: 'usfs-juv', targetSeconds: 135, toleranceSeconds: 10 },
+    event: { level: 'usfs-juv', targetSeconds: 150, toleranceSeconds: 10 },
     songs: [
       {
         name: 'one.mp3',
@@ -938,7 +938,7 @@ check('project file: the published schema describes what the app actually writes
     {
       name: 'x',
       level: 'usfs-juv',
-      targetSeconds: 135,
+      targetSeconds: 150,
       toleranceSeconds: 10,
       clips: [
         {
@@ -1090,7 +1090,7 @@ check('project file: every key the app writes is one the reader knows', () => {
     {
       name: 'x',
       level: 'usfs-juv',
-      targetSeconds: 135,
+      targetSeconds: 150,
       toleranceSeconds: 10,
       clips: [{ id: 'a', file: 'a.mp3', title: 'a', srcStart: 0, srcEnd: 1, gain: 1 }],
     },
@@ -1139,7 +1139,7 @@ check('project file: a title belongs to the song, and a clip may differ', () => 
     {
       name: 'x',
       level: 'usfs-juv',
-      targetSeconds: 135,
+      targetSeconds: 150,
       toleranceSeconds: 10,
       clips: read.clips,
     },
@@ -1659,7 +1659,7 @@ check('undo: a step back can be stepped forward again', () => {
     {
       name: 'before',
       level: 'usfs-juv',
-      targetSeconds: 135,
+      targetSeconds: 150,
       toleranceSeconds: 10,
       clips: [],
     },
@@ -1684,7 +1684,7 @@ check('undo: a step back can be stepped forward again', () => {
 
 check('undo: nothing to go back or forward to is not an error', () => {
   withProgram(
-    { name: 'x', level: 'usfs-juv', targetSeconds: 135, toleranceSeconds: 10, clips: [] },
+    { name: 'x', level: 'usfs-juv', targetSeconds: 150, toleranceSeconds: 10, clips: [] },
     () => {
       app.undoStack.length = 0;
       app.redoStack.length = 0;
@@ -1700,7 +1700,7 @@ check('undo: a fresh edit closes off the branch that was undone', () => {
   /* Redo has to mean "put back what I just took away", not "put back something
      that never followed from here". Editing after an undo abandons that future. */
   withProgram(
-    { name: 'one', level: 'usfs-juv', targetSeconds: 135, toleranceSeconds: 10, clips: [] },
+    { name: 'one', level: 'usfs-juv', targetSeconds: 150, toleranceSeconds: 10, clips: [] },
     () => {
       app.undoStack.length = 0;
       app.redoStack.length = 0;
