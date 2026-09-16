@@ -156,6 +156,58 @@ check('every rule source is one the checker knows how to read', () => {
   ok(baseline.checked > '2020-01-01', 'the baseline date looks unset');
 });
 
+check('the lockfile is the one package.json describes', () => {
+  /* npm copies the declared ranges into the lockfile's own root entry when it
+     resolves. Edit package.json without re-resolving and the two drift, which
+     nothing notices until `npm ci` installs versions that no longer match what
+     the file asks for — and until then the weekly dependency check is reporting
+     on ranges nobody declares any more. An exact comparison, because npm wrote
+     both sides and any difference means it did not. */
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  const lock = JSON.parse(fs.readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8'));
+  const root = lock.packages[''];
+  for (const kind of ['dependencies', 'devDependencies']) {
+    eq(
+      JSON.stringify(root[kind] || {}),
+      JSON.stringify(pkg[kind] || {}),
+      `package-lock.json's ${kind} is not package.json's — run: npm install`,
+    );
+  }
+  eq(lock.lockfileVersion >= 3, true, 'an older lockfile format than npm ci expects');
+});
+
+check('the weekly dependency check can still be heard', () => {
+  /* tools/check-deps.js marks each report with a digest of what it found, and
+     deps.yml greps for that marker to tell "the same three packages again" from
+     news. Rename the marker on one side only and nothing breaks loudly: the
+     grep finds nothing, every week looks new, and the issue fills with repeats
+     until people stop reading it. That is the failure this guards. */
+  const tool = fs.readFileSync(path.join(ROOT, 'tools/check-deps.js'), 'utf8');
+  const workflow = fs.readFileSync(path.join(ROOT, '.github/workflows/deps.yml'), 'utf8');
+  const marker = /deps-digest: /;
+  ok(marker.test(tool), 'check-deps.js no longer writes a digest marker');
+  ok(marker.test(workflow), 'deps.yml no longer looks for the digest marker');
+  ok(workflow.includes('node tools/check-deps.js'), 'deps.yml does not run the check');
+  /* The vendored encoder is the one thing here npm cannot see for itself — it
+     is a committed bundle, not an install — so the check has to go and read the
+     pins. Drop that and the weekly job goes on passing while the only
+     dependency we actually ship to a browser stops being watched at all. */
+  ok(
+    tool.includes('tools/build-mp3-encoder.js'),
+    'check-deps.js no longer reads the vendored pins',
+  );
+  /* The report is written where the workflow reads it from, and the name is
+     written down in three places — the tool, the workflow, .gitignore — of
+     which only the last is cosmetic and all three are easy to get wrong. */
+  for (const [file, body] of [
+    ['tools/check-deps.js', tool],
+    ['.github/workflows/deps.yml', workflow],
+    ['.gitignore', fs.readFileSync(path.join(ROOT, '.gitignore'), 'utf8')],
+  ]) {
+    ok(body.includes('deps-report.md'), `${file} does not name the report file`);
+  }
+});
+
 check('the check counts in the documentation are the real ones', () => {
   /* Four documents quote how many checks there are, and the number goes out of
      date the moment anyone adds one — it had drifted in three places at once

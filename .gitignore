@@ -11,3 +11,6 @@ mutation.log
 
 # written by tools/check-sources.js when a source has moved
 sources-report.md
+
+# written by tools/check-deps.js when a pinned version has moved on
+deps-report.md
