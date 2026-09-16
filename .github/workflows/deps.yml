@@ -1,0 +1,109 @@
+name: Dependencies
+
+# Ask, once a week, whether the versions pinned in package-lock.json are still
+# the ones npm would resolve today, and whether any of them has an advisory
+# open against it.
+#
+# A lockfile is pinned on purpose — that is what makes `npm ci` reproducible —
+# so it only moves when a person moves it, and nothing here has a reason to.
+# That is exactly how a high-severity advisory in js-yaml sat in ours unread:
+# it arrived as a transitive dependency of eslint, nobody chose it, and no run
+# of CI had any reason to mention it.
+#
+# This does not update anything. It opens an issue and leaves the change to a
+# person, because a pinned dependency is only worth pinning if someone saw it
+# move. That also rules out the usual bot: a pull request per package would be
+# the same decision made by nobody, several times a week.
+
+on:
+  schedule:
+    # Thursday morning. Weekly is the cadence advisories arrive at; the day is
+    # only chosen to be away from Monday's mutation run.
+    - cron: '0 7 * * 4'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # Only to open or comment on the issue below.
+  issues: write
+
+concurrency:
+  group: deps
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      # The check reads the installed tree to find majors outside our declared
+      # ranges, so the install has to have happened. `npm ci` and not `install`:
+      # this must see the versions the lockfile actually pins, which is the
+      # thing under examination.
+      - name: Install
+        run: npm ci
+
+      # Exits 1 when something is out of date or flagged, and writes the report
+      # it wants said. It resolves into a temporary directory and leaves this
+      # checkout alone.
+      - name: Check the dependencies
+        id: deps
+        run: node tools/check-deps.js
+
+      - name: Ask someone to look
+        if: failure() && steps.deps.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Named once: the expression is longer than a line can hold, and it
+          # appears in both branches below.
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # The script writes the report when it finds something. If it is not
+          # here the script itself broke — no registry, a bad parse — and saying
+          # "your dependencies are out of date" would be inventing news out of
+          # a run that established nothing.
+          if [ ! -f deps-report.md ]; then
+            {
+              echo "The weekly dependency check could not run, so this says nothing"
+              echo "about whether anything is out of date."
+              echo
+              echo "[full run]($RUN_URL)"
+            } > deps-report.md
+            title="The dependency check could not run"
+          else
+            title=$(head -1 deps-report.md | sed 's/^## //')
+            echo >> deps-report.md
+            echo "[full run]($RUN_URL)" >> deps-report.md
+          fi
+
+          gh label create dependencies --color 1D76DB \
+            --description "A pinned version has moved on, or has an advisory against it" \
+            2>/dev/null || true
+
+          # One open issue, commented on, rather than a fresh one every week.
+          existing=$(gh issue list --state open --label dependencies --limit 1 --json number --jq '.[0].number // empty')
+          if [ -z "$existing" ]; then
+            gh issue create --title "$title" --label dependencies --body-file deps-report.md
+            exit 0
+          fi
+
+          # Nothing gets fixed some weeks, and the same three packages restated
+          # every Thursday is how an issue stops being read. The report carries a
+          # digest of what was found — versions, not prose, not the date — so an
+          # unchanged week can pass in silence and a comment always means the
+          # news moved.
+          digest=$(grep -o 'deps-digest: [0-9a-f]*' deps-report.md | head -1)
+          if [ -n "$digest" ] &&
+             gh issue view "$existing" --json body,comments \
+               --jq '.body, .comments[].body' | grep -qF "$digest"; then
+            echo "Issue #$existing already says this ($digest); not commenting again."
+            exit 0
+          fi
+          gh issue comment "$existing" --body-file deps-report.md

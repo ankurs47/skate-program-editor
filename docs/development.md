@@ -111,13 +111,14 @@ thing that will not run.
 ## Commands
 
 ```bash
-npm test             # 261 unit, wiring and asset checks — fast, no browser
+npm test             # 263 unit, wiring and asset checks — fast, no browser
 npm run lint
 npm run check        # lint + test, which is what the pre-commit hook runs
 npm run test:net     # also asks npm about the encoder's pinned versions
 npm run test:dom     # browser checks and render budgets — needs Chrome
 npm run screenshot   # regenerate the README picture from a real, driven app
 npm run check:sources # have the ISU or USFS published anything since we looked?
+npm run check:deps   # has anything we pin — lockfile or vendored — moved on?
 npm run test:mutate  # break the code on purpose, check a test notices (~4 min)
                      # runs in a throwaway worktree; needs a clean tree
 ```
@@ -204,7 +205,7 @@ mistake.
 
 ### Unit checks
 
-`npm test` — 261 checks across six files, no browser, under a second.
+`npm test` — 263 checks across six files, no browser, under a second.
 
 They cover the parts that are easy to get quietly wrong: timeline math with
 overlapping blends, fade and crossfade envelopes summing correctly, filename
@@ -332,6 +333,36 @@ When you have checked, update `tools/sources.json` with
 `npm run check:sources -- --update` and commit it. Until that baseline moves the
 job keeps asking, which is the point: merging an acknowledgment without looking
 would reset the tripwire and lose the question.
+
+**`deps.yml`** runs weekly. It asks whether the versions we pin are still the
+ones npm would resolve today, whether any of them has an advisory open, and
+whether the vendored encoder was built from the newest of its sources. It opens
+— or comments on — an issue labeled `dependencies`, and changes nothing itself.
+
+Three separate questions, because they are answered in different places and cost
+different things to act on. The lockfile pins exact versions so `npm ci` is
+reproducible, which also means it never moves on its own: a patch published the
+day after it was written can sit unused for a year, and that is how a
+high-severity advisory in `js-yaml` came to be sitting in ours, arriving under
+eslint, chosen by nobody. A new major is a range change in `package.json` and a
+person's decision. And the pins in `tools/build-mp3-encoder.js` are invisible to
+npm entirely — nothing is installed from them — so nothing but this would ever
+mention that mediabunny had moved.
+
+It does not take the updates. A bot opening a pull request per package is the
+same decision made by nobody, several times a week, and a pinned dependency is
+only worth pinning if someone saw it move.
+
+Do not trust `npm update --dry-run` or `npm audit fix --dry-run` when checking
+this by hand — with that `js-yaml` advisory open, the first listed two of the
+three packages it then went on to change and omitted the one that mattered, and
+the second reported nothing to do. `check-deps.js` runs the resolve for real, in
+a copy of `package.json` and `package-lock.json` in a temporary directory, and
+reports what npm actually wrote.
+
+Each report carries a digest of what was found, and the job does not comment
+again while that digest is unchanged — so a week where nothing moved passes in
+silence, and a comment always means the news is new.
 
 **`mutation.yml`** runs on every push to `main`, weekly, and on demand. If any
 mutation survives it opens — or comments on — an issue labeled `mutation`.
