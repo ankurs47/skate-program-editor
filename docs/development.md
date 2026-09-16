@@ -117,7 +117,7 @@ thing that will not run.
 ## Commands
 
 ```bash
-npm test             # 263 unit, wiring and asset checks — fast, no browser
+npm test             # 265 unit, wiring and asset checks — fast, no browser
 npm run lint
 npm run check        # lint + test, which is what the pre-commit hook runs
 npm run test:net     # also asks npm about the encoder's pinned versions
@@ -211,7 +211,7 @@ mistake.
 
 ### Unit checks
 
-`npm test` — 263 checks across six files, no browser, under a second.
+`npm test` — 265 checks across six files, no browser, under a second.
 
 They cover the parts that are easy to get quietly wrong: timeline math with
 overlapping blends, fade and crossfade envelopes summing correctly, filename
@@ -315,12 +315,41 @@ wrong place and fail with something unrecognizable. Let a run finish first.
 `main` is protected — pull request required, CI must pass, and it applies to
 admins too.
 
-**`ci.yml`** runs on every pull request: lint, then the unit suite with `--net`,
-then the browser suite, each writing a JSON report. It then posts a single
-comment on the pull request with the counts and timings, updating that same
-comment on each push rather than adding another. It runs under `always()`, so a
-failing suite still gets its summary posted. Fork pull requests skip the comment,
-because their token cannot write one.
+**`ci.yml`** runs on every pull request: the pre-commit hooks, then the unit
+suite with `--net`, then the vendored encoder against its pins, then the browser
+suite. It posts a single comment on the pull request, updating that same comment
+on each push rather than adding another, and runs under `always()` so a failing
+suite still gets its summary posted. Fork pull requests skip the comment, because
+their token cannot write one.
+
+The comment is about _this_ change, which took a rewrite to become true. It used
+to print the same counts and the same five percentages every time, because the
+percentages were measured against a baseline frozen in `test/dom/run.js` — they
+could not move, and the one counter with a tolerance rather than a hard zero
+could get four times worse and still render as a 93% improvement sitting next to
+the healthy 98%. Anything invariant is the check mark's job.
+
+So the comparison is against main. A push to `main` keeps its reports as an
+artifact; a pull request downloads the ones from main's last green run and the
+summary diffs them — check counts, and every render-budget counter. A counter
+inside its limit but above main is flagged, which is the case a frozen baseline
+could not see at all. There is nothing to compare against on the first run after
+this landed, on a fork, or once a 90-day artifact has expired, and the comment
+says so rather than printing a one-sided table.
+
+The limits in that table come from the report, not from `summary.js`: the
+browser suite writes down the same numbers it asserts on, so a budget the
+comment prints and a budget CI enforces cannot drift apart. `repo.test.js`
+checks that seam, and that every budget still says which gesture it measured —
+the old comment said "dragging a slider" for a thing this app does three
+different ways.
+
+The summary also names the two checks it never used to mention: that the
+vendored encoder is what its pins build, and the pre-commit hooks — the only
+place stylelint and shellcheck run at all, so "all passed" had been quietly
+covering 755 lines of CSS nobody could see had been checked. It closes with what
+a green tick here does _not_ cover, since mutation, dependencies and sources all
+run on their own schedules and none of them gate a pull request.
 
 **`sources.yml`** runs monthly. It asks whether the ISU or U.S. Figure Skating
 have published anything since a person last checked the program lengths in

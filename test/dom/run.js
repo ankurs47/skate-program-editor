@@ -2309,17 +2309,24 @@ async function main() {
           window.drawWave = realDrawWave;
         }
       `);
-      metrics.drag = {
-        events: 60,
-        clips: result.clips,
+      /* `limits` are the same numbers the assertions below use, read from here
+         rather than written out again in the summary: a budget the comment
+         reports and a budget CI enforces must not be able to disagree. Named
+         for the gesture, because this app has three things a person would call
+         dragging — this slider, a trim handle on the clip editor, and a block
+         being reordered — and only this one is measured. */
+      metrics.crossfadeDrag = {
+        label: 'Crossfade slider',
+        detail: `60 input events, ${result.clips} clips`,
         elementsCreated: result.created,
         forcedStyleReads: result.styleReads,
         timelineWaveDraws: result.timelineWaves,
         blockingMs: result.blockingMs,
-        wasElements: 1140,
-        wasStyleReads: 480,
-        wasWaveDraws: 240,
-        wasBlockingMs: 35.9,
+        limits: {
+          elementsCreated: 0,
+          forcedStyleReads: 0,
+          timelineWaveDraws: result.clips * 4,
+        },
       };
       eq(
         result.created,
@@ -2374,14 +2381,13 @@ async function main() {
           document.createElement = realCreate;
         }
       `);
-      metrics.refresh = {
-        calls: 30,
+      metrics.idleRefresh = {
+        label: 'Idle refreshes',
+        detail: '30 calls, nothing changed',
         elementsCreated: result.created,
         forcedStyleReads: result.styleReads,
         blockingMs: result.blockingMs,
-        wasElements: 1530,
-        wasStyleReads: 750,
-        wasBlockingMs: 30.1,
+        limits: { elementsCreated: 0, forcedStyleReads: 0 },
       };
       eq(result.created, 0, 'thirty idle refreshes built elements (it was 1530): ');
       eq(result.styleReads, 0, 'and read the stylesheet (it was 750): ');
