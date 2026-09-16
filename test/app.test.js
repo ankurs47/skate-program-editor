@@ -1245,7 +1245,7 @@ check('project file: nothing a file can contain makes opening it throw', () => {
   ];
 
   for (const [label, doc] of hostile) {
-    let read = null;
+    let read;
     try {
       read = app.readProject(doc);
     } catch (e) {

@@ -69,7 +69,7 @@ repos:
 
   # 755 lines of CSS with nothing checking them until now. stylelint and its
   # shared config live in pre-commit's own environment rather than in
-  # package.json, so this costs the project nothing against its one-dependency
+  # package.json, so this costs the project nothing against its no-dependencies
   # rule — a contributor with only Node is unaffected either way.
   - repo: https://github.com/thibaudcolas/pre-commit-stylelint
     rev: v17.14.1

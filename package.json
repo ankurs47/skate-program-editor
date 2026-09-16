@@ -20,7 +20,8 @@
     "prepare": "node tools/install-hooks.js"
   },
   "devDependencies": {
-    "eslint": "^9.15.0"
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.10.0"
   },
   "license": "MIT"
 }

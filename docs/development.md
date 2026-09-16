@@ -21,8 +21,10 @@ traps that produced real bugs. Read that too before changing anything in `src/`.
 ## The shape of it
 
 **No build step. No runtime dependencies.** Anyone can clone the repository and
-open `index.html` from disk, and it works. The single devDependency is eslint,
-and it is only for checking changes — nothing it does is needed to run the app.
+open `index.html` from disk, and it works. The devDependencies are eslint and
+`@eslint/js`, the rule set `eslint.config.js` extends — one tool, in two packages
+since eslint 10 stopped handing the second to the projects that use it — and both
+are only for checking changes. Nothing they do is needed to run the app.
 
 That constraint is the reason for most of what follows. There is no bundler, so
 the scripts share one global scope and are listed by hand in the page. There is no
@@ -104,7 +106,11 @@ into two words on purpose and is `/bin/sh` with no arrays to do it otherwise,
 and `mutate-worktree.sh` indents a multi-line value, which parameter expansion
 cannot do.
 
-Node 22 or later, for the global `WebSocket` the browser tests need. Chrome or
+Node 22.13 or later. The browser tests need the global `WebSocket` that Node 22
+brought, and eslint 10 raises the floor to 22.13: it declares
+`^20.19.0 || ^22.13.0 || >=24`, which npm enforces as a warning at install time
+and nothing enforces after that — so an older 22 gets you an unsupported linter
+rather than a clear refusal. Chrome or
 Chromium on `PATH` for `npm run test:dom`; without one, that suite is the only
 thing that will not run.
 
