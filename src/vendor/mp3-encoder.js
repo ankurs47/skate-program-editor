@@ -5,7 +5,7 @@
  *
  *     mediabunny@1.56.3
  *     @mediabunny/mp3-encoder@1.56.3
- *     bundled by esbuild@0.28.1
+ *     bundled by esbuild@0.28.2
  *
  * Rebuild:  node tools/build-mp3-encoder.js
  * Verify:   node tools/build-mp3-encoder.js --check

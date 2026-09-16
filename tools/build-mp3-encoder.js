@@ -55,9 +55,9 @@ const PINS = {
       'sha512-B2vsWmE8GT8R9Ua7CVa68i8YK9ZoCqA6s5GjeyZwPf26wLchEG95Y2Ek5yMviH8TtnQI/WE3r+RhoWGqcoAO2g==',
   },
   esbuild: {
-    version: '0.28.1',
+    version: '0.28.2',
     integrity:
-      'sha512-HrJrvZv5ayxBzPfwphOoNzkzOIIlifzk0KJrGK2c8R4+LKpMtpYLQeUdjnwjWv/LZlkH2laZk+4w78pi99D4Vw==',
+      'sha512-HKVLS8dvII+xoKW9kmqxbRKrnWEXfJJr/FZhhJmiqIB0e053QNYFqOBouTMO/k5sID4MvCiUCvv8b9M4h32wIA==',
   },
 };
 
