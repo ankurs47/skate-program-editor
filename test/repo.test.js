@@ -257,6 +257,14 @@ check('CI hands the summary the baseline it went and fetched', () => {
   );
 });
 
+check('THROWAWAY: proves the summary compares check counts against main', () => {
+  /* Added only to give the pull-request summary a count to diff against main's
+     265, so the comparison added in #69 can be seen working on a real run rather
+     than on reports hand-edited on a laptop. This check asserts nothing about
+     the project and is meant to be closed with its pull request, not merged. */
+  ok(true, 'this check exists to be counted');
+});
+
 check('the check counts in the documentation are the real ones', () => {
   /* Four documents quote how many checks there are, and the number goes out of
      date the moment anyone adds one — it had drifted in three places at once
