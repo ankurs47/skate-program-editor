@@ -10,6 +10,9 @@ permissions:
   contents: read
   # Only so the summary below can be posted on the pull request.
   pull-requests: write
+  # Only to fetch main's reports from its last green run, which is what the
+  # summary compares this pull request against.
+  actions: read
 
 jobs:
   check:
@@ -31,6 +34,7 @@ jobs:
       # bug or a typo. It reruns lint and the unit suite as two of its hooks;
       # the steps below stay because they carry --net and write the report.
       - name: Pre-commit hooks
+        id: hooks
         uses: pre-commit/action@v3.0.1
         env:
           # The unit suite runs again below, with --net for the encoder's
@@ -50,6 +54,7 @@ jobs:
       # step here that installs anything, which is why it is its own step and
       # not part of the suite.
       - name: Vendored encoder matches its sources
+        id: encoder
         run: npm run check:encoder
 
       # The browser checks drive real Chrome over the DevTools Protocol, which
@@ -62,6 +67,41 @@ jobs:
       # skipping quietly; set CHROME to a binary to override the search.
       - name: Browser checks
         run: npm run test:dom -- --report report/browser.json
+
+      # main's own reports, kept from its last green run so a pull request can
+      # be compared against what it is asking to change rather than against a
+      # number frozen in a test file years ago. Best effort on purpose: there is
+      # nothing to fetch before the first main run after this lands, artifacts
+      # expire, and a fork's token cannot read them. The summary says so when it
+      # comes back empty instead of printing a one-sided table.
+      - name: Fetch main's reports to compare against
+        if: >
+          always() && github.event_name == 'pull_request'
+          && github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          run=$(gh run list --workflow=ci.yml --branch=main --status=success \
+                  --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          if [ -z "$run" ]; then
+            echo "No green run on main to compare against yet."
+            exit 0
+          fi
+          gh run download "$run" --name reports --dir main-reports ||
+            echo "Run $run kept no reports; comparing against nothing."
+
+      # Kept only from main, and only as the next pull request's baseline. It is
+      # never read back into main's own run, so a bad number cannot become the
+      # standard by being uploaded — the download above asks for a *green* run.
+      - name: Keep these reports as main's baseline
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: reports
+          path: report/
+          retention-days: 90
+          if-no-files-found: warn
 
       # Posted whatever happened above, because a run that failed is exactly
       # when the summary is worth reading. One comment, edited in place, so a
@@ -78,6 +118,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          node test/summary.js report/unit.json report/browser.json > comment.md
+          # The two step outcomes are passed in because neither writes a report
+          # to read: they are steps that either passed or did not, and the
+          # comment had never mentioned either of them.
+          node test/summary.js report/unit.json report/browser.json \
+            --encoder '${{ steps.encoder.outcome }}' \
+            --hooks '${{ steps.hooks.outcome }}' \
+            ${{ hashFiles('main-reports/*.json') != '' && '--baseline main-reports' || '' }} \
+            > comment.md
           gh pr comment "${{ github.event.pull_request.number }}" \
             --body-file comment.md --edit-last --create-if-none

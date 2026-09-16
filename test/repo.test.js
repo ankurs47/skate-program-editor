@@ -208,6 +208,55 @@ check('the weekly dependency check can still be heard', () => {
   }
 });
 
+check('every render budget says what it is and what its limit is', () => {
+  /* The pull-request comment renders whatever `metrics` the browser suite puts
+     in its report, and it deliberately holds no copy of the limits: a budget the
+     comment prints and a budget CI enforces must not be able to disagree. That
+     only works while the runner writes them down, so this is the seam.
+
+     `label` and `detail` matter for a duller reason. The old comment called this
+     "dragging a slider", and this app has three things a person would call
+     dragging — the crossfade slider, a trim handle on the clip editor, a block
+     being reordered — of which exactly one is measured. A budget that cannot say
+     which gesture it timed is a number nobody can act on. */
+  const runner = fs.readFileSync(path.join(ROOT, 'test/dom/run.js'), 'utf8');
+  const budgets = [...runner.matchAll(/metrics\.(\w+) = \{([\s\S]*?)\n {6}\};/g)];
+  ok(budgets.length >= 2, `found ${budgets.length} render budgets; the shape has changed`);
+
+  for (const [, name, body] of budgets) {
+    ok(/\blabel: '[^']+'/.test(body), `${name} does not say what it measures`);
+    ok(/\bdetail: [`']/.test(body), `${name} does not say what it measured it on`);
+    const limits = /limits: \{([\s\S]*?)\}/.exec(body);
+    ok(limits, `${name} reports counters with no limits beside them`);
+    for (const counter of ['elementsCreated', 'forcedStyleReads', 'timelineWaveDraws']) {
+      if (!new RegExp(`^ +${counter}:`, 'm').test(body)) continue;
+      ok(limits[1].includes(counter), `${name} reports ${counter} but sets no limit for it`);
+    }
+  }
+});
+
+check('CI hands the summary the baseline it went and fetched', () => {
+  /* Three names have to agree across one file for a pull request to be compared
+     against main at all: what the artifact is called where it is uploaded, the
+     same name where it is downloaded, and the directory it lands in being the
+     one the summary is pointed at. Get any of them wrong and nothing fails —
+     the download quietly finds nothing and every comment says there was nothing
+     from main to compare against, which is also what it correctly says on a
+     fork and on the first run. A silent difference between "no baseline" and
+     "baseline misconfigured" is worth a check. */
+  const ci = fs.readFileSync(path.join(ROOT, '.github/workflows/ci.yml'), 'utf8');
+  const download = /gh run download "\$run" --name (\S+) --dir (\S+)/.exec(ci);
+  ok(download, 'the baseline download has changed shape; this check cannot read it');
+
+  const [, artifact, into] = download;
+  ok(new RegExp(`name: ${artifact}\\b`).test(ci), `nothing uploads an artifact called ${artifact}`);
+  ok(ci.includes(`--baseline ${into}`), `the summary is never given ${into}`);
+  ok(
+    ci.includes(`hashFiles('${into}/`),
+    `${into} is passed to the summary without checking anything landed in it`,
+  );
+});
+
 check('the check counts in the documentation are the real ones', () => {
   /* Four documents quote how many checks there are, and the number goes out of
      date the moment anyone adds one — it had drifted in three places at once
