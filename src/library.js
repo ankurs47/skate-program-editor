@@ -540,7 +540,7 @@ let pendingSwap = null;
  * rejected file in the list of songs to reconnect next time.
  */
 async function pickReplacement(name) {
-  let file = null;
+  let file;
   if (typeof window.showOpenFilePicker === 'function') {
     try {
       const [handle] = await window.showOpenFilePicker({

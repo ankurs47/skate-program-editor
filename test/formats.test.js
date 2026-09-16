@@ -410,7 +410,7 @@ check('tags: a file with nothing to say is not a file that fails', () => {
     ],
   ];
   for (const [label, doc] of hostile) {
-    let found = null;
+    let found;
     try {
       found = app.readTags(doc);
     } catch (e) {

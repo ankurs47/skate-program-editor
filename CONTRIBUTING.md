@@ -31,8 +31,10 @@ To run the app, open `index.html`. That is the whole build.
 Any change has to keep all three. They are the reason the project looks the way
 it does, and a change that breaks one is not a small change.
 
-1. **No runtime dependencies.** eslint is the only devDependency and the app
-   never touches it. Nothing is fetched at runtime: the MP3 encoder is a
+1. **No runtime dependencies.** The devDependencies are eslint and its own
+   rule set, `@eslint/js` — eslint 10 stopped providing that to the project, so
+   `eslint.config.js` has to ask for it by name — and the app never touches
+   either. Nothing is fetched at runtime: the MP3 encoder is a
    generated bundle committed under `src/vendor/`, and rebuilding it is the one
    job that downloads anything — `npm run build:encoder`, which installs its
    pinned packages into a temporary directory and throws them away.

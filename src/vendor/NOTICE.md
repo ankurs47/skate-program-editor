@@ -10,8 +10,8 @@ to anyone redistributing it.
 
 | Component                                                                                        | Version | License |
 | ------------------------------------------------------------------------------------------------ | ------- | ------- |
-| [mediabunny](https://github.com/Vanilagy/mediabunny)                                             | 1.55.3  | MPL-2.0 |
-| [@mediabunny/mp3-encoder](https://github.com/Vanilagy/mediabunny/tree/main/packages/mp3-encoder) | 1.55.3  | MPL-2.0 |
+| [mediabunny](https://github.com/Vanilagy/mediabunny)                                             | 1.56.3  | MPL-2.0 |
+| [@mediabunny/mp3-encoder](https://github.com/Vanilagy/mediabunny/tree/main/packages/mp3-encoder) | 1.56.3  | MPL-2.0 |
 | [LAME](https://lame.sourceforge.io/), embedded in the above as WebAssembly                       | —       | LGPL    |
 
 The Mozilla Public License 2.0 is file-level copyleft: the covered files stay

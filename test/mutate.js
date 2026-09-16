@@ -244,7 +244,7 @@ function mutationHint(m) {
   return `the code it patches has moved; update its "find" in test/mutations.json (${m.file})`;
 }
 
-let code = 1;
+let code;
 try {
   code = main();
 } finally {

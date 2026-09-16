@@ -106,10 +106,12 @@ async function waitForPort(port, chrome) {
       return JSON.parse(await get(`http://127.0.0.1:${port}/json/version`));
     } catch (err) {
       if (chrome.exitCode !== null) {
-        throw new Error(`Chrome exited with code ${chrome.exitCode} before listening`);
+        throw new Error(`Chrome exited with code ${chrome.exitCode} before listening`, {
+          cause: err,
+        });
       }
       if (Date.now() > deadline)
-        throw new Error(`Chrome never opened port ${port}: ${err.message}`);
+        throw new Error(`Chrome never opened port ${port}: ${err.message}`, { cause: err });
       await new Promise((r) => setTimeout(r, 100));
     }
   }
