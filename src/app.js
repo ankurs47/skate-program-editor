@@ -179,7 +179,7 @@ function describeStored() {
  */
 async function forgetEverything() {
   resetProgram();
-  library.clear();
+  forgetSongs();
   rememberedNames.clear();
   if (typeof indexedDB !== 'undefined') {
     await new Promise((resolve) => {
@@ -792,7 +792,7 @@ function missingFiles() {
   return [...new Set(state.clips.filter((c) => !library.get(c.file)?.buffer).map((c) => c.file))];
 }
 
-/** Empty the program but keep the loaded music — a new program usually reuses it. */
+/** Empty the program. The loaded music is left to the caller — see `forgetSongs`. */
 function resetProgram() {
   stopPlayback();
   undoStack.length = 0;
@@ -834,6 +834,7 @@ function startNewProgram() {
   }
 
   resetProgram();
+  if (!$('startKeepSongs').checked) forgetSongs();
   state.name = $('startName').value.trim() || 'my program';
   if (custom === null) {
     applyLevel(levelId);

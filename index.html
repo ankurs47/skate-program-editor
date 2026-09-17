@@ -444,8 +444,7 @@
           <p class="warn-head">This replaces the program on screen</p>
           <p class="hint" id="startWarnInfo"></p>
           <p class="hint">
-            Your loaded songs stay in the list. Cancel and use <b>Save project</b>
-            first if you want to keep the current program.
+            Cancel and use <b>Save project</b> first if you want to keep the current program.
           </p>
         </div>
 
@@ -466,6 +465,16 @@
           <label class="start-field hidden" id="startCustomWrap">
             <span class="field-label">Length (minutes:seconds)</span>
             <input id="startCustom" type="text" spellcheck="false" placeholder="3:10" />
+          </label>
+          <label class="row check hidden" id="startKeepWrap">
+            <input id="startKeepSongs" type="checkbox" />
+            <span>
+              Keep the songs I've added
+              <span class="hint"
+                >Leave them in the list on the left to use again. Nothing is ever deleted from your
+                computer either way.</span
+              >
+            </span>
           </label>
           <button id="btnStartNew" class="primary wide">Start a new program</button>
         </div>
