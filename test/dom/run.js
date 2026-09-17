@@ -312,6 +312,37 @@ async function main() {
       eq(out.fresh, { state: '', value: '', open: false }, 'a new program kept the old note: ');
     });
 
+    await check('New empties the song list unless asked to keep it', async () => {
+      const out = await run(`
+        window.__reset([['a.mp3', window.__tone(220, 30)], ['b.mp3', window.__tone(330, 30)]]);
+        const listed = () => document.querySelectorAll('#libraryList li').length;
+        const before = listed();
+
+        document.getElementById('btnNew').click();
+        const offered = !document.getElementById('startKeepWrap').classList.contains('hidden');
+        const ticked = document.getElementById('startKeepSongs').checked;
+        document.getElementById('startKeepSongs').checked = true;
+        document.getElementById('btnStartNew').click();
+        const kept = { songs: library.size, listed: listed(), clips: state.clips.length };
+
+        document.getElementById('btnNew').click();
+        document.getElementById('btnStartNew').click();
+        const cleared = { songs: library.size, listed: listed(), clips: state.clips.length };
+
+        document.getElementById('btnNew').click();
+        const offeredEmpty = !document.getElementById('startKeepWrap').classList.contains('hidden');
+        document.getElementById('startDialog').classList.add('hidden');
+
+        return { before, offered, ticked, kept, cleared, offeredEmpty };
+      `);
+      eq(out.before, 2, 'the fixture songs did not reach the list: ');
+      ok(out.offered, 'New with songs loaded did not offer to keep them');
+      ok(!out.ticked, 'keeping the songs should be off by default');
+      eq(out.kept, { songs: 2, listed: 2, clips: 0 }, 'ticking Keep did not keep the songs: ');
+      eq(out.cleared, { songs: 0, listed: 0, clips: 0 }, 'New did not empty the song list: ');
+      ok(!out.offeredEmpty, 'with no songs there is nothing to offer to keep');
+    });
+
     await check('a song shows what its file says about itself', async () => {
       /* The tags are read from bytes the browser hands over once and then takes
          away, so the only place this can be checked end to end is here. The

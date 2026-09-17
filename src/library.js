@@ -239,6 +239,16 @@ const infoOpen = new Set();
    so a check can hold the link to the shape it is supposed to have. */
 const CLICKNCLEAR_SEARCH = 'https://music.clicknclear.com/en-gb/search';
 
+/**
+ * Empty the song list, releasing the decoded audio. Remembered file handles are
+ * left alone: they are what lets a saved project find its music again later.
+ */
+function forgetSongs() {
+  library.clear();
+  infoOpen.clear();
+  forgetLibraryShape();
+}
+
 /** Drop the "already drawn" cache, so the next render really redraws. */
 function forgetLibraryShape() {
   libraryShape = null;
@@ -993,6 +1003,7 @@ if (typeof module !== 'undefined' && module.exports) {
     libraryShape,
     CLICKNCLEAR_SEARCH,
     forgetLibraryShape,
+    forgetSongs,
     librarySignature,
     renderLibrary,
     HANDLE_DB,

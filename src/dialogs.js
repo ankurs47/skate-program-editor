@@ -123,6 +123,10 @@ function openStartDialog(dismissable) {
   fillLevelOptions($('startLevel'));
   $('startLevel').value = findLevel(state.level) ? state.level : 'usfs-juv';
   $('startCustomWrap').classList.add('hidden');
+  /* Only a question when there is something to keep. Unticked each time: New
+     means a clean page unless someone asks otherwise. */
+  $('startKeepWrap').classList.toggle('hidden', library.size === 0);
+  $('startKeepSongs').checked = false;
 
   $('startDialog').classList.remove('hidden');
   $('startName').focus();
