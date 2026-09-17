@@ -45,14 +45,14 @@ const OUT = path.join(ROOT, 'src/vendor/mp3-encoder.js');
    made, and `--check` would call it drift. */
 const PINS = {
   mediabunny: {
-    version: '1.56.3',
+    version: '1.57.0',
     integrity:
-      'sha512-H3K0v/PNTaBdbjN3dVFcyS0grGOJQ50TT8WCgdj62AytTZSoL5DXmkdM4mfhzRUq3BTPfmiXDnlmI3Qun/dchg==',
+      'sha512-j6L4DutGEcb5DQkWshZjJk6cP7bfmFXfIP6URTRXExMM2WSEQjQxWEV+U+PmYjLFyjRLymNGHWllg2OjHVbdog==',
   },
   '@mediabunny/mp3-encoder': {
-    version: '1.56.3',
+    version: '1.57.0',
     integrity:
-      'sha512-B2vsWmE8GT8R9Ua7CVa68i8YK9ZoCqA6s5GjeyZwPf26wLchEG95Y2Ek5yMviH8TtnQI/WE3r+RhoWGqcoAO2g==',
+      'sha512-i7+bQuK4GbyXQRIPiFauO8roYO3CK1cdFBE634cWkeTRLWrlqZm5df9fQqXrYBuj5g9bTBbkdDE9Ugd//uoiFw==',
   },
   esbuild: {
     version: '0.28.2',
