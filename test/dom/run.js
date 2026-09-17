@@ -928,6 +928,74 @@ async function main() {
       eq(result, { warned: false, files: 1 }, 'a clean program must not be nagged: ');
     });
 
+    await check('an exported MP3 decodes to the program that went in', async () => {
+      /* The checks around this one prove a file came out and never look inside
+         it, and a well-formed MP3 of silence would pass all of them. Rebuilding
+         the vendored encoder is exactly the change that could produce one, so
+         the file is decoded and measured: a 20s 0.3-amplitude sine at 220 Hz
+         has to come back as 20s of stereo with that tone in it and nothing
+         else. MP3 pads the start and end, hence a duration tolerance. */
+      const out = await run(`
+        window.__reset([['a.mp3', window.__tone(220, 20, 0.3)]]);
+        const realDownload = window.download;
+        const saved = [];
+        window.download = (blob, name) => saved.push({ blob, name });
+        let bytes;
+        try {
+          __id('btnExport').click();
+          __id('exportFormat').value = 'mp3';
+          await doExport();
+          bytes = await saved[0].blob.arrayBuffer();
+        } finally {
+          window.download = realDownload;
+          __id('exportDialog').classList.add('hidden');
+        }
+
+        const decoded = await new OfflineAudioContext(2, 44100, 44100).decodeAudioData(bytes);
+
+        /* Amplitude of one frequency, over the middle half so the padding at
+           either end does not count. */
+        const amplitudeAt = (x, hz) => {
+          const w = 2 * Math.PI * hz / decoded.sampleRate;
+          const a = Math.floor(x.length / 4), b = Math.floor(x.length * 3 / 4);
+          let re = 0, im = 0;
+          for (let i = a; i < b; i++) { re += x[i] * Math.cos(w * i); im += x[i] * Math.sin(w * i); }
+          return 2 * Math.hypot(re, im) / (b - a);
+        };
+        const channels = [];
+        for (let c = 0; c < decoded.numberOfChannels; c++) {
+          const x = decoded.getChannelData(c);
+          let sum = 0;
+          for (const v of x) sum += v * v;
+          channels.push({
+            rms: Math.sqrt(sum / x.length),
+            at220: amplitudeAt(x, 220),
+            at440: amplitudeAt(x, 440),
+            at1000: amplitudeAt(x, 1000),
+          });
+        }
+        return {
+          count: saved.length,
+          type: saved[0].blob.type,
+          seconds: decoded.duration,
+          sampleRate: decoded.sampleRate,
+          channels,
+        };
+      `);
+      eq(out.count, 1, 'one file should have been saved: ');
+      eq(out.type, 'audio/mpeg', 'the export was not an MP3: ');
+      near(out.seconds, 20, 0.1, 'the decoded file is the wrong length: ');
+      eq(out.sampleRate, 44100, 'the sample rate changed: ');
+      eq(out.channels.length, 2, 'the export is not stereo: ');
+      out.channels.forEach((ch, c) => {
+        // 0.3 / √2 ≈ 0.212 for a sine; the encoder shaves a little off.
+        near(ch.rms, 0.21, 0.01, `channel ${c} is not as loud as what went in: `);
+        near(ch.at220, 0.3, 0.01, `channel ${c} lost its 220 Hz tone: `);
+        ok(ch.at440 < 0.005, `channel ${c} has energy at 440 Hz: ${ch.at440}`);
+        ok(ch.at1000 < 0.005, `channel ${c} has energy at 1000 Hz: ${ch.at1000}`);
+      });
+    });
+
     /* ------------------------------------------------------------ library */
 
     await check('a file can only be removed once the program stops using it', async () => {
