@@ -150,6 +150,26 @@ check('the vendored MP3 encoder is the one the build script pins', () => {
   );
 });
 
+check('the license notice names the versions the bundle was built from', () => {
+  /* `src/vendor/NOTICE.md` is the MPL-2.0 notice for the code in the bundle,
+     and "the unmodified sources are the published versions named above" is only
+     true while the table says the versions the bundle was really built from. It
+     is a hand-edited file next to a generated one, so it is the thing that gets
+     forgotten in a rebuild — and it was, until this check. Rows are matched by
+     name rather than listed here, which leaves LAME's "—" and the bundler alone:
+     esbuild is a pin but not code that ships in the file. */
+  const notice = fs.readFileSync(path.join(ROOT, 'src/vendor/NOTICE.md'), 'utf8');
+  const rows = [...notice.matchAll(/^\|\s*\[([^\]]+)\][^|]*\|\s*(\S+)\s*\|/gm)];
+  let matched = 0;
+  for (const [, name, version] of rows) {
+    const pin = build.PINS[name];
+    if (!pin) continue;
+    matched++;
+    eq(version, pin.version, `NOTICE.md has the wrong version for ${name}: `);
+  }
+  eq(matched, 2, 'NOTICE.md should name both mediabunny packages, and does not: ');
+});
+
 check('the page does not load the encoder, and src/mp3.js does', () => {
   /* 400 KB that most sessions never need, so it is fetched on the way past
      rather than by the page. If it ever appears in a script tag, startup is
