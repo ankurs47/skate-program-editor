@@ -256,6 +256,10 @@ function report(found) {
       '```\n',
       'and update the version table in `src/vendor/NOTICE.md` — a unit check',
       'compares it against the pins and will fail if you do not.\n',
+      'If `test:dom` passes, the new encoder writes byte for byte what the old',
+      'one did — a check pins the file it makes — and there is nothing in the',
+      'release notes that reaches an export. If that check fails, the output',
+      'moved: find out why before writing the new hash into it.\n',
     );
   }
 
