@@ -576,6 +576,15 @@
     "expect": "export reports finished even when the encoder stops short"
   },
   {
+    "name": "the encoder writes a different file that still decodes",
+    "guards": "a change to what the encoder writes is noticed, not only one that breaks it",
+    "file": "src/mp3.js",
+    "suite": "dom",
+    "find": "  const output = new Output({ format: new Mp3OutputFormat(), target: new BufferTarget() });",
+    "replace": "  const output = new Output({\n    format: new Mp3OutputFormat({ xingHeader: false }),\n    target: new BufferTarget(),\n  });",
+    "expect": "the encoder makes the same file it made when it was last read"
+  },
+  {
     "name": "a hosted page still offers to manage the project",
     "guards": "with a shell owning the folder, the page stops asking which project",
     "file": "src/app.js",

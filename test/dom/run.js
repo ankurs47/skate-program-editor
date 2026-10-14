@@ -1027,6 +1027,59 @@ async function main() {
       });
     });
 
+    await check('the encoder makes the same file it made when it was last read', async () => {
+      /* The check above is deliberately loose — a tolerance of 0.01 — so a
+         rebuilt encoder that changes what export produces passes it. 1.58.1
+         did exactly that: it moved every sample by up to one count in 32767,
+         and the only way anyone knew was by measuring by hand. This pins the
+         bytes, so a rebuild that changes them says so and one that does not
+         needs no reading at all.
+
+         The encoder is handed a buffer built here rather than a rendered
+         program, so the hash covers the encoder and nothing in front of it:
+         Chrome's own rendering may change between versions, and that is not
+         what this is about. No tags either, which would carry the app's
+         version. The signal is two tones, a sweep and a near-full-scale burst,
+         different on each side, so scaling, stereo and the loud end all show.
+
+         When this fails after a rebuild, the output really did change. Read the
+         release notes for why, compare the check above by hand against the
+         old bundle, and only then write the new hash here. */
+      const out = await run(`
+        if (!mp3Ready) return { ready: false };
+        const sr = 44100, n = 3 * sr;
+        const buf = new AudioBuffer({ length: n, numberOfChannels: 2, sampleRate: sr });
+        for (let c = 0; c < 2; c++) {
+          const d = buf.getChannelData(c);
+          for (let i = 0; i < n; i++) {
+            const t = i / sr;
+            const tones = 0.2 * Math.sin(2 * Math.PI * (c ? 330 : 220) * t)
+              + 0.1 * Math.sin(2 * Math.PI * 2500 * t);
+            const sweep = 0.15 * Math.sin(2 * Math.PI * (100 * t + 1500 * t * t));
+            d[i] = t > 2 && t < 2.5 ? 0.98 * Math.sin(2 * Math.PI * 440 * t) : tones + sweep;
+          }
+        }
+        const blob = await mp3Encoder.encode(buf, mp3Spec(), () => {});
+        const bytes = await blob.arrayBuffer();
+        const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+        return {
+          ready: true,
+          size: bytes.byteLength,
+          sha256: [...digest].map((b) => b.toString(16).padStart(2, '0')).join(''),
+        };
+      `);
+      ok(out.ready, 'no MP3 encoder loaded, so there is nothing to compare');
+      eq(
+        out,
+        {
+          ready: true,
+          size: 121364,
+          sha256: 'e8620d0f61de9729e0584ab25d2a578d10c038d2a835f7985df195b402d8b91c',
+        },
+        'the MP3 encoder now writes different bytes for the same input: ',
+      );
+    });
+
     /* ------------------------------------------------------------ library */
 
     await check('a file can only be removed once the program stops using it', async () => {
