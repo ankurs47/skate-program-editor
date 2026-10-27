@@ -231,6 +231,7 @@ else exported is free to change. `SHELL_EXPORTS` in `src/host.js` lists them.
 | `HOST_PROJECT_METHODS`  | the project methods a bridge must offer                     |
 | `HOST_PROJECT_OPTIONAL` | the project methods a bridge may offer                      |
 | `HOST_OPTIONAL`         | the methods a bridge may offer beside the project           |
+| `HOST_COMMANDS`         | the commands, in order; each `id` as under Commands         |
 | `hostPresent`           | whether the editor would accept `window.skateHost` as it is |
 | `LEVELS`                | the events and their program lengths, grouped               |
 | `findLevel`             | an event by its id, or null                                 |
