@@ -43,6 +43,11 @@ const HOST_PROJECT_OPTIONAL = [
 /* What the shell itself may offer, beside the project. */
 const HOST_OPTIONAL = ['connect', 'ready', 'openGuide'];
 
+/* What a shell may say it has, in `skateHost.capabilities` — things that are
+   not a method to call but a fact about the shell the page should know. A name
+   the page does not know is ignored, so a shell can name more than this. */
+const HOST_CAPABILITIES = ['menu'];
+
 /* The names a shell may take from this code under Node, through app.js. Anything
    else exported is free to change; these are an interface, and a shell is built
    against them. Held to docs/host.md, and each to being exported, by a check. */
@@ -51,6 +56,7 @@ const SHELL_EXPORTS = [
   'HOST_PROJECT_METHODS',
   'HOST_PROJECT_OPTIONAL',
   'HOST_OPTIONAL',
+  'HOST_CAPABILITIES',
   'HOST_COMMANDS',
   'hostPresent',
   'LEVELS',
@@ -154,6 +160,12 @@ function hostOpenGuide(section) {
   return true;
 }
 
+/** Does the shell say it has `name` (one of HOST_CAPABILITIES)? */
+function hostCapable(name) {
+  const given = host();
+  return Boolean(given && Array.isArray(given.capabilities) && given.capabilities.includes(name));
+}
+
 /* Under Node — the test suite — hand this file's names to app.js, which puts
    them back into the single scope the script tags give them in a browser. */
 if (typeof module !== 'undefined' && module.exports) {
@@ -162,7 +174,9 @@ if (typeof module !== 'undefined' && module.exports) {
     HOST_PROJECT_METHODS,
     HOST_PROJECT_OPTIONAL,
     HOST_OPTIONAL,
+    HOST_CAPABILITIES,
     SHELL_EXPORTS,
+    hostCapable,
     host,
     hostPresent,
     hostProject,

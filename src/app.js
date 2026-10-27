@@ -1255,6 +1255,7 @@ function bind() {
   $('btnEmptyLoad').onclick = () => $('projectInput').click();
   bindHostAdded();
   hideProjectControls();
+  hideMenuCovered();
   $('btnReconnect').onclick = reconnectMissing;
 
   $('btnNew').onclick = () => openStartDialog(true);
@@ -1604,6 +1605,21 @@ function hideProjectControls() {
   for (const id of PROJECT_CONTROLS) {
     const element = $(id);
     if (element) element.classList.toggle('hidden', hosted);
+  }
+}
+
+/* What a shell's own menu stands in for: the help topics, Settings, the guide
+   and the GitHub link. Every one is a command (HOST_COMMANDS) — the help
+   topics, the colors, the guide — and works while hidden, so the menu loses
+   nothing by the header losing them. */
+const MENU_COVERED = ['.help-nav', '.topbar-links'];
+
+/** Hide what a shell's menu covers when it has one, and show it otherwise. */
+function hideMenuCovered() {
+  const menu = hostCapable('menu');
+  for (const selector of MENU_COVERED) {
+    const element = document.querySelector(selector);
+    if (element) element.classList.toggle('hidden', menu);
   }
 }
 
@@ -1958,6 +1974,8 @@ if (typeof document !== 'undefined') {
     bindHostAdded,
     PROJECT_CONTROLS,
     hideProjectControls,
+    MENU_COVERED,
+    hideMenuCovered,
     shouldOfferStart,
     unsupportedReasons,
     readFileBytes,

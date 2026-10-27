@@ -1513,6 +1513,8 @@ check('host: docs/host.md lists the methods the code checks, uses and fakes', ()
   );
 
   const beside = named(section('### Beside the project'));
+  const capabilities = [...section('### Capabilities').matchAll(/^\| `(\w+)`/gm)].map((m) => m[1]);
+  eq(capabilities, app.HOST_CAPABILITIES, 'capabilities, document against host.js: ');
   eq(
     beside,
     [...app.HOST_OPTIONAL].sort(),

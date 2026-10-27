@@ -1438,5 +1438,14 @@
     "find": "  if (Math.abs(delta) <= tolerance) {",
     "replace": "  if (Math.abs(delta) < tolerance) {",
     "expect": "the editor says how a length stands, in one set of words"
+  },
+  {
+    "name": "a shell with a menu keeps the header's copies of it",
+    "guards": "one window does not offer the same commands twice",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "  const menu = hostCapable('menu');",
+    "replace": "  const menu = false;",
+    "expect": "a shell with its own menu takes the header's copies of it away"
   }
 ]
