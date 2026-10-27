@@ -1375,5 +1375,23 @@
     "find": "  out.label = controlLabel(element);",
     "replace": "  out.label = command.id;",
     "expect": "the label is not the button wording"
+  },
+  {
+    "name": "typing the program name leaves the title behind",
+    "guards": "a window or tab says which program is open as it is named",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "    state.name = e.target.value;\n    showProgramName();",
+    "replace": "    state.name = e.target.value;",
+    "expect": "the page is named for the program in it"
+  },
+  {
+    "name": "an empty program in a browser renames the site",
+    "guards": "the page keeps the site's title until there is a program",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "  const program = state.clips.length > 0 || hostPresent();",
+    "replace": "  const program = true;",
+    "expect": "the page is named for the program in it"
   }
 ]

@@ -130,6 +130,9 @@ Optional, on `skateHost` itself rather than on `project`.
   the project, and which project is answered before the page loads.
 - The first-run dialog never opens.
 - Nothing is kept in `localStorage`; the folder is the only copy.
+- The page's title is the program's name — "my 2026 junior long program —
+  Skate Program Editor" — and follows it as it is typed, so a shell can title
+  its window from the page's title with nothing on the bridge.
 - Removing or replacing a song asks `discard`, and the wording says the file
   goes to the trash rather than that nothing on the computer is touched.
 
