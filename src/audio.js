@@ -127,6 +127,7 @@ function stopPlayback() {
   }
   cancelAnimationFrame(rafId);
   $('btnPlayLabel').textContent = 'Play';
+  showNowPlaying();
   drawScrubber(); // the playhead stays where it is, so Space resumes there
 }
 
@@ -155,6 +156,7 @@ function playProgram(fromTime = 0, until = Infinity) {
     scheduled: state.clips.map(playingKey),
   };
   $('btnPlayLabel').textContent = 'Pause';
+  showNowPlaying();
   tickPlayhead();
 }
 
@@ -199,6 +201,7 @@ function playClipAudition(clip, fromSource) {
     scheduled: [playingKey(clip)],
   };
   $('btnPlayLabel').textContent = 'Pause';
+  showNowPlaying();
   tickPlayhead();
 }
 

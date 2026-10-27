@@ -1174,6 +1174,53 @@ function showProgramName() {
   const name = (state.name || '').trim();
   const program = state.clips.length > 0 || hostPresent();
   document.title = program && name ? `${name} — Skate Program Editor` : siteTitle;
+  showNowPlaying();
+}
+
+/* -------------------------------------------- the system's media controls */
+
+/**
+ * What the keyboard's play/pause key and the system's now-playing controls —
+ * macOS Control Center, the Windows media overlay, a Linux desktop's — do here:
+ * the same as Space, Stop, and [ and ]. Skating through the program is the use:
+ * the music can be started from across the room, or from a keyboard's media
+ * key, without finding the window first.
+ */
+const MEDIA_ACTIONS = {
+  play: () => {
+    if (!playing) playFromPlayhead();
+  },
+  pause: () => {
+    if (playing) stopPlayback();
+  },
+  stop: () => $('btnStop').click(),
+  previoustrack: () => selectNeighbour(-1),
+  nexttrack: () => selectNeighbour(1),
+};
+
+/** Hand the system's media controls to MEDIA_ACTIONS, where the browser has them. */
+function bindMediaSession(session = navigator.mediaSession) {
+  if (!session) return false;
+  for (const [action, handler] of Object.entries(MEDIA_ACTIONS)) {
+    try {
+      session.setActionHandler(action, handler);
+    } catch (_) {
+      /* an action this browser does not offer; the rest still work */
+    }
+  }
+  return true;
+}
+
+/** Tell the system what is playing — the program, by name — and whether it is. */
+function showNowPlaying() {
+  const session = typeof navigator === 'undefined' ? null : navigator.mediaSession;
+  if (!session) return;
+  session.playbackState = playing ? 'playing' : 'paused';
+  if (typeof MediaMetadata !== 'function') return;
+  const title = (state.name || '').trim() || 'my program';
+  if (!session.metadata || session.metadata.title !== title) {
+    session.metadata = new MediaMetadata({ title, artist: 'Skate Program Editor' });
+  }
 }
 
 /* ----------------------------------------------------------- level picker */
@@ -1326,6 +1373,7 @@ function bind() {
   hideProjectControls();
   hideMenuCovered();
   markShell();
+  bindMediaSession();
   $('btnReconnect').onclick = reconnectMissing;
 
   $('btnNew').onclick = () => openStartDialog(true);
@@ -2059,6 +2107,9 @@ if (typeof document !== 'undefined') {
     MENU_COVERED,
     hideMenuCovered,
     markShell,
+    MEDIA_ACTIONS,
+    bindMediaSession,
+    showNowPlaying,
     shouldOfferStart,
     unsupportedReasons,
     readFileBytes,

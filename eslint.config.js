@@ -77,6 +77,8 @@ const browser = {
   // How a desktop shell hears that what the page shows has changed, without a
   // hook in every place that might change it.
   MutationObserver: 'readonly',
+  // What the system's now-playing controls show — the program, by name.
+  MediaMetadata: 'readonly',
   // Each file ends with a block that exports its top-level names under Node;
   // app.js additionally bridges all of them onto the global object there.
   module: 'writable',
