@@ -718,6 +718,10 @@ body.dropping #timelineWrap[data-mode="start"] .empty {
 #btnEvenOut {
   margin-left: auto;
 }
+.undo-buttons {
+  display: flex;
+  gap: 6px;
+}
 #timelineWrap {
   position: relative;
 }

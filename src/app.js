@@ -346,6 +346,23 @@ function applySnapshot(json) {
   refresh();
 }
 
+/**
+ * Gray out Undo and Redo when there is nothing for them to do.
+ *
+ * Called from `refresh` and `save`, between them the end of every edit — a
+ * slider or a drag reaches only `save`, when it is let go.
+ */
+function updateUndoAvailability() {
+  $('btnUndo').disabled = undoStack.length === 0;
+  $('btnRedo').disabled = redoStack.length === 0;
+  $('btnUndo').title = undoStack.length
+    ? 'Take back the last change (Ctrl+Z)'
+    : 'Nothing to undo yet';
+  $('btnRedo').title = redoStack.length
+    ? 'Put back what was just undone (Ctrl+Shift+Z)'
+    : 'Nothing to redo';
+}
+
 function undo() {
   const previous = takeUndo();
   if (previous === null) {
@@ -668,6 +685,7 @@ function reportHostSaveFailure() {
 }
 
 function save() {
+  updateUndoAvailability();
   const folder = hostProject();
   if (folder) {
     /* The folder is the project. Nothing goes to localStorage: two copies of
@@ -897,6 +915,7 @@ function refresh() {
   updateMissingNotice();
   updateExportAvailability();
   updateEvenOutAvailability();
+  updateUndoAvailability();
   // The library is redrawn too: whether a file can be removed depends on
   // whether the program is still using it, so it changes as clips come and go.
   renderLibrary();
@@ -1058,6 +1077,8 @@ function bind() {
   $('btnPlayJoin').onclick = previewJoin;
   $('btnAlignJoin').onclick = () => withBusy($('btnAlignJoin'), alignSelectedJoin);
   $('btnEvenOut').onclick = () => withBusy($('btnEvenOut'), evenOutLevels);
+  $('btnUndo').onclick = undo;
+  $('btnRedo').onclick = redo;
 
   {
     const slider = $('level');
@@ -1664,6 +1685,7 @@ if (typeof document !== 'undefined') {
     takeUndo,
     takeRedo,
     applySnapshot,
+    updateUndoAvailability,
     undo,
     redo,
     addClip,
