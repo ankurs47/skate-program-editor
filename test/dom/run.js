@@ -807,6 +807,59 @@ async function main() {
       },
     );
 
+    await check('inside a shell the guide opens beside the program, not in its place', async () => {
+      /* A link that navigated the page would replace the program, with no way
+         back but a link that reloads it (docs/host.md, openGuide). A listener
+         on the window hears the click after the page has, records whether the
+         page stopped it — and then stops it regardless, so a failure here
+         cannot take the rest of the checks away with the page. */
+      const out = await run(`
+        let prevented = null;
+        const guard = (e) => {
+          if (e.target instanceof Element && e.target.closest('a[href^="docs/help.html"]')) {
+            prevented = e.defaultPrevented;
+            e.preventDefault();
+          }
+        };
+        window.addEventListener('click', guard);
+        const link = document.querySelector('a[href="docs/help.html"]');
+        try {
+          const fake = window.__fakeHost();
+          window.skateHost = fake.host;
+          link.click();
+          const hosted = { prevented, asked: fake.calls.filter(([m]) => m === 'openGuide') };
+
+          // A section named after the #, as an in-app link to one would.
+          const deep = document.createElement('a');
+          deep.href = 'docs/help.html#saving';
+          deep.textContent = 'how saving works';
+          document.body.appendChild(deep);
+          deep.click();
+          deep.remove();
+          const section = fake.calls.filter(([m]) => m === 'openGuide').at(-1);
+
+          // Through the command a shell's Help menu runs.
+          hostConnect(hostEditor());
+          await fake.editor().run('help.guide');
+          const byCommand = fake.calls.filter(([m]) => m === 'openGuide').length;
+
+          // With no shell, a link is a link.
+          delete window.skateHost;
+          prevented = null;
+          link.click();
+          return { hosted, section, byCommand, plain: prevented };
+        } finally {
+          delete window.skateHost;
+          window.removeEventListener('click', guard);
+        }
+      `);
+      eq(out.hosted.prevented, true, 'the link navigated the page inside a shell: ');
+      eq(out.hosted.asked, [['openGuide', null]], 'the shell was not asked to show the guide: ');
+      eq(out.section, ['openGuide', 'saving'], 'the section after # was lost: ');
+      eq(out.byCommand, 3, 'the help.guide command did not reach the shell: ');
+      eq(out.plain, false, 'with no shell the guide link stopped being a link: ');
+    });
+
     await check('the page is named for the program in it', async () => {
       /* A tab among several, or a desktop shell's window, then says which
          program is open — and a shell's title bar follows it (docs/host.md).

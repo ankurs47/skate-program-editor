@@ -106,6 +106,7 @@ function fakeHost({
       calls.at(-1).push({ clipsShown: shown ? shown.length : null });
     });
   }
+  if (!omit.includes('openGuide')) host.openGuide = record('openGuide', () => {});
 
   return {
     host,

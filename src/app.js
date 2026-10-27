@@ -671,6 +671,7 @@ const HOST_COMMANDS = [
     control: `.help-btn[data-help="${topic}"]`,
     anywhere: true,
   })),
+  { id: 'help.guide', control: 'a[href="docs/help.html"]', anywhere: true },
 ];
 
 /** What a control says, as a person reads it: its name, without the key hint. */
@@ -1207,6 +1208,16 @@ function syncLevelPicker() {
 
 function bind() {
   buildLevelPicker();
+
+  /* Every link into the guide, not only the one in the header: inside a shell,
+     following one would put the guide where the program was. The shell shows
+     it instead, when it offers to; otherwise the link is a link. */
+  document.addEventListener('click', (e) => {
+    const link = e.target instanceof Element && e.target.closest('a[href^="docs/help.html"]');
+    if (!link) return;
+    const section = link.getAttribute('href').split('#')[1];
+    if (hostOpenGuide(section)) e.preventDefault();
+  });
 
   $('programName').value = state.name;
   syncNotes();

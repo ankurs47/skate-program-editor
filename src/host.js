@@ -34,7 +34,7 @@ const HOST_PROJECT_METHODS = ['name', 'read', 'write', 'media', 'open'];
 const HOST_PROJECT_OPTIONAL = ['importFile', 'discard', 'readHistory', 'writeHistory', 'onAdded'];
 
 /* What the shell itself may offer, beside the project. */
-const HOST_OPTIONAL = ['connect', 'ready'];
+const HOST_OPTIONAL = ['connect', 'ready', 'openGuide'];
 
 /* The names a shell may take from this code under Node, through app.js. Anything
    else exported is free to change; these are an interface, and a shell is built
@@ -130,6 +130,20 @@ function hostReady() {
   if (given && typeof given.ready === 'function') given.ready();
 }
 
+/**
+ * Ask the shell to show the guide, at `section` if one is named. Says whether
+ * it took the request; if not, the link does what a link does.
+ *
+ * Inside a shell the page is the program, and a link that navigated it to the
+ * guide replaced the program with no way back but a link that reloaded it.
+ */
+function hostOpenGuide(section) {
+  const given = host();
+  if (!given || typeof given.openGuide !== 'function') return false;
+  given.openGuide(section || null);
+  return true;
+}
+
 /* Under Node — the test suite — hand this file's names to app.js, which puts
    them back into the single scope the script tags give them in a browser. */
 if (typeof module !== 'undefined' && module.exports) {
@@ -145,5 +159,6 @@ if (typeof module !== 'undefined' && module.exports) {
     hostAdded,
     hostConnect,
     hostReady,
+    hostOpenGuide,
   };
 }
