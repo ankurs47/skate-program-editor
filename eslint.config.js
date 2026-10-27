@@ -74,6 +74,9 @@ const browser = {
   // Where the browser has it, file handles are kept here so a project can
   // find its music again without being asked for every song.
   indexedDB: 'readonly',
+  // How a desktop shell hears that what the page shows has changed, without a
+  // hook in every place that might change it.
+  MutationObserver: 'readonly',
   // Each file ends with a block that exports its top-level names under Node;
   // app.js additionally bridges all of them onto the global object there.
   module: 'writable',

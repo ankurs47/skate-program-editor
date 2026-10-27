@@ -635,7 +635,159 @@ async function flushHostSave() {
  * it without a shell to hand it to.
  */
 function hostEditor() {
-  return { flush: flushHostSave };
+  return { flush: flushHostSave, state: hostState, onState: onHostState, run: runHostCommand };
+}
+
+/**
+ * The commands a shell may run — docs/host.md, "Commands". Each goes through
+ * the control a person would use, clicked, and is enabled exactly when that
+ * control is, so a menu item cannot do something different from the button
+ * beside it. Labels are read off the control for the same reason: one word for
+ * each thing, wherever it appears.
+ *
+ * `anywhere` is for controls that work while hidden — the colors live in a
+ * closed menu, and a shell's own menu may stand in for the help buttons.
+ * `keys` is the page's own key for it, `Mod` meaning Ctrl, or ⌘ on a Mac.
+ */
+const HOST_COMMANDS = [
+  { id: 'program.undo', control: '#btnUndo', keys: 'Mod+Z' },
+  { id: 'program.redo', control: '#btnRedo', keys: 'Mod+Shift+Z' },
+  { id: 'program.evenOut', control: '#btnEvenOut' },
+  { id: 'program.export', control: '#btnExport' },
+  { id: 'playback.toggle', control: '#btnPlay', keys: 'Space' },
+  { id: 'playback.stop', control: '#btnStop' },
+  { id: 'clip.play', control: '#btnPreviewClip' },
+  { id: 'join.play', control: '#btnPlayJoin' },
+  { id: 'clip.previous', label: 'Previous song', keys: '[', step: -1 },
+  { id: 'clip.next', label: 'Next song', keys: ']', step: 1 },
+  { id: 'view.music', control: '#btnLibraryToggle', anywhere: true },
+  ...['auto', 'light', 'dark'].map((mode) => ({
+    id: `colors.${mode}`,
+    control: `[data-theme-choice="${mode}"]`,
+    anywhere: true,
+  })),
+  ...['basics', 'tips', 'saving', 'quality', 'keys'].map((topic) => ({
+    id: `help.${topic}`,
+    control: `.help-btn[data-help="${topic}"]`,
+    anywhere: true,
+  })),
+];
+
+/** What a control says, as a person reads it: its name, without the key hint. */
+function controlLabel(element) {
+  const named = element.getAttribute('aria-label');
+  if (named) return named;
+  const copy = element.cloneNode(true);
+  for (const kbd of copy.querySelectorAll('kbd')) kbd.remove();
+  return copy.textContent.replace(/\s+/g, ' ').trim();
+}
+
+/** One command as a shell sees it, for the state right now. */
+function describeCommand(command, blocked) {
+  const out = { id: command.id, label: command.label || '', keys: command.keys || null };
+  if (command.step) {
+    out.enabled = !blocked && neighbourOf(command.step) !== null;
+    return out;
+  }
+  const element = document.querySelector(command.control);
+  if (!element) return { ...out, enabled: false };
+  out.label = controlLabel(element);
+  out.enabled = !blocked && !element.disabled && (command.anywhere || !element.closest('.hidden'));
+  if (element.getAttribute('role') === 'radio') {
+    out.checked = element.getAttribute('aria-checked') === 'true';
+  }
+  return out;
+}
+
+/**
+ * What a shell needs to know to show the page's commands: docs/host.md,
+ * "State". Read off the screen rather than kept alongside it, so it can only
+ * say what is actually shown.
+ */
+function hostState() {
+  // An open dialog owns the keyboard, and a menu item must not reach past it.
+  const blocked = Boolean(openDialog());
+  const progress = $('exportProgress');
+  return {
+    name: state.name,
+    hasProgram: state.clips.length > 0,
+    playing: Boolean(playing),
+    exporting: progress.classList.contains('hidden')
+      ? null
+      : { progress: (parseFloat($('exportBar').style.width) || 0) / 100 },
+    commands: HOST_COMMANDS.map((command) => describeCommand(command, blocked)),
+  };
+}
+
+/**
+ * Run a command by its id. Rejects with `{ code, message }`, as every method
+ * on the interface does: `not-found` for an id there is no command for, and
+ * `refused` for one that cannot run right now.
+ */
+function runHostCommand(id) {
+  const command = HOST_COMMANDS.find((c) => c.id === id);
+  if (!command) return Promise.reject({ code: 'not-found', message: `no command "${id}"` });
+  if (!describeCommand(command, Boolean(openDialog())).enabled) {
+    return Promise.reject({ code: 'refused', message: `"${id}" cannot run right now` });
+  }
+  if (command.step) selectNeighbour(command.step);
+  else document.querySelector(command.control).click();
+  return Promise.resolve();
+}
+
+const hostStateListeners = new Set();
+let hostStateSent = null;
+let hostStateQueued = false;
+let hostStateWatcher = null;
+
+/**
+ * Hear about every change to `hostState()`. Returns a function that stops it.
+ *
+ * Watched from the screen rather than from every place that changes something:
+ * anything that changes what the state says changes the page, and a list of the
+ * places that do would be the list someone forgets to add to. Each change is
+ * compared with what was last sent, so a shell hears only real changes.
+ */
+function onHostState(listener) {
+  hostStateListeners.add(listener);
+  if (!hostStateWatcher) {
+    hostStateSent = JSON.stringify(hostState());
+    hostStateWatcher = new MutationObserver(queueHostState);
+    hostStateWatcher.observe(document.body, {
+      attributes: true,
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
+    // Typing changes a field's value, which is not a change to the page.
+    document.addEventListener('input', queueHostState, true);
+  }
+  return () => {
+    hostStateListeners.delete(listener);
+  };
+}
+
+/* Once per burst of changes, not once per mutation. Not a frame: a hidden
+   window paints nothing, and a shell still needs to hear the export finish. */
+function queueHostState() {
+  if (hostStateQueued) return;
+  hostStateQueued = true;
+  setTimeout(sendHostState, 0);
+}
+
+function sendHostState() {
+  hostStateQueued = false;
+  const now = hostState();
+  const text = JSON.stringify(now);
+  if (text === hostStateSent) return;
+  hostStateSent = text;
+  for (const listener of hostStateListeners) {
+    try {
+      listener(now);
+    } catch (_) {
+      /* A listener that throws is the shell's problem, not the page's. */
+    }
+  }
 }
 
 /* How long to wait before writing the undo history out. Slower than the
@@ -1368,14 +1520,24 @@ function onKey(e) {
   } else if (e.key === '-') {
     zoomClip(1 / 2);
   } else if (e.key === '[' || e.key === ']') {
-    const i = state.clips.indexOf(clip);
-    const next = state.clips[i + (e.key === ']' ? 1 : -1)];
-    if (next) {
-      state.selected = next.id;
-      state.cursor = next.srcStart;
-      refresh();
-    }
+    selectNeighbour(e.key === ']' ? 1 : -1);
   }
+}
+
+/** The song before (-1) or after (1) the selected one, or null. */
+function neighbourOf(step) {
+  const clip = selectedClip();
+  if (!clip) return null;
+  return state.clips[state.clips.indexOf(clip) + step] || null;
+}
+
+/** Move the selection to the song before or after it, as `[` and `]` do. */
+function selectNeighbour(step) {
+  const next = neighbourOf(step);
+  if (!next) return;
+  state.selected = next.id;
+  state.cursor = next.srcStart;
+  refresh();
 }
 
 /* What a project is, where it lives and which one is open — questions this page
@@ -1748,6 +1910,12 @@ if (typeof document !== 'undefined') {
     openHostProject,
     flushHostSave,
     hostEditor,
+    HOST_COMMANDS,
+    hostState,
+    runHostCommand,
+    onHostState,
+    neighbourOf,
+    selectNeighbour,
     bindHostAdded,
     PROJECT_CONTROLS,
     hideProjectControls,

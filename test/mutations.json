@@ -1273,8 +1273,8 @@
     "guards": "what a shell may call is what the page hands over",
     "file": "src/app.js",
     "suite": "unit",
-    "find": "  return { flush: flushHostSave };",
-    "replace": "  return {};",
+    "find": "  return { flush: flushHostSave, state: hostState, onState: onHostState, run: runHostCommand };",
+    "replace": "  return { state: hostState, onState: onHostState, run: runHostCommand };",
     "expect": "the page hands the shell"
   },
   {
@@ -1339,5 +1339,41 @@
     "find": "Promise.resolve(folder.write(project())).then(hostSaveSucceeded).catch(reportHostSaveFailure);",
     "replace": "Promise.resolve(folder.write(project())).catch(reportHostSaveFailure);",
     "expect": "a delayed write that landed"
+  },
+  {
+    "name": "commands read enabled behind an open dialog",
+    "guards": "a menu cannot reach past a dialog that owns the page",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "  const blocked = Boolean(openDialog());",
+    "replace": "  const blocked = false;",
+    "expect": "commands read enabled behind an open dialog"
+  },
+  {
+    "name": "a shell can run a command that is disabled",
+    "guards": "a menu item does what its button can, and nothing more",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "  if (!describeCommand(command, Boolean(openDialog())).enabled) {",
+    "replace": "  if (false) {",
+    "expect": "a disabled command ran"
+  },
+  {
+    "name": "a shell's listener cannot be stopped",
+    "guards": "every listener can be removed (convention 3)",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "    hostStateListeners.delete(listener);",
+    "replace": "    void listener;",
+    "expect": "a listener kept hearing after it stopped"
+  },
+  {
+    "name": "command labels stop following their controls",
+    "guards": "a menu uses the interface's own words",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "  out.label = controlLabel(element);",
+    "replace": "  out.label = command.id;",
+    "expect": "the label is not the button wording"
   }
 ]

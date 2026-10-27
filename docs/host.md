@@ -138,9 +138,12 @@ Optional, on `skateHost` itself rather than on `project`.
 The `editor` the page hands to `connect`. The shell calls nothing in the page
 any other way — not a global by name, not a script it injects.
 
-| Method    | Returns             | Meaning                                                               |
-| --------- | ------------------- | --------------------------------------------------------------------- |
-| `flush()` | `{ saved, hosted }` | write anything waiting, now, and say whether the folder is up to date |
+| Method              | Returns                           | Meaning                                                               |
+| ------------------- | --------------------------------- | --------------------------------------------------------------------- |
+| `flush()`           | `{ saved, hosted }`               | write anything waiting, now, and say whether the folder is up to date |
+| `state()`           | the state, below                  | what a menu needs to know, right now                                  |
+| `onState(listener)` | a function that stops it          | hear every change to the state                                        |
+| `run(id)`           | nothing; rejects if it cannot run | run one of the commands below                                         |
 
 - **`flush()`** is what a shell asks before it closes a project. An edit made
   in the last moment before closing is waiting out the save delay and exists
@@ -148,6 +151,73 @@ any other way — not a global by name, not a script it injects.
   is false only when a write was refused — the one case where closing loses
   work, and the one worth interrupting a close for. `hosted` is false when the
   page has no shell, which only happens if the shell went away after connecting.
+- **`state()`** is read off what the page shows, so it can only describe what is
+  on screen. A shell reads it once after connecting, then follows `onState`.
+- **`onState(listener)`** calls `listener(state)` whenever anything in the state
+  changes — after the change, once for a burst of them, and never for nothing.
+  It keeps working while the window is hidden, so a shell hears an export finish
+  in the background.
+- **`run(id)`** does what the control for that command does, by clicking it, so
+  a menu item cannot behave differently from the button. It rejects with
+  `{ code: 'not-found' }` for an id that is not a command, and
+  `{ code: 'refused' }` for one whose `enabled` is false — including while a
+  dialog is open, which owns the page until it closes.
+
+### State
+
+```js
+{
+  name: 'my 2026 junior long program',  // the program name
+  hasProgram: true,                      // at least one song in the program
+  playing: false,                        // the program or a song is playing
+  exporting: { progress: 0.4 },          // or null; progress is 0 to 1
+  commands: [                            // every command below, in this order
+    { id: 'program.undo', label: 'Undo', keys: 'Mod+Z', enabled: true },
+    { id: 'colors.dark', label: 'Dark', keys: null, enabled: true, checked: false },
+    // ...
+  ],
+}
+```
+
+- **`label`** is the control's own wording, read off it — so it changes when
+  the control does: **Play** becomes **Pause** while playing, and **Hide the
+  music list** becomes **Show the music list**. A shell should show the label
+  it is given rather than keep its own.
+- **`keys`** is the page's own key for the command, or null. `Mod` means Ctrl,
+  or ⌘ on a Mac. It is a hint for showing beside the item; whether a shell's
+  menu also answers that key is the shell's choice, and a single key like
+  `Space` or `[` should stay with the page, which knows when a text field has
+  the keyboard.
+- **`checked`** is present only on a command that is one of a set of choices —
+  the colors — and says which is chosen.
+
+### Commands
+
+| Id                | What it does                                 | Keys          |
+| ----------------- | -------------------------------------------- | ------------- |
+| `program.undo`    | **Undo**                                     | `Mod+Z`       |
+| `program.redo`    | **Redo**                                     | `Mod+Shift+Z` |
+| `program.evenOut` | **Even out the volume**                      |               |
+| `program.export`  | **Make music file** — opens its dialog       |               |
+| `playback.toggle` | **Play**, or **Pause** while playing         | `Space`       |
+| `playback.stop`   | **Stop**                                     |               |
+| `clip.play`       | **Play this song**, the selected one         |               |
+| `join.play`       | **Play this join**, before the selected song |               |
+| `clip.previous`   | select the song before                       | `[`           |
+| `clip.next`       | select the song after                        | `]`           |
+| `view.music`      | **Hide the music list**, or show it          |               |
+| `colors.auto`     | colors follow the computer                   |               |
+| `colors.light`    | light colors                                 |               |
+| `colors.dark`     | dark colors                                  |               |
+| `help.basics`     | open the help on the basics                  |               |
+| `help.tips`       | open the tips                                |               |
+| `help.saving`     | open the help on saving                      |               |
+| `help.quality`    | open the help on sound quality               |               |
+| `help.keys`       | open the keyboard shortcuts                  |               |
+
+Ids are never reused for something different (convention 7). A command added
+here is added to the end of the list, so a shell that shows them in order shows
+the new one last rather than shuffling the rest.
 
 ## What a shell reads from the editor's code
 
@@ -231,23 +301,24 @@ gives a reason to break it.
 
 In order. Each lands in this document when it lands in the code.
 
-1. **Commands and state** ([#121]): `editor` gains `commands` and `state`. The
-   page registers its commands — undo, play, make music file, the help topics —
-   and reports what a menu needs to know: undo and redo, whether there is a
-   program, playing, exporting and its progress, the program name. Commands that
-   take a target follow ([#133]).
+1. **Commands that take a target** ([#133]): `run(id, target)`, for a menu
+   on one clip or song.
 2. **Ready** ([#134]): the page says when the program is on screen.
 3. **Capabilities**: `skateHost.capabilities`, as in convention 8.
 4. **A native menu** ([#123]): with one, the page hides the header items the menu
    covers.
 5. **Music files** ([#125]): `writeExport(name, bytes, details)` hands the finished
    file to the shell instead of downloading it.
-6. **Colors** ([#127]), **the guide** ([#122]) and **confirmations** ([#135]): the
-   page reports its color choice, asks the shell to show the guide rather than
-   navigating away from the program, and asks the shell to confirm destructive
-   actions natively.
+6. **The guide** ([#122]) and **confirmations** ([#135]): the page asks the
+   shell to show the guide rather than navigating away from the program, and to
+   confirm destructive actions natively. The color choice ([#127]) is already in
+   the state, as the `checked` on the `colors.*` commands.
 
 ## Changelog
+
+- **Version 1, commands and state** ([#121]). `editor.state()`,
+  `editor.onState(listener)` and `editor.run(id)`, and the commands listed
+  above.
 
 - **Version 1, `connect`** ([#120]). `skateHost.connect(editor)` added, with
   `editor.flush()`. A shell no longer calls the page's `flushHostSave()` by
