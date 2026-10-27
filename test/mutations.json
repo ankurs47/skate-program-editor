@@ -1231,5 +1231,23 @@
     "find": "  toast(`Took “${removed.title}” out of the program — Undo puts it back`, 4200);",
     "replace": "  void removed;",
     "expect": "removing a song with a key says so, and Undo brings it back whole"
+  },
+  {
+    "name": "grabbing a handle no longer shows the close-up",
+    "guards": "a cut being dragged can be seen up close",
+    "file": "src/editor.js",
+    "suite": "dom",
+    "find": "    showCloseup(dragging);",
+    "replace": "    void 0;",
+    "expect": "moving an end shows a close-up of it, and only while it moves"
+  },
+  {
+    "name": "the close-up stays after the handle is let go",
+    "guards": "the close-up covers the waveform only while it is wanted",
+    "file": "src/editor.js",
+    "suite": "dom",
+    "find": "    dragging = null;\n    hideCloseup();",
+    "replace": "    dragging = null;",
+    "expect": "moving an end shows a close-up of it, and only while it moves"
   }
 ]

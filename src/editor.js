@@ -25,6 +25,82 @@ function setActiveEdge(edge) {
 let zoomView = { clipId: null, zoom: 1, center: 0 };
 let shownCursor = null;
 
+/* The close-up of the end being moved: which end, and the timer that takes
+   it away again after a nudge, which has no release to hang that on. */
+const CLOSEUP_SPAN = 6; // seconds across
+const CLOSEUP_LINGER = 1500; // ms after the last nudge or typed time
+let closeupEdge = null;
+let closeupTimer = 0;
+
+/**
+ * Show the close-up around one end of the selected clip.
+ *
+ * `hideAfter` is for the arrow keys and typed times, which end with no event
+ * to say so; a drag passes nothing and hides it on release.
+ */
+function showCloseup(edge, hideAfter = 0) {
+  closeupEdge = edge;
+  clearTimeout(closeupTimer);
+  if (hideAfter) closeupTimer = setTimeout(hideCloseup, hideAfter);
+  drawCloseup();
+}
+
+function hideCloseup() {
+  clearTimeout(closeupTimer);
+  closeupEdge = null;
+  $('clipCloseup').classList.add('hidden');
+}
+
+/**
+ * Draw the close-up: CLOSEUP_SPAN seconds of the song around the end being
+ * moved, with that end held in the middle while the music slides past it.
+ *
+ * Not shown when the waveform is already zoomed in about that far, where it
+ * would only repeat what is under it, nor before the song's audio is here.
+ */
+function drawCloseup() {
+  const panel = $('clipCloseup');
+  const clip = selectedClip();
+  const entry = clip && library.get(clip.file);
+  if (!closeupEdge || !entry || !entry.buffer) {
+    panel.classList.add('hidden');
+    return;
+  }
+  const view = clipView(clip);
+  if (view.to - view.from <= CLOSEUP_SPAN * 1.5) {
+    panel.classList.add('hidden');
+    return;
+  }
+  panel.classList.remove('hidden');
+
+  const at = closeupEdge === 'start' ? clip.srcStart : clip.srcEnd;
+  const { from, to } = viewRange(entry.duration, entry.duration / CLOSEUP_SPAN, at);
+  const across = Math.max(1, Math.round(panel.clientWidth || panel.width));
+  const peaks = rangePeaks(entry.buffer, from, to, across);
+  drawWave(panel, peaks, to - from, 0, to - from, css('--wave'), clipGain(clip));
+
+  const { g, w, h } = fitCanvas(panel);
+  const near = (t) => ((t - from) / (to - from)) * w;
+  // What is cut away is dimmed here too, so which side of the line is kept reads at a glance.
+  g.save();
+  g.globalAlpha = 0.62;
+  g.fillStyle = css('--panel');
+  g.fillRect(0, 0, near(clip.srcStart), h);
+  g.fillRect(near(clip.srcEnd), 0, w - near(clip.srcEnd), h);
+  g.restore();
+  g.fillStyle = css('--accent');
+  g.fillRect(near(at) - 1, 0, 2, h);
+  g.fillStyle = css('--ink');
+  g.font = `11px ${css('--mono')}`;
+  g.fillText(fmt(at), 6, 13);
+
+  // Over the handle, but never hanging off either side of the waveform.
+  const wave = $('clipCanvas');
+  const handleX = ((at - view.from) / (view.to - view.from)) * wave.clientWidth;
+  const left = clamp(handleX - panel.offsetWidth / 2, 0, wave.clientWidth - panel.offsetWidth);
+  panel.style.left = `${left}px`;
+}
+
 /** The length of the song a clip is cut from, as far as anything knows yet. */
 function songLength(clip) {
   const entry = library.get(clip.file);
@@ -37,6 +113,7 @@ function clipView(clip) {
   if (zoomView.clipId !== clip.id) {
     zoomView = { clipId: clip.id, zoom: 1, center: duration / 2 };
     shownCursor = state.cursor;
+    closeupEdge = null; // a close-up of the clip that was selected before
   }
   return viewRange(duration, zoomView.zoom, zoomView.center);
 }
@@ -211,6 +288,7 @@ function drawClipEditor() {
   $('crossfadeWrap').classList.toggle('hidden', index === 0);
   updateAlignAvailability();
   updateOrderAvailability();
+  drawCloseup();
 }
 
 /**
@@ -394,6 +472,7 @@ function bindTimeEntries() {
         else clip.srcEnd = found.at;
         activeEdge = edge;
         revealInView(found.at);
+        showCloseup(edge, CLOSEUP_LINGER);
         refresh();
       }
       field.value = fmt(found.at);
@@ -448,6 +527,7 @@ function bindClipCanvas() {
     activeEdge = dragging;
     pushUndo();
     canvas.setPointerCapture(e.pointerId);
+    showCloseup(dragging);
   });
 
   canvas.addEventListener('pointermove', (e) => {
@@ -469,6 +549,7 @@ function bindClipCanvas() {
   const end = (e) => {
     if (!dragging) return;
     dragging = null;
+    hideCloseup();
     try {
       canvas.releasePointerCapture(e.pointerId);
     } catch (_) {
@@ -555,6 +636,11 @@ if (typeof module !== 'undefined' && module.exports) {
     clipView,
     revealInView,
     zoomClip,
+    CLOSEUP_SPAN,
+    CLOSEUP_LINGER,
+    showCloseup,
+    hideCloseup,
+    drawCloseup,
     getActiveEdge,
     setActiveEdge,
     drawClipEditor,

@@ -402,7 +402,13 @@
             </div>
           </div>
 
-          <canvas id="clipCanvas" height="180"></canvas>
+          <div class="clip-wrap">
+            <canvas id="clipCanvas" height="180"></canvas>
+            <!-- A few seconds around the end being moved, shown while it moves.
+                 Over the waveform rather than in place of it, so the handle
+                 stays where the pointer is. -->
+            <canvas id="clipCloseup" class="closeup hidden" height="64" aria-hidden="true"></canvas>
+          </div>
           <div class="scrub-row">
             <!-- Text fields that look like labels: a time can be typed in, which
                  is the one precise way to trim on a tablet. -->

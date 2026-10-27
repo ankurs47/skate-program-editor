@@ -2439,6 +2439,74 @@ async function main() {
       eq(out.back, { start: 3, end: 21, fadeOut: 2 }, 'Undo did not bring the song back whole: ');
     });
 
+    await check('moving an end shows a close-up of it, and only while it moves', async () => {
+      /* A real drag on the end handle and a real arrow press. The close-up has
+         to be on screen and has to change as the end moves — a panel that
+         appears but keeps a stale picture would be no use for placing a cut. */
+      const mouse = async (type, x, y) =>
+        page.send('Input.dispatchMouseEvent', {
+          type,
+          x,
+          y,
+          button: 'left',
+          buttons: type === 'mouseReleased' ? 0 : 1,
+          clickCount: 1,
+        });
+      const shown = () =>
+        run(`const c = __id('clipCloseup');
+          if (c.classList.contains('hidden')) return null;
+          const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+          let s = 0; for (let i = 0; i < d.length; i++) s = (s * 31 + d[i]) >>> 0;
+          return s;`);
+      const at = await run(`
+        window.__reset([['long.wav', window.__clicks(97, 240)]]);
+        state.clips[0].srcEnd = 200;
+        state.selected = state.clips[0].id;
+        refresh();
+        document.activeElement.blur();
+        const r = __id('clipCanvas').getBoundingClientRect();
+        return { x: r.left + (200 / 240) * r.width, y: r.top + r.height / 2, px: r.width / 240 };`);
+
+      const before = await shown();
+      await mouse('mousePressed', at.x, at.y);
+      const pressed = await shown();
+      await mouse('mouseMoved', at.x - at.px * 3, at.y); // about three seconds earlier
+      const dragged = await shown();
+      await mouse('mouseReleased', at.x - at.px * 3, at.y);
+      const released = await shown();
+
+      for (const type of ['rawKeyDown', 'keyUp']) {
+        await page.send('Input.dispatchKeyEvent', {
+          type,
+          key: 'ArrowLeft',
+          code: 'ArrowLeft',
+          windowsVirtualKeyCode: 37,
+        });
+      }
+      const nudged = await shown();
+      const goneLater = await run(`
+        const t0 = performance.now();
+        while (!__id('clipCloseup').classList.contains('hidden') && performance.now() - t0 < 5000) {
+          await new Promise((r) => setTimeout(r, 100));
+        }
+        return __id('clipCloseup').classList.contains('hidden');`);
+
+      // Zoomed in about as far already, it would only repeat the waveform.
+      const zoomedIn = await run(`
+        zoomClip(64); showCloseup('end');
+        const hidden = __id('clipCloseup').classList.contains('hidden');
+        hideCloseup(); zoomClip(1 / 64);
+        return hidden;`);
+
+      eq(before, null, 'the close-up is up before anything moved: ');
+      ok(pressed !== null, 'grabbing the end handle did not show the close-up');
+      ok(dragged !== null && dragged !== pressed, 'the close-up did not change as the end moved');
+      eq(released, null, 'the close-up stayed after letting go: ');
+      ok(nudged !== null, 'an arrow press did not show the close-up');
+      ok(goneLater, 'the close-up never went away after a nudge');
+      ok(zoomedIn, 'the close-up showed over a waveform already zoomed that far');
+    });
+
     await check('a silence before a song delays it, and the blend gives way', async () => {
       /* Through the slider, and onto the sources that are actually started:
          a gap that only moved the timeline would show a silence and play none. */
