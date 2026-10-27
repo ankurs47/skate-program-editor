@@ -342,6 +342,7 @@ function seekTo(seconds) {
   state.playPosition = clamp(seconds, 0, total);
   $('playhead').textContent = fmt(state.playPosition);
   drawScrubber();
+  if (followPlayhead()) drawClipEditor();
 }
 
 function bindScrubber() {

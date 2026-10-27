@@ -318,6 +318,14 @@ function bindClipCanvas() {
     else {
       state.cursor = t;
       drawClipEditor();
+      /* The program playhead comes too, so Space plays from the spot just
+         picked. In the trimmed-out part there is no program time to go to. */
+      const at = programTimeAt(state.clips, state.clips.indexOf(clip), t);
+      if (at !== null) {
+        const wasPlaying = Boolean(playing) && playing.mode === 'program';
+        seekTo(at);
+        if (wasPlaying) playProgram(at);
+      }
       return;
     }
 

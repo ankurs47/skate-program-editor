@@ -471,6 +471,16 @@ function songTimeAt(clips, i, at) {
   return clips[i].srcStart + (at - part.start);
 }
 
+/**
+ * The other way: where a moment of clip `i`'s song plays in the program, or
+ * null when it is trimmed out and so does not play at all.
+ */
+function programTimeAt(clips, i, songTime) {
+  const clip = clips[i];
+  if (!clip || !(songTime >= clip.srcStart && songTime <= clip.srcEnd)) return null;
+  return layout(clips).parts[i].start + (songTime - clip.srcStart);
+}
+
 /** How far a join's two cuts may move without eating a clip whole. */
 function joinRoom(clip, entry, side) {
   const keep = 0.5;
@@ -1062,6 +1072,7 @@ if (typeof module !== 'undefined' && module.exports) {
     JOIN_PREVIEW,
     joinPreviewRange,
     songTimeAt,
+    programTimeAt,
     joinRoom,
     readProject,
     PEAK_TOLERANCE,
