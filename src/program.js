@@ -458,6 +458,19 @@ function joinPreviewRange(clips, i, opts = {}) {
   };
 }
 
+/**
+ * Where program time `at` falls in clip `i`'s song, or null when clip `i` is
+ * not playing then.
+ *
+ * Inside a blend two clips are playing at once, so this answers for the one
+ * asked about rather than choosing.
+ */
+function songTimeAt(clips, i, at) {
+  const part = layout(clips).parts[i];
+  if (!part || !(at >= part.start && at <= part.start + part.dur)) return null;
+  return clips[i].srcStart + (at - part.start);
+}
+
 /** How far a join's two cuts may move without eating a clip whole. */
 function joinRoom(clip, entry, side) {
   const keep = 0.5;
@@ -1048,6 +1061,7 @@ if (typeof module !== 'undefined' && module.exports) {
     reordered,
     JOIN_PREVIEW,
     joinPreviewRange,
+    songTimeAt,
     joinRoom,
     readProject,
     PEAK_TOLERANCE,

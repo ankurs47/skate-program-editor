@@ -320,6 +320,22 @@ function drawScrubber() {
   }
 }
 
+/**
+ * Bring the waveform marker to the playhead, when the playhead is inside the
+ * selected song. Says whether it moved.
+ *
+ * `I` and `O` trim to the waveform marker. Left behind while the program
+ * played, they trimmed to wherever it was last clicked rather than to what was
+ * being heard — or refused, with the marker outside the song.
+ */
+function followPlayhead() {
+  const i = state.clips.indexOf(selectedClip());
+  const at = i < 0 ? null : songTimeAt(state.clips, i, state.playPosition);
+  if (at === null) return false;
+  state.cursor = at;
+  return true;
+}
+
 /** Move the playhead, restarting playback there if we were already playing. */
 function seekTo(seconds) {
   const { total } = layout(state.clips);
@@ -373,6 +389,7 @@ if (typeof module !== 'undefined' && module.exports) {
     CLIP_DRAG_TYPE,
     timelineShape,
     forgetTimelineShape,
+    followPlayhead,
     joinMarker,
     timelineSignature,
     timelineWaveFrame,

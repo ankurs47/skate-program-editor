@@ -171,6 +171,22 @@ check('join preview: the lead is measured from where the song before stops', () 
   eq(range.until, 67);
 });
 
+check('songTimeAt: program time inside a clip is song time inside its trims', () => {
+  const clips = [
+    { srcStart: 0, srcEnd: 60, crossfade: 0 },
+    { srcStart: 30, srcEnd: 90, crossfade: 2 },
+  ];
+  // the second clip starts at 58 in the program, 30 s into its song
+  eq(app.songTimeAt(clips, 1, 58), 30, 'where it starts: ');
+  eq(app.songTimeAt(clips, 1, 70), 42);
+  eq(app.songTimeAt(clips, 0, 59), 59, 'inside the blend, each clip answers for itself: ');
+  eq(app.songTimeAt(clips, 1, 59), 31);
+  eq(app.songTimeAt(clips, 1, 40), null, 'before it plays: ');
+  eq(app.songTimeAt(clips, 0, 61), null, 'after it has finished: ');
+  eq(app.songTimeAt(clips, 5, 10), null, 'a clip that is not there: ');
+  eq(app.songTimeAt(clips, 1, NaN), null, 'no time at all: ');
+});
+
 check('join preview: stays inside the program, and declines when there is no join', () => {
   const clips = [
     { srcStart: 0, srcEnd: 3, crossfade: 0 },

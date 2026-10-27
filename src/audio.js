@@ -217,6 +217,7 @@ function tickPlayhead() {
       state.playPosition = at;
       $('playhead').textContent = fmt(at);
       drawScrubber();
+      if (followPlayhead()) drawClipEditor();
       const stopAt = Math.min(playing.total, playing.until ?? Infinity);
       if (at >= stopAt) {
         stopPlayback();

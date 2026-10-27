@@ -1141,5 +1141,14 @@
     "find": "    setActiveEdge(edge);\n    refresh();",
     "replace": "    refresh();",
     "expect": "the arrow keys trim whichever end was last touched"
+  },
+  {
+    "name": "the waveform marker stays put while the program plays",
+    "guards": "I and O trim to what is being heard",
+    "file": "src/audio.js",
+    "suite": "dom",
+    "find": "      if (followPlayhead()) drawClipEditor();",
+    "replace": "      void 0;",
+    "expect": "O while the program plays ends the song where it is being heard"
   }
 ]
