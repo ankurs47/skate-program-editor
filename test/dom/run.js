@@ -586,8 +586,7 @@ async function main() {
           history: !!fake.folder.history && fake.folder.history.current === undoSnapshot(),
         };
 
-        /* A folder that refuses the write. Last in this check because the page
-           remembers the failure for the rest of the session (#130). */
+        /* A folder that refuses the write. */
         const refusing = window.__fakeHost({
           project: { name: 'before', clips: [] },
           with: { write: async () => { throw new Error('the disk is full'); } },
@@ -597,9 +596,30 @@ async function main() {
         save();
         const refused = await flushHostSave();
 
+        /* And then takes one. Each write is the whole program, so the folder
+           is up to date again — once, a single refusal was reported for the
+           rest of the session (#130). Both routes a write takes are asked. */
+        const recovered = {};
+        let disk = window.__fakeHost({ project: { name: 'before', clips: [] } });
+        window.skateHost = disk.host;
+        state.name = 'reaches it on the close';
+        save();
+        recovered.byFlush = await flushHostSave();
+
+        window.skateHost = refusing.host;
+        save();
+        await flushHostSave();
+        disk = window.__fakeHost({ project: { name: 'before', clips: [] } });
+        window.skateHost = disk.host;
+        state.name = 'reaches it on its own';
+        save();
+        await new Promise((done) => setTimeout(done, 600));
+        recovered.written = disk.folder.project && disk.folder.project.name;
+        recovered.byDelay = await flushHostSave();
+
         delete window.skateHost;
         const noShell = await flushHostSave();
-        return { kept, refused, noShell };
+        return { kept, refused, recovered, noShell };
       `);
 
         eq(
@@ -611,6 +631,9 @@ async function main() {
         eq(out.kept.written, 'edited just now', 'the waiting edit never reached the folder: ');
         ok(out.kept.history, 'the undo history waiting to be written was dropped on close');
         eq(out.refused, { saved: false, hosted: true }, 'a refused write was reported as saved: ');
+        eq(out.recovered.byFlush, { saved: true, hosted: true }, 'a write on close that landed: ');
+        eq(out.recovered.written, 'reaches it on its own', 'the delayed write never landed: ');
+        eq(out.recovered.byDelay, { saved: true, hosted: true }, 'a delayed write that landed: ');
         eq(out.noShell, { saved: true, hosted: false }, 'with no shell: ');
       },
     );

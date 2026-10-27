@@ -63,9 +63,9 @@ Without all five, `project` is not a project and the shell is ignored.
 - **`write(doc)`** is handed exactly what `project()` builds, the same document
   **Save project** downloads in a browser. Fields the editor does not know are
   in it unchanged, so a shell's own fields survive. The first failure shows
-  "Could not save to the project folder — your editing is still here", once.
-  From then on `flushHostSave()` reports the folder out of date for the rest of
-  the session, even after later writes succeed — which is a bug, [#130].
+  "Could not save to the project folder — your editing is still here", once
+  for each run of failures. `flushHostSave()` reports the folder out of date
+  until a later write lands, which brings it fully up to date again ([#130]).
 - **`media()`** lists only what the editor could decode. `bytes` is not used
   yet. Called when the page starts and again whenever the folder changes; songs
   already decoded are not opened twice.

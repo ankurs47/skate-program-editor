@@ -1282,8 +1282,8 @@
     "guards": "closing a project in a shell never loses the last edit",
     "file": "src/app.js",
     "suite": "dom",
-    "find": "    try {\n      await folder.write(project());\n    } catch (err) {",
-    "replace": "    try {\n      void project();\n    } catch (err) {",
+    "find": "    try {\n      await folder.write(project());\n      hostSaveSucceeded();",
+    "replace": "    try {\n      void project();\n      hostSaveSucceeded();",
     "expect": "the waiting edit never reached the folder"
   },
   {
@@ -1303,5 +1303,23 @@
     "find": "      reportHostSaveFailure(err);\n      return { saved: false, hosted: true };",
     "replace": "      reportHostSaveFailure(err);\n      return { saved: true, hosted: true };",
     "expect": "a refused write was reported as saved"
+  },
+  {
+    "name": "a write on close that lands still reports the old failure",
+    "guards": "one refused write does not mark the folder unsaved for good",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "      await folder.write(project());\n      hostSaveSucceeded();",
+    "replace": "      await folder.write(project());",
+    "expect": "a write on close that landed"
+  },
+  {
+    "name": "a delayed write that lands still reports the old failure",
+    "guards": "one refused write does not mark the folder unsaved for good",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "Promise.resolve(folder.write(project())).then(hostSaveSucceeded).catch(reportHostSaveFailure);",
+    "replace": "Promise.resolve(folder.write(project())).catch(reportHostSaveFailure);",
+    "expect": "a delayed write that landed"
   }
 ]
