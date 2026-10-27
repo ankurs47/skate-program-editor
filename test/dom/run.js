@@ -564,21 +564,23 @@ async function main() {
     await check(
       'a shell about to close gets every edit written, and hears if one was not',
       async () => {
-        /* A shell calls flushHostSave() by name before it lets a project window
-         go (docs/host.md). An edit waiting out the save delay exists
-         nowhere but in memory, so this is the one moment work can be lost —
-         and saved: false is the one answer worth interrupting a close for. */
+        /* A shell asks for a flush before it lets a project window go, through
+         what connect handed it (docs/host.md). An edit waiting out the save
+         delay exists nowhere but in memory, so this is the one moment work can
+         be lost — and saved: false is the one answer worth interrupting a
+         close for. */
         const out = await run(`
         window.__reset([]);
         const fake = window.__fakeHost({ project: { name: 'before', clips: [] } });
         window.skateHost = fake.host;
+        hostConnect(hostEditor());
         await openHostProject();
 
         pushUndo();
         state.name = 'edited just now';
         save();
         const pending = fake.calls.filter(([m]) => m === 'write').length;
-        const flushed = await flushHostSave();
+        const flushed = await fake.editor().flush();
         const kept = {
           pending,
           flushed,

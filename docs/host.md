@@ -33,6 +33,9 @@ interface the code no longer has.
 window.skateHost = {
   version: 1,
   project: {/* required and optional methods below */},
+  connect(editor) {
+    /* optional: what the page hands over */
+  },
 };
 ```
 
@@ -106,6 +109,20 @@ Without all five, `project` is not a project and the shell is ignored.
   goes into the project once a clip uses the song. The page then reads `media()`
   again.
 
+### Beside the project
+
+Optional, on `skateHost` itself rather than on `project`.
+
+| Method            | Returns | The editor uses it to                              |
+| ----------------- | ------- | -------------------------------------------------- |
+| `connect(editor)` | nothing | hand over what the shell may ask of the page below |
+
+- **`connect(editor)`** is called once, at startup, after the shell is found
+  and before the project is read — so a shell closing early can still ask for a
+  flush. `editor` is described under [Called by the shell](#called-by-the-shell).
+  A shell keeps it for as long as the page is open; it is the only way the shell
+  reaches into the page.
+
 ## What changes inside a shell
 
 - **Save project**, **Load project**, **New**, the empty screen's **Load a saved
@@ -118,26 +135,41 @@ Without all five, `project` is not a project and the shell is ignored.
 
 ## Called by the shell
 
-There is no declared way for the shell to call the page yet. A shell calls this
-function by name, in the page, before it closes a project:
+The `editor` the page hands to `connect`. The shell calls nothing in the page
+any other way — not a global by name, not a script it injects.
 
-| Function          | Returns             | Meaning                                                               |
-| ----------------- | ------------------- | --------------------------------------------------------------------- |
-| `flushHostSave()` | `{ saved, hosted }` | write anything waiting, now, and say whether the folder is up to date |
+| Method    | Returns             | Meaning                                                               |
+| --------- | ------------------- | --------------------------------------------------------------------- |
+| `flush()` | `{ saved, hosted }` | write anything waiting, now, and say whether the folder is up to date |
 
-`saved` is false only when a write was refused, which is the one case where
-closing loses work. `hosted` is false when there is no shell. Renaming this
-function breaks closing a project in a shell without breaking anything in a
-browser, which is why a check asserts it exists; [#120] replaces it with
-something declared.
+- **`flush()`** is what a shell asks before it closes a project. An edit made
+  in the last moment before closing is waiting out the save delay and exists
+  nowhere but in memory; this writes it, and the undo history with it. `saved`
+  is false only when a write was refused — the one case where closing loses
+  work, and the one worth interrupting a close for. `hosted` is false when the
+  page has no shell, which only happens if the shell went away after connecting.
 
 ## What a shell reads from the editor's code
 
-A shell may also run the editor's pure code under Node, through `app.js` — for
-a list of projects, or a dialog that starts one: `LEVELS`, `findLevel`,
-`layout`, `readProject`, `AUDIO_EXTENSIONS`, `FORMAT`, `FORMAT_VERSION` and
-`SCHEMA_URL` are used that way today. Nothing here marks them as used elsewhere
-yet; [#120] declares them.
+A shell may run the editor's pure code under Node, by requiring `src/app.js`,
+which gathers every file's exports. These names are the interface; everything
+else exported is free to change. `SHELL_EXPORTS` in `src/host.js` lists them.
+
+| Name                    | What it is                                                  |
+| ----------------------- | ----------------------------------------------------------- |
+| `HOST_VERSION`          | the version a bridge must announce                          |
+| `HOST_PROJECT_METHODS`  | the project methods a bridge must offer                     |
+| `HOST_PROJECT_OPTIONAL` | the project methods a bridge may offer                      |
+| `HOST_OPTIONAL`         | the methods a bridge may offer beside the project           |
+| `hostPresent`           | whether the editor would accept `window.skateHost` as it is |
+| `LEVELS`                | the events and their program lengths, grouped               |
+| `findLevel`             | an event by its id, or null                                 |
+| `layout`                | where each clip falls in program time, and the total length |
+| `readProject`           | a project document read the way the page reads one          |
+| `AUDIO_EXTENSIONS`      | which file names the editor treats as music                 |
+| `FORMAT`                | the `format` every project document carries                 |
+| `FORMAT_VERSION`        | the newest project format this editor reads and writes      |
+| `SCHEMA_URL`            | the `$schema` every project document points at              |
 
 ## Offered but not used
 
@@ -199,29 +231,28 @@ gives a reason to break it.
 
 In order. Each lands in this document when it lands in the code.
 
-1. **Declared dependencies** ([#120]): the page hands `flush` to the shell
-   rather than being called by name, and the Node exports above become a
-   declared list with a check.
-2. **Commands and state** ([#121]): the page registers its commands — undo,
-   play, make music file, the help topics — and reports what a menu needs to
-   know: undo and redo, whether there is a program, playing, exporting and its
-   progress, the program name. Expected shape: the page calls
-   `skateHost.connect(editor)` once, with `editor.commands`, `editor.state` and
-   `editor.flush`, so both directions go through the one object. Commands that
+1. **Commands and state** ([#121]): `editor` gains `commands` and `state`. The
+   page registers its commands — undo, play, make music file, the help topics —
+   and reports what a menu needs to know: undo and redo, whether there is a
+   program, playing, exporting and its progress, the program name. Commands that
    take a target follow ([#133]).
-3. **Ready** ([#134]): the page says when the program is on screen.
-4. **Capabilities**: `skateHost.capabilities`, as in convention 8.
-5. **A native menu** ([#123]): with one, the page hides the header items the menu
+2. **Ready** ([#134]): the page says when the program is on screen.
+3. **Capabilities**: `skateHost.capabilities`, as in convention 8.
+4. **A native menu** ([#123]): with one, the page hides the header items the menu
    covers.
-6. **Music files** ([#125]): `writeExport(name, bytes, details)` hands the finished
+5. **Music files** ([#125]): `writeExport(name, bytes, details)` hands the finished
    file to the shell instead of downloading it.
-7. **Colors** ([#127]), **the guide** ([#122]) and **confirmations** ([#135]): the
+6. **Colors** ([#127]), **the guide** ([#122]) and **confirmations** ([#135]): the
    page reports its color choice, asks the shell to show the guide rather than
    navigating away from the program, and asks the shell to confirm destructive
    actions natively.
 
 ## Changelog
 
+- **Version 1, `connect`** ([#120]). `skateHost.connect(editor)` added, with
+  `editor.flush()`. A shell no longer calls the page's `flushHostSave()` by
+  name; it is not part of the interface. The Node exports a shell may use are
+  declared as `SHELL_EXPORTS`.
 - **Version 1.** `project` with `name`, `read`, `write`, `media` and `open`
   required, and `importFile`, `discard`, `readHistory`, `writeHistory` and
   `onAdded` optional. Written down for the first time ([#129]); no method

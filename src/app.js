@@ -629,6 +629,15 @@ async function flushHostSave() {
   return { saved: !hostSaveFailed, hosted: true };
 }
 
+/**
+ * What a shell may ask of this page — docs/host.md, "Called by the shell". A
+ * function so each shell gets its own object, and so a check can ask what is in
+ * it without a shell to hand it to.
+ */
+function hostEditor() {
+  return { flush: flushHostSave };
+}
+
 /* How long to wait before writing the undo history out. Slower than the
    program itself on purpose: the program is small and is the thing that must
    not be lost, while the history is sixty snapshots of it and only has to
@@ -1613,6 +1622,8 @@ function init() {
        find: it opens, and its music opens with it. Never waited on — the editor
        has to start whether or not the folder answers. */
     saved = { clips: [] }; // enough to keep the start dialog shut
+    // Before anything is read, so a shell closing early can still ask for a flush.
+    hostConnect(hostEditor());
     openHostProject();
   } else {
     try {
@@ -1736,6 +1747,7 @@ if (typeof document !== 'undefined') {
     openHostMedia,
     openHostProject,
     flushHostSave,
+    hostEditor,
     bindHostAdded,
     PROJECT_CONTROLS,
     hideProjectControls,

@@ -33,6 +33,28 @@ const HOST_PROJECT_METHODS = ['name', 'read', 'write', 'media', 'open'];
    shell the tests use can be held to the same set. */
 const HOST_PROJECT_OPTIONAL = ['importFile', 'discard', 'readHistory', 'writeHistory', 'onAdded'];
 
+/* What the shell itself may offer, beside the project. */
+const HOST_OPTIONAL = ['connect'];
+
+/* The names a shell may take from this code under Node, through app.js. Anything
+   else exported is free to change; these are an interface, and a shell is built
+   against them. Held to docs/host.md, and each to being exported, by a check. */
+const SHELL_EXPORTS = [
+  'HOST_VERSION',
+  'HOST_PROJECT_METHODS',
+  'HOST_PROJECT_OPTIONAL',
+  'HOST_OPTIONAL',
+  'hostPresent',
+  'LEVELS',
+  'findLevel',
+  'layout',
+  'readProject',
+  'AUDIO_EXTENSIONS',
+  'FORMAT',
+  'FORMAT_VERSION',
+  'SCHEMA_URL',
+];
+
 /**
  * The host object, or null when there isn't a usable one.
  *
@@ -81,6 +103,22 @@ function hostAdded() {
   return project && typeof project.onAdded === 'function' ? project.onAdded : null;
 }
 
+/**
+ * Hand the shell what it may ask of the page, if it takes it. Says whether it
+ * did.
+ *
+ * The other direction of the bridge. Before this, a shell closing a project ran
+ * the page's flush by name, and renaming that function broke closing without
+ * breaking anything a browser would notice. Handed over, it is part of the
+ * interface: listed in docs/host.md, and held there by a check.
+ */
+function hostConnect(editor) {
+  const given = host();
+  if (!given || typeof given.connect !== 'function') return false;
+  given.connect(editor);
+  return true;
+}
+
 /* Under Node — the test suite — hand this file's names to app.js, which puts
    them back into the single scope the script tags give them in a browser. */
 if (typeof module !== 'undefined' && module.exports) {
@@ -88,9 +126,12 @@ if (typeof module !== 'undefined' && module.exports) {
     HOST_VERSION,
     HOST_PROJECT_METHODS,
     HOST_PROJECT_OPTIONAL,
+    HOST_OPTIONAL,
+    SHELL_EXPORTS,
     host,
     hostPresent,
     hostProject,
     hostAdded,
+    hostConnect,
   };
 }
