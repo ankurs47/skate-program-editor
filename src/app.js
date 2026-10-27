@@ -404,10 +404,16 @@ function selectedClip() {
   return state.clips.find((c) => c.id === state.selected) || null;
 }
 
+/* No confirmation, because Undo brings it all back — trims, fades, blend and
+   level. But Delete and Backspace do this from anywhere outside a text field,
+   so it is said out loud, with the way back, rather than happening silently. */
 function removeClip(id) {
-  pushUndo();
   const i = state.clips.findIndex((c) => c.id === id);
+  if (i < 0) return;
+  pushUndo();
+  const removed = state.clips[i];
   state.clips = state.clips.filter((c) => c.id !== id);
+  toast(`Took “${removed.title}” out of the program — Undo puts it back`, 4200);
   if (state.clips.length) {
     state.selected = state.clips[Math.min(i, state.clips.length - 1)].id;
   } else {

@@ -1222,5 +1222,14 @@
     "find": "    return clamp(from + ((e.clientX - rect.left) / rect.width) * (to - from), from, to);",
     "replace": "    return clamp(((e.clientX - rect.left) / rect.width) * songLength(selectedClip()), from, to);",
     "expect": "zoomed in, one arrow press visibly moves the handle"
+  },
+  {
+    "name": "removing a song says nothing again",
+    "guards": "a song never disappears without a word",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "  toast(`Took “${removed.title}” out of the program — Undo puts it back`, 4200);",
+    "replace": "  void removed;",
+    "expect": "removing a song with a key says so, and Undo brings it back whole"
   }
 ]
