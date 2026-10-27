@@ -2244,6 +2244,64 @@ async function main() {
       eq(out.redone, { undo: true, redo: false, fade: 3 }, 'after Redo: ');
     });
 
+    await check('a start or end time can be typed in', async () => {
+      /* Real typing through Chrome's input layer: the field has to take the
+         keys rather than the editor's shortcuts, and Enter has to commit. */
+      const key = async (name, code, keyCode) => {
+        for (const type of ['rawKeyDown', 'keyUp']) {
+          await page.send('Input.dispatchKeyEvent', {
+            type,
+            key: name,
+            code,
+            windowsVirtualKeyCode: keyCode,
+          });
+        }
+      };
+      const typeInto = async (id, text) => {
+        await run(`__id('${id}').focus();`);
+        await page.send('Input.insertText', { text });
+      };
+      const read = () =>
+        run(`return { start: state.clips[0].srcStart, end: state.clips[0].srcEnd,
+                      shown: __id('lblEnd').value, toast: (__id('toast') || {}).textContent };`);
+      await run(`
+        window.__reset([['a.wav', window.__tone(220, 30)]]);
+        state.selected = state.clips[0].id;
+        refresh();
+        undoStack.length = 0; refresh();
+      `);
+
+      await typeInto('lblStart', '0:04.5');
+      await key('Enter', 'Enter', 13);
+      const started = await read();
+
+      // "1:00" is past this 30 s file, so the end goes to the end of the file.
+      await typeInto('lblEnd', '1:00');
+      await key('Enter', 'Enter', 13);
+      const pastEnd = await read();
+
+      // Escape leaves the time as it was.
+      await typeInto('lblEnd', '0:10');
+      await key('Escape', 'Escape', 27);
+      const escaped = await read();
+
+      // An end before the start is refused, and the field shows the real end.
+      await typeInto('lblEnd', '0:02');
+      await key('Enter', 'Enter', 13);
+      const refused = await read();
+
+      const undone = await run(`undo(); return state.clips[0].srcStart;`);
+
+      eq(started.start, 4.5, 'the typed start did not apply: ');
+      eq(pastEnd.end, 30, 'a time past the file should give all of it: ');
+      eq(pastEnd.shown, '0:30.0', 'the field should show where the end went: ');
+      eq(escaped.end, 30, 'Escape changed the end: ');
+      eq(escaped.shown, '0:30.0');
+      eq(refused.end, 30, 'an end before the start was accepted: ');
+      eq(refused.shown, '0:30.0', 'the refused time was left in the field: ');
+      eq(undone, 0, 'typing a time is not one undo step: ');
+    });
+
     await check('a silence before a song delays it, and the blend gives way', async () => {
       /* Through the slider, and onto the sources that are actually started:
          a gap that only moved the timeline would show a silence and play none. */

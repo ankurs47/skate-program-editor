@@ -396,6 +396,22 @@ function trimEdge(clip, edge, cursor, fileDuration = Infinity) {
   return { at: clamp(at, earliest, fileDuration) };
 }
 
+/** Where a typed time puts one end of a clip: `{at}`, or `{refuse}` saying why not. */
+function typedEdge(clip, edge, text, fileDuration = Infinity) {
+  const at = parseSongTime(text);
+  if (at === null) return { refuse: 'Type a time like 1:05.5, or 65.5 for seconds' };
+  /* The same limits as I and O, with their refusals reworded: there is no
+     marker involved here, and saying so would only confuse. */
+  const found = trimEdge(clip, edge, at, fileDuration);
+  if (!found.refuse) return found;
+  return {
+    refuse:
+      edge === 'start'
+        ? `The start has to be before the end, at ${fmt(clip.srcEnd)}`
+        : `The end has to be after the start, at ${fmt(clip.srcStart)}`,
+  };
+}
+
 /**
  * Where one end of a clip lands after moving it by `by` seconds.
  *
@@ -1015,13 +1031,23 @@ function describeReconnect({ files, gone, refused }) {
 
 /* --------------------------------------------------------- reading a time */
 
-function parseClock(text) {
+/**
+ * A typed time — `1:05.5`, or plain seconds — or null.
+ *
+ * Zero is a time: the very start of a song is a place to cut. `parseClock` is
+ * the stricter one, for a program length, which cannot be zero.
+ */
+function parseSongTime(text) {
   const m = String(text)
     .trim()
     .match(/^(?:(\d+):)?(\d{1,2}(?:\.\d+)?)$/);
   if (!m) return null;
-  const seconds = (m[1] ? Number(m[1]) * 60 : 0) + Number(m[2]);
-  return seconds > 0 && seconds < 3600 ? seconds : null;
+  return (m[1] ? Number(m[1]) * 60 : 0) + Number(m[2]);
+}
+
+function parseClock(text) {
+  const seconds = parseSongTime(text);
+  return seconds !== null && seconds > 0 && seconds < 3600 ? seconds : null;
 }
 
 /* Under Node — the test suite — hand this file's names to app.js, which puts
@@ -1067,6 +1093,7 @@ if (typeof module !== 'undefined' && module.exports) {
     clampClipsToFile,
     clampFades,
     trimEdge,
+    typedEdge,
     nudgeEdge,
     reordered,
     JOIN_PREVIEW,
@@ -1086,6 +1113,7 @@ if (typeof module !== 'undefined' && module.exports) {
     clipsPastEnd,
     checkReplacement,
     describeReconnect,
+    parseSongTime,
     parseClock,
   };
 }

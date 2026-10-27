@@ -1186,5 +1186,23 @@
     "find": "function save() {\n  updateUndoAvailability();",
     "replace": "function save() {",
     "expect": "Undo and Redo buttons work, and say when there is nothing to do"
+  },
+  {
+    "name": "a typed time that changes nothing leaves an undo step",
+    "guards": "Undo always undoes something",
+    "file": "src/editor.js",
+    "suite": "dom",
+    "find": "      if (found.at !== (edge === 'start' ? clip.srcStart : clip.srcEnd)) {",
+    "replace": "      if (true) {",
+    "expect": "a start or end time can be typed in"
+  },
+  {
+    "name": "a refused typed time talks about a marker",
+    "guards": "a refusal names what was actually done",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "  if (!found.refuse) return found;",
+    "replace": "  return found;",
+    "expect": "typedEdge: a typed time trims, with the limits I and O have"
   }
 ]

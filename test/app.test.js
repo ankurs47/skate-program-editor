@@ -2275,6 +2275,30 @@ check('nudgeEdge: either end moves, and stays inside the clip and the file', () 
   eq(clip, { srcStart: 10, srcEnd: 20 }, 'the clip itself is left alone: ');
 });
 
+check('typedEdge: a typed time trims, with the limits I and O have', () => {
+  const clip = { srcStart: 10, srcEnd: 20 };
+  eq(app.typedEdge(clip, 'start', '0:05.5', 30), { at: 5.5 });
+  eq(app.typedEdge(clip, 'start', '0', 30), { at: 0 }, 'the very start of the song: ');
+  eq(app.typedEdge(clip, 'end', '25', 30), { at: 25 }, 'plain seconds: ');
+  eq(app.typedEdge(clip, 'end', ' 1:00 ', 30), { at: 30 }, 'past the file, all of it: ');
+  ok(app.typedEdge(clip, 'start', '0:25', 30).refuse.includes('before the end'), 'start after end');
+  ok(app.typedEdge(clip, 'end', '0:05', 30).refuse.includes('after the start'), 'end before start');
+  for (const text of ['', 'soon', '1:2:3', '-4', '1,5']) {
+    ok(
+      app.typedEdge(clip, 'start', text, 30).refuse,
+      `${JSON.stringify(text)} was taken as a time`,
+    );
+  }
+  ok(!/marker/.test(app.typedEdge(clip, 'end', '0:01', 30).refuse), 'there is no marker here');
+});
+
+check('parseSongTime: zero is a time, where a program length cannot be', () => {
+  eq(app.parseSongTime('0:00.0'), 0);
+  eq(app.parseSongTime('2:10'), 130);
+  eq(app.parseClock('0:00'), null, 'parseClock still refuses a zero length: ');
+  eq(app.parseClock('2:10'), 130);
+});
+
 check('trimEdge: no marker at all is refused rather than read as zero', () => {
   for (const cursor of [NaN, undefined, null, 'x', Infinity]) {
     const found = app.trimEdge(trimClip, 'start', cursor, 30);
