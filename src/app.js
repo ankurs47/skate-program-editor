@@ -1295,15 +1295,23 @@ function onKey(e) {
     pushUndo(`trim-${edge === 'start' ? 'in' : 'out'}:${clip.id}`);
     if (edge === 'start') clip.srcStart = found.at;
     else clip.srcEnd = found.at;
+    // so the arrows can fine-tune the cut that was just made
+    setActiveEdge(edge);
     refresh();
   } else if (e.key === 'Delete' || e.key === 'Backspace') {
     e.preventDefault();
     removeClip(clip.id);
   } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
     e.preventDefault();
+    const edge = getActiveEdge();
     const dir = e.key === 'ArrowRight' ? 1 : -1;
-    pushUndo(`nudge-end:${clip.id}`);
-    clip.srcEnd = Math.max(clip.srcStart + 0.1, clip.srcEnd + dir * nudge);
+    const entry = library.get(clip.file);
+    const at = nudgeEdge(clip, edge, dir * nudge, entry ? entry.duration : clip.srcEnd);
+    // Already against the limit: no move, so no undo step that undoes nothing.
+    if (at === (edge === 'start' ? clip.srcStart : clip.srcEnd)) return;
+    pushUndo(`nudge-${edge}:${clip.id}`);
+    if (edge === 'start') clip.srcStart = at;
+    else clip.srcEnd = at;
     refresh();
   } else if (e.key === '[' || e.key === ']') {
     const i = state.clips.indexOf(clip);

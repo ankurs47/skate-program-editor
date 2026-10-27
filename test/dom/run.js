@@ -2022,6 +2022,75 @@ async function main() {
       );
     });
 
+    await check(
+      'the arrow keys trim whichever end was last touched, and stay in the file',
+      async () => {
+        /* Real key and pointer events from Chrome's input layer, so the press
+           lands wherever focus really is and the grab goes through the canvas's
+           own pointer handling. A freshly added song ends at the end of its
+           file, which is where the old nudge ran straight past into silence
+           and the start could not be nudged at all. */
+        const press = async (key, code) => {
+          for (const type of ['rawKeyDown', 'keyUp']) {
+            await page.send('Input.dispatchKeyEvent', {
+              type,
+              key,
+              code,
+              windowsVirtualKeyCode: { ArrowLeft: 37, ArrowRight: 39, i: 73 }[key],
+            });
+          }
+        };
+        const tap = async ({ x, y }) => {
+          for (const type of ['mousePressed', 'mouseReleased']) {
+            await page.send('Input.dispatchMouseEvent', {
+              type,
+              x,
+              y,
+              button: 'left',
+              clickCount: 1,
+            });
+          }
+        };
+        const read = () =>
+          run(`return { start: +state.clips[0].srcStart.toFixed(2),
+                      end: +state.clips[0].srcEnd.toFixed(2), edge: getActiveEdge() };`);
+
+        await run(`
+        window.__reset([['a.wav', window.__tone(220, 30)]]);
+        state.selected = state.clips[0].id;
+        setActiveEdge('end');
+        refresh();
+        document.activeElement.blur();
+      `);
+        const fresh = await read();
+
+        // Already at the end of the file: nothing to move to, so nothing moves.
+        await press('ArrowRight', 'ArrowRight');
+        const atLimit = await read();
+        await press('ArrowLeft', 'ArrowLeft');
+        const endNudged = await read();
+
+        // Grabbing the start handle makes it the one the arrows move.
+        const start = await run(`const r = __id('clipCanvas').getBoundingClientRect();
+                                 return { x: r.left + 1, y: r.top + r.height / 2 };`);
+        await tap(start);
+        await press('ArrowRight', 'ArrowRight');
+        const afterGrab = await read();
+
+        // So does setting it with I.
+        await run(`setActiveEdge('end'); state.cursor = 3;`);
+        await press('i', 'KeyI');
+        await press('ArrowRight', 'ArrowRight');
+        const afterI = await read();
+
+        eq(fresh, { start: 0, end: 30, edge: 'end' });
+        eq(atLimit.end, 30, 'the end ran past the end of the file: ');
+        eq(endNudged, { start: 0, end: 29.9, edge: 'end' }, 'the end did not move: ');
+        eq(afterGrab, { start: 0.1, end: 29.9, edge: 'start' }, 'after grabbing the start: ');
+        eq(afterI, { start: 3.1, end: 29.9, edge: 'start' }, 'after setting the start with I: ');
+      },
+    );
+
     await check('a silence before a song delays it, and the blend gives way', async () => {
       /* Through the slider, and onto the sources that are actually started:
          a gap that only moved the timeline would show a silence and play none. */

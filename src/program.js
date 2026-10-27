@@ -397,6 +397,22 @@ function trimEdge(clip, edge, cursor, fileDuration = Infinity) {
 }
 
 /**
+ * Where one end of a clip lands after moving it by `by` seconds.
+ *
+ * Held inside the file as well as inside the clip. Nudging the end used to stop
+ * only at the start, so holding the key ran it past the last sample into
+ * silence that Web Audio plays without complaint.
+ */
+function nudgeEdge(clip, edge, by, fileDuration = Infinity) {
+  if (edge === 'start') return clamp(clip.srcStart + by, 0, clip.srcEnd - MIN_CLIP);
+  return clamp(
+    clip.srcEnd + by,
+    clip.srcStart + MIN_CLIP,
+    Math.max(fileDuration, clip.srcStart + MIN_CLIP),
+  );
+}
+
+/**
  * The clip list with one clip moved, or null if that is not a real move.
  *
  * Both indices are checked, not just the destination. `fromIndex` arrives from
@@ -1028,6 +1044,7 @@ if (typeof module !== 'undefined' && module.exports) {
     clampClipsToFile,
     clampFades,
     trimEdge,
+    nudgeEdge,
     reordered,
     JOIN_PREVIEW,
     joinPreviewRange,
