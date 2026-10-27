@@ -530,3 +530,8 @@ script loads fine. Both are checked behavior, not assumed.
   option under focus.
 - New user-facing strings get the plain-language treatment; new pure functions
   get a test.
+- A change anyone can see ships with a new README picture: run
+  `npm run screenshot` and commit `docs/screenshot.png` in the same pull
+  request. A browser check fails until you do. It compares a hash of the
+  page's elements, text and styles, which the script stores inside the PNG,
+  rather than pixels, because fonts render differently on every machine.

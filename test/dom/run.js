@@ -21,6 +21,7 @@ const fs = require('fs');
 const path = require('path');
 const { open } = require('./browser.js');
 const { SETUP } = require('./fixtures.js');
+const { SHOT, stage, readStamp } = require('../../tools/screenshot.js');
 // The one list of script files, so this cannot drift from what the page loads.
 const { app, SCRIPTS } = require('../harness.js');
 
@@ -3412,6 +3413,24 @@ async function main() {
       eq(out.after.clips, 0, 'the program is still on screen: ');
       eq(out.after.disabled, true, 'the button is still live with nothing left to forget: ');
       ok(out.after.note !== out.before.note, 'the menu still claims the same thing is stored');
+    });
+
+    await check('the README screenshot shows the interface as it is now', async () => {
+      /* Its own browser, because the picture is staged from a clean page at a
+         fixed viewport, and this one has been through every check above. */
+      const shot = await open();
+      let now;
+      try {
+        now = (await stage(shot)).fingerprint;
+      } finally {
+        await shot.close();
+      }
+      const then = readStamp(fs.readFileSync(SHOT));
+      ok(
+        then === now,
+        'the interface has changed since docs/screenshot.png was taken — ' +
+          'run `npm run screenshot` and commit the new picture',
+      );
     });
 
     await check('nothing logged an error along the way', async () => {

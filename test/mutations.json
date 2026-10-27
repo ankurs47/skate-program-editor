@@ -1249,5 +1249,23 @@
     "find": "    dragging = null;\n    hideCloseup();",
     "replace": "    dragging = null;",
     "expect": "moving an end shows a close-up of it, and only while it moves"
+  },
+  {
+    "name": "a button is renamed and the screenshot is not retaken",
+    "guards": "the README picture shows the words the interface uses",
+    "file": "index.html",
+    "suite": "dom",
+    "find": "<button id=\"btnEvenOut\">Even out the volume</button>",
+    "replace": "<button id=\"btnEvenOut\">Even out volume</button>",
+    "expect": "the README screenshot shows the interface as it is now"
+  },
+  {
+    "name": "the dark accent changes and the screenshot is not retaken",
+    "guards": "the README picture shows the colors the interface uses",
+    "file": "src/style.css",
+    "suite": "dom",
+    "find": "  --line: #2c323b;\n  --accent: #5b8cff;",
+    "replace": "  --line: #2c323b;\n  --accent: #5b8cfe;",
+    "expect": "the README screenshot shows the interface as it is now"
   }
 ]
