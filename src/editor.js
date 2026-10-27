@@ -99,8 +99,19 @@ function drawClipEditor() {
     slider.value = String(applied[key]);
     label.textContent = `${applied[key].toFixed(1)}s`;
   }
+  // A silence is not limited by how long the clip is, so it keeps its own range.
+  const index = state.clips.indexOf(clip);
+  const gap = gapOf(state.clips, index);
+  $('gap').max = String(MAX_GAP);
+  $('gap').value = String(gap);
+  $('valGap').textContent = `${gap.toFixed(1)}s`;
+  /* A blend and a silence cannot both happen at one join, so while there is a
+     silence the blend slider says why it does nothing rather than moving
+     without effect. */
+  $('crossfade').disabled = gap > 0;
+  $('blendWrap').title = gap > 0 ? 'Set the silence before to 0 to blend these two songs' : '';
   // the first clip has nothing before it to blend into
-  $('crossfadeWrap').classList.toggle('hidden', state.clips.indexOf(clip) === 0);
+  $('crossfadeWrap').classList.toggle('hidden', index === 0);
   updateAlignAvailability();
   updateOrderAvailability();
 }
@@ -183,7 +194,10 @@ function alignSelectedJoin() {
     return;
   }
 
-  const was = clip.crossfade || 0;
+  /* With a silence between them the songs do not overlap, so the suggestion is
+     asked to keep the blend at zero and its blend is not written back. */
+  const silent = gapOf(state.clips, i) > 0;
+  const was = silent ? 0 : clip.crossfade || 0;
   const result = suggestJoinForBuffers(prevEntry.buffer, prev.srcEnd, entry.buffer, clip.srcStart, {
     crossfade: was,
     // The blend slider tops out at 10s and cannot outlast either clip.
@@ -201,7 +215,7 @@ function alignSelectedJoin() {
     pushUndo();
     prev.srcEnd = clamp(prev.srcEnd + result.endShift, prev.srcStart + 0.1, prevEntry.duration);
     clip.srcStart = clamp(clip.srcStart + result.startShift, 0, clip.srcEnd - 0.1);
-    clip.crossfade = Math.max(0, result.crossfade);
+    if (!silent) clip.crossfade = Math.max(0, result.crossfade);
     refresh();
   }
   toast(describeJoin(result, was), 4200);

@@ -2022,6 +2022,55 @@ async function main() {
       );
     });
 
+    await check('a silence before a song delays it, and the blend gives way', async () => {
+      /* Through the slider, and onto the sources that are actually started:
+         a gap that only moved the timeline would show a silence and play none. */
+      const result = await run(`
+        window.__reset([['a.wav', window.__tone(220, 10)], ['b.wav', window.__tone(330, 10)]]);
+        state.clips[1].crossfade = 1.5;
+        state.selected = state.clips[1].id;
+        refresh();
+        const slider = __id('gap');
+        slider.value = '3';
+        slider.dispatchEvent(new Event('input'));
+        slider.dispatchEvent(new Event('change'));
+
+        const starts = [];
+        const realStart = AudioBufferSourceNode.prototype.start;
+        AudioBufferSourceNode.prototype.start = function (when) {
+          starts.push(+when.toFixed(3));
+          return realStart.apply(this, arguments);
+        };
+        try {
+          const offline = new OfflineAudioContext(2, 44100, 44100);
+          scheduleProgram(offline, offline.destination, 0, 0);
+        } finally {
+          AudioBufferSourceNode.prototype.start = realStart;
+        }
+        const marker = document.querySelector('#timeline .tl-xf');
+        const out = {
+          gap: state.clips[1].gap,
+          blendKept: state.clips[1].crossfade,
+          blendDisabled: __id('crossfade').disabled,
+          label: __id('valGap').textContent,
+          marker: marker && marker.textContent,
+          starts,
+          total: layout(state.clips).total,
+        };
+        undo();
+        out.undone = gapOf(state.clips, 1);
+        return out;
+      `);
+      eq(result.gap, 3, 'the slider did not set the silence: ');
+      eq(result.label, '3.0s');
+      eq(result.blendKept, 1.5, 'the blend should be kept for when the silence goes: ');
+      ok(result.blendDisabled, 'the blend slider still offers a blend that would not happen');
+      eq(result.marker, '… 3.0s', 'the strip does not show the silence: ');
+      eq(result.starts, [0, 13], 'the second song must start after the first and the silence: ');
+      eq(result.total, 23);
+      eq(result.undone, 0, 'undo did not take the silence back out: ');
+    });
+
     await check('playing a join stops before the end of the program', async () => {
       const result = await run(`
         window.__reset([['a.mp3', window.__clicks(120, 30)], ['b.mp3', window.__clicks(120, 30)]]);

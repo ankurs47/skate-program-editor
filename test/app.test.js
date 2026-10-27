@@ -50,6 +50,67 @@ check('layout: a blend cannot exceed either neighbor', () => {
   eq(app.crossfadeOf(clips, 0), 0, 'first clip has nothing to blend into: ');
 });
 
+check('layout: a silence lengthens the program, and turns the blend off', () => {
+  const clips = [
+    { srcStart: 0, srcEnd: 60, crossfade: 0 },
+    { srcStart: 0, srcEnd: 40, crossfade: 2, gap: 3 },
+    { srcStart: 0, srcEnd: 30, crossfade: 2 },
+  ];
+  const { parts, total } = app.layout(clips);
+  eq(
+    parts.map((p) => p.start),
+    [0, 63, 101],
+  );
+  eq(total, 131); // 60 + 3 + 40 − 2 + 30
+  eq(app.crossfadeOf(clips, 1), 0, 'a silent join cannot also be blended: ');
+  eq(clips[1].crossfade, 2, 'the stored blend is kept for when the silence goes: ');
+  // the blend is gone from both sides, or the song before fades into nothing
+  eq(app.crossfadeEnvelope(clips, 0).at(-1), [60, 1], 'the clip before still ends at full: ');
+});
+
+check('layout: a silence is clamped, and means nothing on the first clip', () => {
+  eq(app.gapOf([{ gap: 4 }], 0), 0, 'nothing comes before the first clip: ');
+  eq(app.gapOf([{}, { gap: -2 }], 1), 0, 'negative: ');
+  eq(app.gapOf([{}, { gap: 'long' }], 1), 0, 'not a number: ');
+  eq(app.gapOf([{}, { gap: 600 }], 1), app.MAX_GAP, 'past what the slider can show: ');
+});
+
+check('project file: a silence survives a save, and says which version it needs', () => {
+  const clip = (id, more) => ({
+    id,
+    file: `${id}.mp3`,
+    title: id,
+    srcStart: 0,
+    srcEnd: 10,
+    fadeIn: 0,
+    fadeOut: 0,
+    crossfade: 0,
+    gain: 1,
+    ...more,
+  });
+  const program = (clips) => ({
+    name: 'x',
+    level: 'usfs-juv',
+    targetSeconds: 150,
+    toleranceSeconds: 10,
+    clips,
+  });
+
+  withProgram(program([clip('a'), clip('b', { gap: 2.5 })]), () => {
+    const doc = app.project();
+    eq(doc.clips[1].silence, 2.5);
+    eq(doc.version, 2, 'a version 1 reader would drop the silence: ');
+    eq(app.readProject(doc).clips[1].gap, 2.5, 'read back: ');
+    eq(app.layout(app.readProject(doc).clips).total, 22.5);
+  });
+
+  withProgram(program([clip('a'), clip('b')]), () => {
+    const doc = app.project();
+    eq('silence' in doc.clips[1], false, 'no silence, no field: ');
+    eq(doc.version, 1, 'a program without one still opens in an older copy: ');
+  });
+});
+
 check('layout: empty program is zero, not NaN', () => {
   const { parts, total } = app.layout([]);
   eq(parts, []);
@@ -98,6 +159,16 @@ check('join preview: plays a few seconds either side of the join', () => {
   const range = app.joinPreviewRange(clips, 1, { lead: 4, tail: 4 });
   eq(range.from, 54, 'four seconds before the join: ');
   eq(range.until, 64, 'the tail is measured from the end of the blend, not the cut: ');
+});
+
+check('join preview: the lead is measured from where the song before stops', () => {
+  const clips = [
+    { srcStart: 0, srcEnd: 60, crossfade: 0 },
+    { srcStart: 0, srcEnd: 60, crossfade: 0, gap: 3 },
+  ];
+  const range = app.joinPreviewRange(clips, 1, { lead: 4, tail: 4 });
+  eq(range.from, 56, 'four seconds of the song before, then the silence: ');
+  eq(range.until, 67);
 });
 
 check('join preview: stays inside the program, and declines when there is no join', () => {
@@ -484,7 +555,7 @@ check('project file: the document holds exactly the fields it is documented to',
       ]);
       eq(Object.keys(doc.songs[0]).sort(), ['bytes', 'fingerprint', 'name', 'seconds', 'title']);
       eq(doc.format, app.FORMAT, 'the marker says what kind of document this is: ');
-      eq(doc.version, app.FORMAT_VERSION);
+      eq(doc.version, 1, 'nothing here needs more than version 1: ');
       eq(doc.event.label, 'Juvenile', 'the label is denormalized so an old file still reads: ');
     },
   );

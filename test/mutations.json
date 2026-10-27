@@ -157,7 +157,7 @@
     "guards": "a change of structure hiding inside a change of number",
     "file": "src/timeline.js",
     "suite": "dom",
-    "find": "        parts[i].xf >= MIN_CROSSFADE ? 1 : 0, // whether a blend marker is shown",
+    "find": "        joinMarker(parts[i]) ? 1 : 0, // whether a join marker is shown",
     "replace": "        0,",
     "expect": "rebuilds what it must"
   },
@@ -1087,5 +1087,32 @@
     "find": "      blend: Number((i === 0 ? 0 : c.crossfade || 0).toFixed(2)),",
     "replace": "      blend: Number((c.crossfade || 0).toFixed(2)),",
     "expect": "the file records no blend on the first clip"
+  },
+  {
+    "name": "a silence no longer turns the blend off",
+    "guards": "a join is blended or silent, never both",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "  if (i === 0 || gapOf(clips, i) > 0) return 0;",
+    "replace": "  if (i === 0) return 0;",
+    "expect": "a silence lengthens the program, and turns the blend off"
+  },
+  {
+    "name": "a program with a silence is written as version 1",
+    "guards": "an older reader refuses a file it would play too short",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "  return clips.some((_, i) => gapOf(clips, i) > 0) ? 2 : 1;",
+    "replace": "  return 1;",
+    "expect": "a silence survives a save, and says which version it needs"
+  },
+  {
+    "name": "the blend slider stays live over a silence",
+    "guards": "a control that moves without effect says why instead",
+    "file": "src/editor.js",
+    "suite": "dom",
+    "find": "  $('crossfade').disabled = gap > 0;",
+    "replace": "  $('crossfade').disabled = false;",
+    "expect": "a silence before a song delays it, and the blend gives way"
   }
 ]

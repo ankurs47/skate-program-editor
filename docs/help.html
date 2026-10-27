@@ -196,6 +196,12 @@
         each other. Watch the timer as you move the slider.
       </p>
       <p>
+        <b>Silence before</b> puts a few seconds of quiet between this song and the one before it
+        &mdash; for a held pose, or a change of mood that wants a breath. It makes the program
+        longer by exactly that much. A join is either blended or silent, not both, so while there is
+        a silence the blend slider is grayed out.
+      </p>
+      <p>
         <b>Fade in</b> and <b>Fade out</b> are for the very start and the very end. About half a
         second in stops the music opening with a pop; two or three seconds out lets the ending
         finish rather than stopping dead.
@@ -632,8 +638,9 @@
       <p>
         The words are the ones the editor uses on screen. <code>start</code> and
         <code>end</code> are seconds into the song, <code>blend</code> is how long this clip
-        overlaps the one before it, and <code>gainDb</code> is the level in decibels &mdash; the
-        same number the volume slider shows, where <code>0</code> means the song as recorded.
+        overlaps the one before it, <code>silence</code> (only there when there is one) is how many
+        seconds of quiet come before it, and <code>gainDb</code> is the level in decibels &mdash;
+        the same number the volume slider shows, where <code>0</code> means the song as recorded.
       </p>
       <p>
         <code>songs</code> records what each song <em>was</em> &mdash; not where it was. A browser

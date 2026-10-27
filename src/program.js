@@ -156,9 +156,28 @@ function clipGain(clip) {
   return typeof gain === 'number' && isFinite(gain) && gain >= 0 ? clamp(gain, 0, MAX_GAIN) : 1;
 }
 
-/** Overlap between clip i and the one before it, clamped to fit both. */
-function crossfadeOf(clips, i) {
+/* The longest silence the slider offers between two songs, in seconds. */
+const MAX_GAP = 10;
+
+/**
+ * Silence between clip i and the one before it, clamped to what the slider
+ * can show. Missing or nonsense reads as none, as it does for a blend.
+ */
+function gapOf(clips, i) {
   if (i === 0) return 0;
+  const gap = clips[i].gap;
+  return typeof gap === 'number' && isFinite(gap) ? clamp(gap, 0, MAX_GAP) : 0;
+}
+
+/**
+ * Overlap between clip i and the one before it, clamped to fit both.
+ *
+ * None while there is silence between them: the two songs cannot overlap and
+ * have a gap at once. The stored blend is left alone, so taking the silence out
+ * again brings it back.
+ */
+function crossfadeOf(clips, i) {
+  if (i === 0 || gapOf(clips, i) > 0) return 0;
   const x = Math.max(0, clips[i].crossfade || 0);
   return Math.min(x, clipDuration(clips[i]), clipDuration(clips[i - 1]));
 }
@@ -168,8 +187,13 @@ function layout(clips) {
   const parts = [];
   let t = 0;
   clips.forEach((clip, i) => {
-    if (i) t += clipDuration(clips[i - 1]) - crossfadeOf(clips, i);
-    parts.push({ start: t, dur: clipDuration(clip), xf: crossfadeOf(clips, i) });
+    if (i) t += clipDuration(clips[i - 1]) - crossfadeOf(clips, i) + gapOf(clips, i);
+    parts.push({
+      start: t,
+      dur: clipDuration(clip),
+      xf: crossfadeOf(clips, i),
+      gap: gapOf(clips, i),
+    });
   });
   const total = parts.length ? parts[parts.length - 1].start + parts[parts.length - 1].dur : 0;
   return { parts, total };
@@ -401,8 +425,10 @@ const JOIN_PREVIEW = { lead: 4, tail: 4 };
  *
  * The join is where clip `i` begins; the blend, if there is one, runs on from
  * there, so the tail is measured from the end of the overlap rather than from
- * the cut. Returns null when there is no join — the first clip has nothing
- * before it.
+ * the cut. A silence sits before it, so the lead is measured from where the
+ * song before stops — otherwise a long silence would leave nothing of that
+ * song to hear. Returns null when there is no join — the first clip has
+ * nothing before it.
  */
 function joinPreviewRange(clips, i, opts = {}) {
   if (!(i > 0) || i >= clips.length) return null;
@@ -411,7 +437,7 @@ function joinPreviewRange(clips, i, opts = {}) {
   const { parts, total } = layout(clips);
   const at = parts[i].start;
   return {
-    from: Math.max(0, at - lead),
+    from: Math.max(0, at - parts[i].gap - lead),
     until: Math.min(total, at + parts[i].xf + tail),
   };
 }
@@ -432,7 +458,19 @@ function joinRoom(clip, entry, side) {
    recognized as not one of these rather than half-loaded as an empty program.
    The version is bumped only for a change an older reader would get wrong. */
 const FORMAT = 'skate-program';
-const FORMAT_VERSION = 1;
+const FORMAT_VERSION = 2;
+
+/**
+ * The oldest version that reads this program correctly.
+ *
+ * Silence between songs is the one thing version 1 does not know. A reader of
+ * version 1 would drop it and play a shorter program than the one saved, so a
+ * program that has any says 2. One that has none still says 1, and so still
+ * opens in an older copy of the app.
+ */
+function formatVersionFor(clips) {
+  return clips.some((_, i) => gapOf(clips, i) > 0) ? 2 : 1;
+}
 
 /* Written into every project file so an editor validates it and completes field
    names while it is being edited by hand. A test holds this to the schema's own
@@ -644,6 +682,7 @@ function readProject(data) {
         fadeIn: seconds(c.fadeIn),
         fadeOut: seconds(c.fadeOut),
         crossfade: seconds(c.blend),
+        gap: seconds(c.silence),
         gain: gainFromDb(c.gainDb),
       })),
   };
@@ -952,6 +991,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     FORMAT,
     FORMAT_VERSION,
+    formatVersionFor,
     SCHEMA_URL,
     APP_NAME,
     claimId,
@@ -976,6 +1016,8 @@ if (typeof module !== 'undefined' && module.exports) {
     uid,
     clipDuration,
     clipGain,
+    MAX_GAP,
+    gapOf,
     crossfadeOf,
     layout,
     rampEnvelope,
