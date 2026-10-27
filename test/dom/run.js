@@ -22,6 +22,7 @@ const path = require('path');
 const { open } = require('./browser.js');
 const { SETUP } = require('./fixtures.js');
 const { SHOT, stage, readStamp } = require('../../tools/screenshot.js');
+const { fakeHost } = require('../fake-host.js');
 // The one list of script files, so this cannot drift from what the page loads.
 const { app, SCRIPTS } = require('../harness.js');
 
@@ -67,6 +68,12 @@ async function main() {
 
   try {
     await run(SETUP);
+    // The one fake shell, the same function the unit tests use, as source.
+    await run(`
+      window.__fakeHost = (options = {}) =>
+        (${fakeHost.toString()})({ version: HOST_VERSION, ...options });
+      return true;
+    `);
 
     /* ------------------------------------------------------------ startup */
 
@@ -478,27 +485,21 @@ async function main() {
       const out = await run(`
         window.__reset([]);
         const bytes = await window.encodeWav(window.__tone(220, 4)).arrayBuffer();
-        const written = [];
-        window.skateHost = {
-          version: HOST_VERSION,
+        const fake = window.__fakeHost({
           project: {
-            name: () => 'my 2027 junior long',
-            read: async () => ({
-              format: FORMAT, version: FORMAT_VERSION, name: 'from a folder',
-              event: { level: 'usfs-juv', targetSeconds: 150, toleranceSeconds: 10 },
-              songs: [{ name: 'opening.wav', title: 'Adagio in G minor' }],
-              clips: [{ id: 'a', song: 'opening.wav', start: 0, end: 3 }],
-            }),
-            write: async (doc) => { written.push(doc); },
-            media: async () => [{ name: 'opening.wav' }],
-            open: async () => bytes,
+            format: FORMAT, version: FORMAT_VERSION, name: 'from a folder',
+            event: { level: 'usfs-juv', targetSeconds: 150, toleranceSeconds: 10 },
+            songs: [{ name: 'opening.wav', title: 'Adagio in G minor' }],
+            clips: [{ id: 'a', song: 'opening.wav', start: 0, end: 3 }],
           },
-        };
+          media: { 'opening.wav': bytes },
+        });
+        const written = () => fake.calls.filter(([method]) => method === 'write').map(([, doc]) => doc);
+        window.skateHost = fake.host;
+
         /* Bringing music in is the shell's own affair, done in its own
            interface. What the page still needs is to be told the folder
            changed — see the arrival below. */
-        window.skateHost.project.onAdded = (fn) => { window.__tellPage = fn; };
-
         const seen = hostPresent();
         bindHostAdded();
 
@@ -517,9 +518,9 @@ async function main() {
         localStorage.removeItem('skate.program.v1');
         state.name = 'edited';
         save();
-        const beforeWait = { writes: written.length, local: localStorage.getItem('skate.program.v1') };
+        const beforeWait = { writes: written().length, local: localStorage.getItem('skate.program.v1') };
         await new Promise((done) => setTimeout(done, 600));
-        const afterWait = { writes: written.length, name: written.length ? written[0].name : null,
+        const afterWait = { writes: written().length, name: written().length ? written()[0].name : null,
                             local: localStorage.getItem('skate.program.v1') };
 
         /* And the arrival itself, followed through: the shell says a song
@@ -527,14 +528,12 @@ async function main() {
            account of it. bindHostAdded is the join between those two, and
            without exercising it a version that quietly returns before
            subscribing passes every other check. */
-        const heard = typeof window.__tellPage === 'function';
-        if (heard) {
-          await window.__tellPage({
-            name: 'arrived.m4a',
-            title: 'Bolero',
-            source: { kind: 'youtube', url: 'https://www.youtube.com/watch?v=x' },
-          });
-        }
+        const heard = fake.listening() > 0;
+        await fake.arrive({
+          name: 'arrived.m4a',
+          title: 'Bolero',
+          source: { kind: 'youtube', url: 'https://www.youtube.com/watch?v=x' },
+        });
         const remembered = state.expectedFiles.get('arrived.m4a') || null;
 
         delete window.skateHost;
@@ -562,6 +561,60 @@ async function main() {
       eq(out.afterWait.local, null, 'the program was also left in localStorage: ');
     });
 
+    await check(
+      'a shell about to close gets every edit written, and hears if one was not',
+      async () => {
+        /* A shell calls flushHostSave() by name before it lets a project window
+         go (docs/host.md). An edit waiting out the save delay exists
+         nowhere but in memory, so this is the one moment work can be lost —
+         and saved: false is the one answer worth interrupting a close for. */
+        const out = await run(`
+        window.__reset([]);
+        const fake = window.__fakeHost({ project: { name: 'before', clips: [] } });
+        window.skateHost = fake.host;
+        await openHostProject();
+
+        pushUndo();
+        state.name = 'edited just now';
+        save();
+        const pending = fake.calls.filter(([m]) => m === 'write').length;
+        const flushed = await flushHostSave();
+        const kept = {
+          pending,
+          flushed,
+          written: fake.folder.project && fake.folder.project.name,
+          history: !!fake.folder.history && fake.folder.history.current === undoSnapshot(),
+        };
+
+        /* A folder that refuses the write. Last in this check because the page
+           remembers the failure for the rest of the session (#130). */
+        const refusing = window.__fakeHost({
+          project: { name: 'before', clips: [] },
+          with: { write: async () => { throw new Error('the disk is full'); } },
+        });
+        window.skateHost = refusing.host;
+        state.name = 'never reaches the folder';
+        save();
+        const refused = await flushHostSave();
+
+        delete window.skateHost;
+        const noShell = await flushHostSave();
+        return { kept, refused, noShell };
+      `);
+
+        eq(
+          out.kept.pending,
+          0,
+          'the edit was written before the save delay, so this proves nothing: ',
+        );
+        eq(out.kept.flushed, { saved: true, hosted: true }, 'a flush with a waiting edit: ');
+        eq(out.kept.written, 'edited just now', 'the waiting edit never reached the folder: ');
+        ok(out.kept.history, 'the undo history waiting to be written was dropped on close');
+        eq(out.refused, { saved: false, hosted: true }, 'a refused write was reported as saved: ');
+        eq(out.noShell, { saved: true, hosted: false }, 'with no shell: ');
+      },
+    );
+
     await check('inside a shell the page stops offering to manage the project', async () => {
       /* In a browser this page is the whole application and has to be able to
          start a program, save one and open one, because nothing else can.
@@ -576,13 +629,7 @@ async function main() {
           hidden: document.getElementById(id).classList.contains('hidden'),
         }));
 
-        window.skateHost = {
-          version: HOST_VERSION,
-          project: {
-            name: () => 'a folder', read: async () => null, write: async () => {},
-            media: async () => [], open: async () => new ArrayBuffer(0),
-          },
-        };
+        window.skateHost = window.__fakeHost().host;
         hideProjectControls();
         const after = PROJECT_CONTROLS.map((id) => ({
           id,
@@ -636,27 +683,17 @@ async function main() {
       const out = await run(`
         window.__reset([]);
         const bytes = await window.encodeWav(window.__tone(220, 1)).arrayBuffer();
-        const asked = [];
+        const other = await window.encodeWav(window.__tone(330, 1)).arrayBuffer();
 
-        const host = (extra) => ({
-          version: HOST_VERSION,
-          project: {
-            name: () => 'a folder', read: async () => null, write: async () => {},
-            media: async () => [{ name: 'opening (2).wav' }],
-            open: async () => bytes,
-            ...extra,
-          },
-        });
-
-        /* A shell that takes files: it is asked, and its answer is what the
-           library ends up keyed by. */
-        window.skateHost = host({
-          importFile: async (name, data) => {
-            asked.push({ name, bytes: data.byteLength });
-            return 'opening (2).wav';
-          },
-        });
+        /* A shell that takes files, already holding one by that name: it is
+           asked, numbers the new one, and its answer is what the library ends
+           up keyed by. */
+        const fake = window.__fakeHost({ media: { 'opening.wav': other } });
+        window.skateHost = fake.host;
         const added = await addFiles([new File([bytes], 'opening.wav', { type: 'audio/wav' })]);
+        const asked = fake.calls
+          .filter(([method]) => method === 'importFile')
+          .map(([, name, data]) => ({ name, bytes: data.byteLength }));
         const throughShell = {
           asked: asked.length,
           sentName: asked.length ? asked[0].name : null,
@@ -666,7 +703,7 @@ async function main() {
 
         /* A shell with no way to take one: the old path, unchanged. */
         window.__reset([]);
-        window.skateHost = host({});
+        window.skateHost = window.__fakeHost({ omit: ['importFile'] }).host;
         const plain = await addFiles([new File([bytes], 'straight in.wav', { type: 'audio/wav' })]);
         const withoutShell = { added: plain.length, keyedAs: plain.length ? plain[0].name : null };
 
@@ -1599,37 +1636,27 @@ async function main() {
          there to be rid of, and pretending otherwise would be inventing one. */
       const out = await run(`
         window.__reset([]);
-        const discarded = [];
-        const host = (extra) => ({
-          version: HOST_VERSION,
-          project: {
-            name: () => 'a folder', read: async () => null, write: async () => {},
-            media: async () => [], open: async () => new ArrayBuffer(0),
-            ...extra,
-          },
-        });
+        const discarded = (fake) =>
+          fake.calls.filter(([method]) => method === 'discard').map(([, name]) => name);
 
-        window.skateHost = host({
-          discard: async (name) => { discarded.push(name); return { ok: true }; },
-        });
+        let fake = window.__fakeHost({ media: { 'spare.mp3': new ArrayBuffer(8) } });
+        window.skateHost = fake.host;
         window.__addToLibrary('spare.mp3', window.__tone(330, 5));
         removeFromLibrary('spare.mp3');
-        const hosted = { discarded: discarded.slice(), gone: !library.has('spare.mp3') };
+        const hosted = { discarded: discarded(fake), gone: !library.has('spare.mp3') };
 
         /* A song the program plays is refused, and nothing is asked of the
            folder — the refusal has to come before the file, not after. */
         window.__reset([['used.mp3', window.__tone(220, 5)]]);
-        window.skateHost = host({
-          discard: async (name) => { discarded.push(name); return { ok: true }; },
-        });
-        discarded.length = 0;
+        fake = window.__fakeHost({ media: { 'used.mp3': new ArrayBuffer(8) } });
+        window.skateHost = fake.host;
         removeFromLibrary('used.mp3');
-        const refused = { discarded: discarded.slice(), stillThere: library.has('used.mp3') };
+        const refused = { discarded: discarded(fake), stillThere: library.has('used.mp3') };
 
         /* And a shell that offers no way to be rid of one keeps the old
            behavior, which is what every plain browser is. */
         window.__reset([]);
-        window.skateHost = host({});
+        window.skateHost = window.__fakeHost({ omit: ['discard'] }).host;
         window.__addToLibrary('spare.mp3', window.__tone(330, 5));
         let threw = null;
         try { removeFromLibrary('spare.mp3'); } catch (e) { threw = String(e.message); }
@@ -1649,23 +1676,15 @@ async function main() {
     await check('a replaced song takes its file with it, but never the new one', async () => {
       const out = await run(`
         window.__reset([['rough.mp3', window.__tune(4, 20)]]);
-        const discarded = [];
-        window.skateHost = {
-          version: HOST_VERSION,
-          project: {
-            name: () => 'a folder', read: async () => null, write: async () => {},
-            media: async () => [], open: async () => new ArrayBuffer(0),
-            importFile: async (name) => name,
-            discard: async (name) => { discarded.push(name); return { ok: true }; },
-          },
-        };
+        const fake = window.__fakeHost({ media: { 'rough.mp3': new ArrayBuffer(8) } });
+        window.skateHost = fake.host;
 
         const better = window.__tune(4, 20, (v) => v * 0.7);
         await offerReplacement('rough.mp3', window.__asFile('good.wav', better));
         await applyReplacement();
 
         const out = {
-          discarded: discarded.slice(),
+          discarded: fake.calls.filter(([method]) => method === 'discard').map(([, name]) => name),
           plays: state.clips[0].file,
           /* Still in the list, so the swap can be undone. The file is in the
              trash and the audio is in this page's memory. */

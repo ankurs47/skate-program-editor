@@ -1267,5 +1267,41 @@
     "find": "  --line: #2c323b;\n  --accent: #5b8cff;",
     "replace": "  --line: #2c323b;\n  --accent: #5b8cfe;",
     "expect": "the README screenshot shows the interface as it is now"
+  },
+  {
+    "name": "the function a shell closes with is no longer exported",
+    "guards": "what a shell calls by name is still there to be called",
+    "file": "src/app.js",
+    "suite": "unit",
+    "find": "    flushHostSave,\n    bindHostAdded,",
+    "replace": "    bindHostAdded,",
+    "expect": "the shell calls flushHostSave()"
+  },
+  {
+    "name": "a flush skips the edit still waiting to be written",
+    "guards": "closing a project in a shell never loses the last edit",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "    try {\n      await folder.write(project());\n    } catch (err) {",
+    "replace": "    try {\n      void project();\n    } catch (err) {",
+    "expect": "the waiting edit never reached the folder"
+  },
+  {
+    "name": "a flush drops the undo history still waiting",
+    "guards": "undo survives closing a project in a shell",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "      try {\n        await folder.writeHistory(historyNow());",
+    "replace": "      try {\n        void historyNow();",
+    "expect": "the undo history waiting to be written was dropped on close"
+  },
+  {
+    "name": "a refused write is reported to the shell as saved",
+    "guards": "a shell can warn before closing loses work",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "      reportHostSaveFailure(err);\n      return { saved: false, hosted: true };",
+    "replace": "      reportHostSaveFailure(err);\n      return { saved: true, hosted: true };",
+    "expect": "a refused write was reported as saved"
   }
 ]

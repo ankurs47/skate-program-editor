@@ -27,9 +27,11 @@ src/dialogs.js   opening and closing modals, and trapping focus in them
 src/app.js       state, undo, theme, saving, and the wiring that joins it up
 src/style.css    theming via CSS custom properties, light and dark
 docs/            help.html — the user guide, linked from the topbar;
-                 development.md; docs.css, whose color tokens copy
-                 style.css's and are held to them by a test
-test/            277 checks, no dependencies — one file per testable script
+                 development.md; host.md, the desktop shell interface;
+                 docs.css, whose color tokens copy style.css's and are
+                 held to them by a test
+test/            278 checks, no dependencies — one file per testable script;
+                 fake-host.js, the one fake shell every test builds from
 test/dom/        browser checks and render budgets, driven over CDP
 tools/           music-get.sh and .cmd — optional YouTube downloader, not the app
 ```
@@ -128,6 +130,15 @@ rather than half-used. Everything a shell makes possible sits behind
 `hostPresent()`, and with none the page is exactly the page it was: opened from
 a file, no server, nothing installed. A browser check deletes the host and holds
 it to that.
+
+**The interface is written down in `docs/host.md`, both directions.** A change
+to it changes that document, `HOST_PROJECT_METHODS` or `HOST_PROJECT_OPTIONAL`
+in `src/host.js`, and `test/fake-host.js` together — a check fails if any two
+disagree, or if the page calls a folder method the document does not describe.
+Tests build shells from the fake rather than writing their own, so a change is
+made once. Shells are built against the document, so a method whose meaning
+changes is a `HOST_VERSION` bump, not an edit, and anything new follows its
+Conventions section.
 
 The bridge is deliberately not called YouTube, or Electron, or anything else.
 The page knows a shell may own a project folder, and that the folder may change
