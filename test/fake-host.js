@@ -15,7 +15,8 @@
  *   await fake.arrive({ name, title }, bytes)   a song lands from elsewhere
  *
  * `omit` takes optional methods away, to be a shell that does not offer them;
- * `with` replaces any method, for a shell that fails or answers oddly.
+ * `with` replaces any method, for a shell that fails or answers oddly;
+ * `capabilities` is what the shell says it has, such as ['menu'].
  */
 'use strict';
 
@@ -26,6 +27,7 @@ function fakeHost({
   media = {},
   omit = [],
   with: replace = {},
+  capabilities = null,
 }) {
   const folder = {
     project,
@@ -104,6 +106,7 @@ function fakeHost({
   /* Beside the project: what the page hands over for the shell to call. */
   let editor = null;
   const host = { version, project: recorded };
+  if (capabilities) host.capabilities = capabilities;
   if (!omit.includes('connect')) {
     host.connect = record('connect', (given) => {
       editor = given;

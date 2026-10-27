@@ -144,6 +144,22 @@ Optional, on `skateHost` itself rather than on `project`.
   shell shows the guide wherever suits it: its own window, or a browser. Without
   this method a link into the guide is an ordinary link.
 
+### Capabilities
+
+`skateHost.capabilities`, an array of names, says what the shell has that is
+not a method to call — a fact the page should know (convention 8). A name the
+page does not know is ignored, and a shell with no `capabilities` has none.
+
+| Name   | Means                                          | The page then                                                        |
+| ------ | ---------------------------------------------- | -------------------------------------------------------------------- |
+| `menu` | the shell shows a menu built from the commands | hides the help topics, Settings, Full guide and GitHub in its header |
+
+- **`menu`** says the shell's own menu offers the page's commands, so the
+  header's copies of them would be a second way to do the same things in one
+  window. Every one of them is a command that runs while hidden — the help
+  topics, the colors, the guide — so nothing is lost. Without it the header is
+  as it is in a browser.
+
 ## What changes inside a shell
 
 - **Save project**, **Load project**, **New**, the empty screen's **Load a saved
@@ -256,6 +272,7 @@ else exported is free to change. `SHELL_EXPORTS` in `src/host.js` lists them.
 | `HOST_PROJECT_METHODS`  | the project methods a bridge must offer                         |
 | `HOST_PROJECT_OPTIONAL` | the project methods a bridge may offer                          |
 | `HOST_OPTIONAL`         | the methods a bridge may offer beside the project               |
+| `HOST_CAPABILITIES`     | the capabilities the editor knows                               |
 | `HOST_COMMANDS`         | the commands, in order; each `id` as under Commands             |
 | `hostPresent`           | whether the editor would accept `window.skateHost` as it is     |
 | `LEVELS`                | the events and their program lengths, grouped                   |
@@ -332,15 +349,17 @@ In order. Each lands in this document when it lands in the code.
 
 1. **Commands that take a target** ([#133]): `run(id, target)`, for a menu
    on one clip or song.
-2. **Capabilities**: `skateHost.capabilities`, as in convention 8.
-3. **A native menu** ([#123]): with one, the page hides the header items the menu
-   covers.
-4. **Confirmations** ([#135]): the page asks the shell to confirm destructive
+2. **Confirmations** ([#135]): the page asks the shell to confirm destructive
    actions natively. The color choice ([#127]) is already in the state, as the
    `checked` on the `colors.*` commands.
+3. **The page answers with what it supports**: the other half of convention 8,
+   so a shell can leave out what an older editor cannot do.
 
 ## Changelog
 
+- **Version 1, capabilities** ([#123]). `skateHost.capabilities`, and `menu`:
+  with one, the header's help topics, Settings, Full guide and GitHub are
+  hidden.
 - **The editor's wording** ([#126]). `levelLabel`, `budgetVerdict` and
   `describeProgram` added to `SHELL_EXPORTS`.
 - **Version 1, `writeExport`** ([#125]). `project.writeExport(name, bytes,

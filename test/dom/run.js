@@ -909,6 +909,44 @@ async function main() {
       },
     );
 
+    await check("a shell with its own menu takes the header's copies of it away", async () => {
+      /* docs/host.md, capabilities. The help topics, Settings, the guide and
+         GitHub are all in a shell's menu, so the header does not offer them a
+         second time — and what is hidden still runs, through the menu. */
+      const out = await run(`
+        const shown = () => MENU_COVERED.map(
+          (s) => !document.querySelector(s).classList.contains('hidden'));
+        const before = shown();
+
+        const fake = window.__fakeHost({ capabilities: ['menu', 'something-later'] });
+        window.skateHost = fake.host;
+        hideMenuCovered();
+        const withMenu = shown();
+        hostConnect(hostEditor());
+        await fake.editor().run('help.keys');
+        const helpOpened = !document.getElementById('helpModal').classList.contains('hidden');
+        closeTopDialog();
+
+        // A shell with no menu leaves the header alone.
+        window.skateHost = window.__fakeHost().host;
+        hideMenuCovered();
+        const noMenu = shown();
+
+        // And the shell going away puts everything back.
+        window.skateHost = fake.host;
+        hideMenuCovered();
+        delete window.skateHost;
+        hideMenuCovered();
+        const after = shown();
+        return { before, withMenu, helpOpened, noMenu, after };
+      `);
+      eq(out.before, [true, true], 'hidden in a plain browser, so hiding proves nothing: ');
+      eq(out.withMenu, [false, false], "the header kept the menu's copies: ");
+      ok(out.helpOpened, 'a hidden help topic could not be reached from the menu');
+      eq(out.noMenu, [true, true], 'a shell without a menu lost its header: ');
+      eq(out.after, [true, true], 'the shell went and the header stayed hidden: ');
+    });
+
     await check('the page is named for the program in it', async () => {
       /* A tab among several, or a desktop shell's window, then says which
          program is open — and a shell's title bar follows it (docs/host.md).
