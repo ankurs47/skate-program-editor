@@ -1067,6 +1067,41 @@ async function main() {
       },
     );
 
+    await check("the keyboard's media keys and the system's controls run the program", async () => {
+      /* The handlers are captured as they are handed over, then pressed, and
+         judged by what the page then does — playing, stopped, which song is
+         selected — and by what the system is told is playing. */
+      const out = await run(`
+        window.__reset([['a.mp3', window.__tune(1)], ['b.mp3', window.__tune(2)]]);
+        state.name = 'my 2026 junior long program';
+        state.selected = state.clips[0].id;
+        refresh();
+        const got = {};
+        bindMediaSession({ setActionHandler: (action, handler) => { got[action] = handler; } });
+        const session = navigator.mediaSession;
+
+        got.play();
+        const played = { playing: Boolean(playing), told: session.playbackState };
+        got.pause();
+        const paused = { playing: Boolean(playing), told: session.playbackState };
+        got.nexttrack();
+        const next = state.selected === state.clips[1].id;
+        got.previoustrack();
+        const previous = state.selected === state.clips[0].id;
+        state.playPosition = 30;
+        got.stop();
+        const stopped = state.playPosition;
+        return { actions: Object.keys(got).sort(), played, paused, next, previous, stopped,
+                 title: session.metadata && session.metadata.title };
+      `);
+      eq(out.actions, ['nexttrack', 'pause', 'play', 'previoustrack', 'stop']);
+      eq(out.played, { playing: true, told: 'playing' }, 'play: ');
+      eq(out.paused, { playing: false, told: 'paused' }, 'pause: ');
+      ok(out.next && out.previous, 'next and previous did not move the selection');
+      eq(out.stopped, 0, 'stop did not go back to the start, as the Stop button does: ');
+      eq(out.title, 'my 2026 junior long program', 'the system is not told what is playing: ');
+    });
+
     await check('the page is named for the program in it', async () => {
       /* A tab among several, or a desktop shell's window, then says which
          program is open — and a shell's title bar follows it (docs/host.md).

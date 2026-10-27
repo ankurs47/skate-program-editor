@@ -1474,5 +1474,23 @@
     "find": ":root[data-shell] body {\n  user-select: none;\n}",
     "replace": ":root[data-shell] body {\n  user-select: auto;\n}",
     "expect": "inside a shell the page behaves like an app, and in a browser like a page"
+  },
+  {
+    "name": "the play key does nothing",
+    "guards": "the keyboard's media key starts the program",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "    if (!playing) playFromPlayhead();",
+    "replace": "    void playing;",
+    "expect": "the keyboard's media keys and the system's controls run the program"
+  },
+  {
+    "name": "the system is always told the music is paused",
+    "guards": "the system's controls show whether the program is playing",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "  session.playbackState = playing ? 'playing' : 'paused';",
+    "replace": "  session.playbackState = 'paused';",
+    "expect": "the keyboard's media keys and the system's controls run the program"
   }
 ]
