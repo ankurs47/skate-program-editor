@@ -1456,5 +1456,23 @@
     "find": "    selectClip(target.clip);\n  }\n  if (!describeCommand",
     "replace": "  }\n  if (!describeCommand",
     "expect": "a right-click on a clip or a song is a menu of its own, run on that one"
+  },
+  {
+    "name": "the page is never marked as inside a shell",
+    "guards": "a shell's window behaves like an app's, not a web page's",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "  document.documentElement.toggleAttribute('data-shell', hostPresent());",
+    "replace": "  document.documentElement.toggleAttribute('data-shell', false);",
+    "expect": "inside a shell the page behaves like an app, and in a browser like a page"
+  },
+  {
+    "name": "the interface can be selected inside a shell",
+    "guards": "the interface is not a document to select and drag",
+    "file": "src/style.css",
+    "suite": "dom",
+    "find": ":root[data-shell] body {\n  user-select: none;\n}",
+    "replace": ":root[data-shell] body {\n  user-select: auto;\n}",
+    "expect": "inside a shell the page behaves like an app, and in a browser like a page"
   }
 ]

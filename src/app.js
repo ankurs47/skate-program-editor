@@ -1325,6 +1325,7 @@ function bind() {
   bindHostAdded();
   hideProjectControls();
   hideMenuCovered();
+  markShell();
   $('btnReconnect').onclick = reconnectMissing;
 
   $('btnNew').onclick = () => openStartDialog(true);
@@ -1693,6 +1694,15 @@ function hideMenuCovered() {
 }
 
 /**
+ * Mark the page as inside a shell, so the stylesheet can make it behave like a
+ * desktop app's own window (`:root[data-shell]` in style.css). Says what is
+ * true either way, like the two above.
+ */
+function markShell() {
+  document.documentElement.toggleAttribute('data-shell', hostPresent());
+}
+
+/**
  * Should the first run interrupt with a dialog?
  *
  * Only when there is no work to come back to, and never inside a shell — there
@@ -2048,6 +2058,7 @@ if (typeof document !== 'undefined') {
     hideProjectControls,
     MENU_COVERED,
     hideMenuCovered,
+    markShell,
     shouldOfferStart,
     unsupportedReasons,
     readFileBytes,

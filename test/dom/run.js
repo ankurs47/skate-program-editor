@@ -1036,6 +1036,37 @@ async function main() {
       },
     );
 
+    await check(
+      'inside a shell the page behaves like an app, and in a browser like a page',
+      async () => {
+        /* Asserted on the computed style, which is what anybody sees, rather
+         than on the attribute — a rule that stopped matching would leave the
+         attribute set and the page unchanged. */
+        const out = await run(`
+        const look = () => ({
+          marked: document.documentElement.hasAttribute('data-shell'),
+          // A button that is never disabled, which shows the arrow anyway.
+          button: getComputedStyle(document.getElementById('btnAddFiles')).cursor,
+          page: getComputedStyle(document.body).userSelect,
+          field: getComputedStyle(document.getElementById('programName')).userSelect,
+        });
+        const browser = look();
+        window.skateHost = window.__fakeHost().host;
+        markShell();
+        const shell = look();
+        delete window.skateHost;
+        markShell();
+        return { browser, shell, after: look() };
+      `);
+        eq(out.browser, { marked: false, button: 'pointer', page: 'auto', field: 'auto' });
+        eq(out.shell.marked, true, 'the page was not marked as inside a shell: ');
+        eq(out.shell.button, 'default', 'a button still shows the pointing hand: ');
+        eq(out.shell.page, 'none', 'the interface can still be selected like a document: ');
+        ok(out.shell.field !== 'none', 'a text field could not be selected inside a shell');
+        eq(out.after, out.browser, 'the shell went and the page stayed an app: ');
+      },
+    );
+
     await check('the page is named for the program in it', async () => {
       /* A tab among several, or a desktop shell's window, then says which
          program is open — and a shell's title bar follows it (docs/host.md).
