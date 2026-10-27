@@ -2232,6 +2232,17 @@ check('trimEdge: asking for more music than the file holds gets all of it', () =
   eq(app.trimEdge(trimClip, 'start', -5, 30), { at: 0 }, 'and before the file starts: ');
 });
 
+check('nudgeEdge: either end moves, and stays inside the clip and the file', () => {
+  const clip = { srcStart: 10, srcEnd: 20 };
+  eq(app.nudgeEdge(clip, 'start', -1, 30), 9, 'start, earlier: ');
+  eq(app.nudgeEdge(clip, 'end', 1, 30), 21, 'end, later: ');
+  eq(app.nudgeEdge(clip, 'start', -50, 30), 0, 'not before the file starts: ');
+  eq(app.nudgeEdge(clip, 'end', 50, 30), 30, 'not past the end of the file: ');
+  eq(app.nudgeEdge(clip, 'start', 50, 30), 20 - app.MIN_CLIP, 'start stops short of the end: ');
+  eq(app.nudgeEdge(clip, 'end', -50, 30), 10 + app.MIN_CLIP, 'end stops short of the start: ');
+  eq(clip, { srcStart: 10, srcEnd: 20 }, 'the clip itself is left alone: ');
+});
+
 check('trimEdge: no marker at all is refused rather than read as zero', () => {
   for (const cursor of [NaN, undefined, null, 'x', Infinity]) {
     const found = app.trimEdge(trimClip, 'start', cursor, 30);

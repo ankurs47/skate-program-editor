@@ -1114,5 +1114,32 @@
     "find": "  $('crossfade').disabled = gap > 0;",
     "replace": "  $('crossfade').disabled = false;",
     "expect": "a silence before a song delays it, and the blend gives way"
+  },
+  {
+    "name": "nudging the end runs past the end of the file again",
+    "guards": "a trim never claims music the file does not have",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "    Math.max(fileDuration, clip.srcStart + MIN_CLIP),",
+    "replace": "    Infinity,",
+    "expect": "nudgeEdge: either end moves, and stays inside the clip and the file"
+  },
+  {
+    "name": "grabbing a handle no longer picks the end the arrows move",
+    "guards": "the arrows move the end that was last touched",
+    "file": "src/editor.js",
+    "suite": "dom",
+    "find": "    activeEdge = dragging;",
+    "replace": "    void dragging;",
+    "expect": "the arrow keys trim whichever end was last touched"
+  },
+  {
+    "name": "I and O no longer pick the end the arrows move",
+    "guards": "the arrows fine-tune the cut that was just made",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "    setActiveEdge(edge);\n    refresh();",
+    "replace": "    refresh();",
+    "expect": "the arrow keys trim whichever end was last touched"
   }
 ]

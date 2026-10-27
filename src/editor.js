@@ -6,6 +6,18 @@
  */
 'use strict';
 
+/* The end of the clip the arrow keys move: whichever was last dragged or set
+   with I or O. Not part of the program, so not in `state` or undo. */
+let activeEdge = 'end';
+
+function getActiveEdge() {
+  return activeEdge;
+}
+
+function setActiveEdge(edge) {
+  activeEdge = edge;
+}
+
 function drawClipEditor() {
   const clip = selectedClip();
   const editor = $('editor');
@@ -59,11 +71,20 @@ function drawClipEditor() {
   }
   g.stroke();
 
-  // trim handles
-  for (const t of [clip.srcStart, clip.srcEnd]) {
+  /* Trim handles. The one the arrow keys move is drawn solid and larger, so
+     which end a keypress will change is visible before it is pressed. */
+  for (const [edge, t] of [
+    ['start', clip.srcStart],
+    ['end', clip.srcEnd],
+  ]) {
+    const active = edge === activeEdge;
+    g.save();
+    g.globalAlpha = active ? 1 : 0.5;
     g.fillStyle = css('--accent');
     g.fillRect(x(t) - 1.5, 0, 3, h);
-    g.fillRect(x(t) - 5, h / 2 - 14, 10, 28);
+    if (active) g.fillRect(x(t) - 7, h / 2 - 18, 14, 36);
+    else g.fillRect(x(t) - 5, h / 2 - 14, 10, 28);
+    g.restore();
   }
 
   // playback cursor
@@ -300,6 +321,7 @@ function bindClipCanvas() {
       return;
     }
 
+    activeEdge = dragging;
     pushUndo();
     canvas.setPointerCapture(e.pointerId);
   });
@@ -379,6 +401,8 @@ function updateBudget() {
    them back into the single scope the script tags give them in a browser. */
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
+    getActiveEdge,
+    setActiveEdge,
     drawClipEditor,
     updateOrderAvailability,
     moveSelected,
