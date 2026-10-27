@@ -2091,6 +2091,50 @@ async function main() {
       },
     );
 
+    await check('O while the program plays ends the song where it is being heard', async () => {
+      /* The waveform marker used to move only for Play this song, so pressing O
+         during the program trimmed to wherever it was last clicked — or, as
+         here with the marker at 0, refused outright. */
+      const press = async (key, code, keyCode) => {
+        for (const type of ['rawKeyDown', 'keyUp']) {
+          await page.send('Input.dispatchKeyEvent', {
+            type,
+            key,
+            code,
+            windowsVirtualKeyCode: keyCode,
+          });
+        }
+      };
+      await run(`
+        window.__reset([['a.wav', window.__tone(220, 30)], ['b.wav', window.__tone(330, 30)]]);
+        state.clips[0].srcStart = 5; state.clips[0].srcEnd = 25;
+        state.selected = state.clips[0].id;
+        state.cursor = 0;
+        refresh();
+        seekTo(0);
+        document.activeElement.blur();
+      `);
+      await press(' ', 'Space', 32);
+      await run(`
+        const t0 = performance.now();
+        while (!(state.playPosition > 0.3) && performance.now() - t0 < 5000) {
+          await new Promise((r) => setTimeout(r, 50));
+        }
+      `);
+      await press(' ', 'Space', 32); // stop, so the marker holds still to compare
+      const heard = await run(`return {
+        playPosition: state.playPosition,
+        cursor: state.cursor,
+        expected: songTimeAt(state.clips, 0, state.playPosition),
+      };`);
+      await press('o', 'KeyO', 79);
+      const end = await run(`return state.clips[0].srcEnd;`);
+
+      ok(heard.playPosition > 0.3, `the program never played: ${heard.playPosition}`);
+      near(heard.cursor, heard.expected, 1e-6, 'the marker did not follow the program: ');
+      near(end, heard.expected, 1e-6, 'O did not end the song where it was heard: ');
+    });
+
     await check('a silence before a song delays it, and the blend gives way', async () => {
       /* Through the slider, and onto the sources that are actually started:
          a gap that only moved the timeline would show a silence and play none. */
