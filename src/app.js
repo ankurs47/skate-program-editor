@@ -1663,6 +1663,14 @@ async function openHostProject() {
     }
   }
 
+  /* The program is on screen — its blocks, the timer, the name — though its
+     music may still be decoding, which can take seconds and draws itself in as
+     it goes. A shell waiting to show its window waits for this, not for that.
+     Said whether or not the folder could be read: a window kept hidden behind
+     an error is worse than one showing it. */
+  refresh();
+  hostReady();
+
   await openHostMedia();
   refresh();
 }

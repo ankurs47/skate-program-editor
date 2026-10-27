@@ -758,6 +758,55 @@ async function main() {
       eq(out.afterStop, 0, 'a listener kept hearing after it stopped: ');
     });
 
+    await check(
+      'a shell is told when the program is on screen, not when the music is',
+      async () => {
+        /* A shell shows its window on this (docs/host.md). Too early and an
+         empty editor fills in on screen; held until every song has decoded and
+         a window waits seconds for nothing anyone needs yet. */
+        const out = await run(`
+        window.__reset([]);
+        const bytes = await window.encodeWav(window.__tone(220, 2)).arrayBuffer();
+        const program = {
+          format: FORMAT, version: FORMAT_VERSION, name: 'from a folder',
+          songs: [{ name: 'a.wav' }],
+          clips: [{ id: 'a', song: 'a.wav', start: 0, end: 1.5 }],
+        };
+        const fake = window.__fakeHost({ project: program, media: { 'a.wav': bytes } });
+        window.skateHost = fake.host;
+        await openHostProject();
+        const order = fake.calls.map(([method]) => method);
+        const ready = fake.calls.filter(([method]) => method === 'ready');
+
+        // A folder that cannot be read still gets its window shown.
+        const broken = window.__fakeHost({
+          with: { read: async () => { throw new Error('not a program'); } },
+        });
+        window.skateHost = broken.host;
+        await openHostProject();
+        const readyAnyway = broken.calls.filter(([method]) => method === 'ready').length;
+
+        // And a shell that does not ask is not told.
+        window.skateHost = window.__fakeHost({ omit: ['ready'] }).host;
+        let threw = null;
+        try { await openHostProject(); } catch (e) { threw = String(e); }
+
+        delete window.skateHost;
+        window.__reset([]);
+        return { order, times: ready.length, shown: ready.length ? ready[0][1] : null,
+                 readyAnyway, threw };
+      `);
+        eq(out.times, 1, 'times the shell was told: ');
+        eq(out.shown, { clipsShown: 1 }, 'the program was not on screen when the shell was told: ');
+        ok(
+          out.order.indexOf('ready') < out.order.indexOf('open'),
+          `the shell was kept waiting for the music: ${out.order.join(', ')}`,
+        );
+        eq(out.readyAnyway, 1, 'a folder that could not be read never said it was ready: ');
+        eq(out.threw, null, 'a shell without ready broke opening: ');
+      },
+    );
+
     await check('the page is named for the program in it', async () => {
       /* A tab among several, or a desktop shell's window, then says which
          program is open — and a shell's title bar follows it (docs/host.md).

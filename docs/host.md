@@ -116,12 +116,18 @@ Optional, on `skateHost` itself rather than on `project`.
 | Method            | Returns | The editor uses it to                              |
 | ----------------- | ------- | -------------------------------------------------- |
 | `connect(editor)` | nothing | hand over what the shell may ask of the page below |
+| `ready()`         | nothing | say the program is on screen                       |
 
 - **`connect(editor)`** is called once, at startup, after the shell is found
   and before the project is read — so a shell closing early can still ask for a
   flush. `editor` is described under [Called by the shell](#called-by-the-shell).
   A shell keeps it for as long as the page is open; it is the only way the shell
   reaches into the page.
+- **`ready()`** is called once, when the project has been read and the program
+  is drawn — its blocks, the timer, the name — and before its music is opened.
+  Decoding can take seconds and draws itself in as it goes, so it is not waited
+  for. It is called even when the project could not be read, so a shell that
+  shows its window on this never keeps it hidden behind an error.
 
 ## What changes inside a shell
 
@@ -271,10 +277,10 @@ gives a reason to break it.
 3. **Listening can be stopped.** Every `on…(listener)` returns a function that
    removes that listener. `onAdded` returns nothing, and a page that bound it
    twice would hear everything twice.
-4. **An order of events.** The page loads; finds the shell; reads the program,
-   then the music; says it is ready ([#134]); edits, writing each change after a
-   short delay; is asked to flush; is closed. A shell does not show the program
-   before ready, and does not close it without a flush.
+4. **An order of events.** The page loads; finds the shell and connects; reads
+   the program and draws it; says it is ready; reads the music; edits, writing
+   each change after a short delay; is asked to flush; is closed. A shell does
+   not show the program before ready, and does not close it without a flush.
 5. **One writer, whole documents.** Every write is the whole program, and the
    page never has two writes waiting on one another — a newer one replaces an
    older one not yet sent. The shell applies them in the order they arrive. One
@@ -307,19 +313,20 @@ In order. Each lands in this document when it lands in the code.
 
 1. **Commands that take a target** ([#133]): `run(id, target)`, for a menu
    on one clip or song.
-2. **Ready** ([#134]): the page says when the program is on screen.
-3. **Capabilities**: `skateHost.capabilities`, as in convention 8.
-4. **A native menu** ([#123]): with one, the page hides the header items the menu
+2. **Capabilities**: `skateHost.capabilities`, as in convention 8.
+3. **A native menu** ([#123]): with one, the page hides the header items the menu
    covers.
-5. **Music files** ([#125]): `writeExport(name, bytes, details)` hands the finished
+4. **Music files** ([#125]): `writeExport(name, bytes, details)` hands the finished
    file to the shell instead of downloading it.
-6. **The guide** ([#122]) and **confirmations** ([#135]): the page asks the
+5. **The guide** ([#122]) and **confirmations** ([#135]): the page asks the
    shell to show the guide rather than navigating away from the program, and to
    confirm destructive actions natively. The color choice ([#127]) is already in
    the state, as the `checked` on the `colors.*` commands.
 
 ## Changelog
 
+- **Version 1, `ready`** ([#134]). `skateHost.ready()`, called once the
+  program is on screen.
 - **Version 1, commands and state** ([#121]). `editor.state()`,
   `editor.onState(listener)` and `editor.run(id)`, and the commands listed
   above.

@@ -1393,5 +1393,23 @@
     "find": "  const program = state.clips.length > 0 || hostPresent();",
     "replace": "  const program = true;",
     "expect": "the page is named for the program in it"
+  },
+  {
+    "name": "the shell is told ready only once the music has decoded",
+    "guards": "a shell's window is not held back by music still loading",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "  refresh();\n  hostReady();\n\n  await openHostMedia();\n  refresh();",
+    "replace": "  refresh();\n\n  await openHostMedia();\n  refresh();\n  hostReady();",
+    "expect": "a shell is told when the program is on screen, not when the music is"
+  },
+  {
+    "name": "a shell that asks to be told ready never is",
+    "guards": "a shell waiting to show its window is not kept waiting forever",
+    "file": "src/host.js",
+    "suite": "dom",
+    "find": "  if (given && typeof given.ready === 'function') given.ready();",
+    "replace": "  void given;",
+    "expect": "a shell is told when the program is on screen, not when the music is"
   }
 ]
