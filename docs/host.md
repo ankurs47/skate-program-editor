@@ -121,11 +121,12 @@ Without all five, `project` is not a project and the shell is ignored.
 
 Optional, on `skateHost` itself rather than on `project`.
 
-| Method               | Returns | The editor uses it to                              |
-| -------------------- | ------- | -------------------------------------------------- |
-| `connect(editor)`    | nothing | hand over what the shell may ask of the page below |
-| `ready()`            | nothing | say the program is on screen                       |
-| `openGuide(section)` | nothing | show the guide, without leaving the program        |
+| Method                       | Returns | The editor uses it to                              |
+| ---------------------------- | ------- | -------------------------------------------------- |
+| `connect(editor)`            | nothing | hand over what the shell may ask of the page below |
+| `ready()`                    | nothing | say the program is on screen                       |
+| `openGuide(section)`         | nothing | show the guide, without leaving the program        |
+| `contextMenu(target, items)` | nothing | hand over a right-click on a clip or a song        |
 
 - **`connect(editor)`** is called once, at startup, after the shell is found
   and before the project is read — so a shell closing early can still ask for a
@@ -143,6 +144,13 @@ Optional, on `skateHost` itself rather than on `project`.
   `section` is the part after `#`, such as `saving`, or null for the top. The
   shell shows the guide wherever suits it: its own window, or a browser. Without
   this method a link into the guide is an ordinary link.
+- **`contextMenu(target, items)`** is called on a right-click on a clip in the
+  strip or a song in the music list, instead of the browser's own menu.
+  `target` is `{ clip: id }` or `{ song: name }`; a clip is selected first, as a
+  right-click on it does. `items` are the commands for that target, as they
+  stand — each `{ id, label, keys, enabled }`, as in the state. The shell shows
+  its own menu and runs the one chosen with `run(id, target)`. Without this
+  method a right-click is the browser's, and selects nothing.
 
 ### Capabilities
 
@@ -183,7 +191,7 @@ any other way — not a global by name, not a script it injects.
 | `flush()`           | `{ saved, hosted }`               | write anything waiting, now, and say whether the folder is up to date |
 | `state()`           | the state, below                  | what a menu needs to know, right now                                  |
 | `onState(listener)` | a function that stops it          | hear every change to the state                                        |
-| `run(id)`           | nothing; rejects if it cannot run | run one of the commands below                                         |
+| `run(id, target)`   | nothing; rejects if it cannot run | run one of the commands below, on one clip or song if given           |
 
 - **`flush()`** is what a shell asks before it closes a project. An edit made
   in the last moment before closing is waiting out the save delay and exists
@@ -197,11 +205,15 @@ any other way — not a global by name, not a script it injects.
   changes — after the change, once for a burst of them, and never for nothing.
   It keeps working while the window is hidden, so a shell hears an export finish
   in the background.
-- **`run(id)`** does what the control for that command does, by clicking it, so
-  a menu item cannot behave differently from the button. It rejects with
-  `{ code: 'not-found' }` for an id that is not a command, and
-  `{ code: 'refused' }` for one whose `enabled` is false — including while a
-  dialog is open, which owns the page until it closes.
+- **`run(id, target)`** does what the control for that command does, by
+  clicking it, so a menu item cannot behave differently from the button.
+  `target` is optional: `{ clip: id }` selects that clip first and runs a clip
+  command on it, and `{ song: name }` runs a song command through that song's
+  own button. It rejects with `{ code: 'not-found' }` for an id that is not a
+  command or a clip that is not in the program, and `{ code: 'refused' }` for
+  one that cannot run — not enabled, a clip target for a command that is not
+  for clips, a song command with no song, or anything while a dialog is open,
+  which owns the page until it closes.
 
 ### State
 
@@ -233,28 +245,38 @@ any other way — not a global by name, not a script it injects.
 
 ### Commands
 
-| Id                | What it does                                     | Keys          |
-| ----------------- | ------------------------------------------------ | ------------- |
-| `program.undo`    | **Undo**                                         | `Mod+Z`       |
-| `program.redo`    | **Redo**                                         | `Mod+Shift+Z` |
-| `program.evenOut` | **Even out the volume**                          |               |
-| `program.export`  | **Make music file** — opens its dialog           |               |
-| `playback.toggle` | **Play**, or **Pause** while playing             | `Space`       |
-| `playback.stop`   | **Stop**                                         |               |
-| `clip.play`       | **Play this song**, the selected one             |               |
-| `join.play`       | **Play this join**, before the selected song     |               |
-| `clip.previous`   | select the song before                           | `[`           |
-| `clip.next`       | select the song after                            | `]`           |
-| `view.music`      | **Hide the music list**, or show it              |               |
-| `colors.auto`     | colors follow the computer                       |               |
-| `colors.light`    | light colors                                     |               |
-| `colors.dark`     | dark colors                                      |               |
-| `help.basics`     | open the help on the basics                      |               |
-| `help.tips`       | open the tips                                    |               |
-| `help.saving`     | open the help on saving                          |               |
-| `help.quality`    | open the help on sound quality                   |               |
-| `help.keys`       | open the keyboard shortcuts                      |               |
-| `help.guide`      | **Full guide** — through `openGuide`, in a shell |               |
+| Id                 | What it does                                                          | Keys          |
+| ------------------ | --------------------------------------------------------------------- | ------------- |
+| `program.undo`     | **Undo**                                                              | `Mod+Z`       |
+| `program.redo`     | **Redo**                                                              | `Mod+Shift+Z` |
+| `program.evenOut`  | **Even out the volume**                                               |               |
+| `program.export`   | **Make music file** — opens its dialog                                |               |
+| `playback.toggle`  | **Play**, or **Pause** while playing                                  | `Space`       |
+| `playback.stop`    | **Stop**                                                              |               |
+| `clip.play`        | **Play this song**, the selected one — or a clip target               |               |
+| `join.play`        | **Play this join**, before the selected song — or a clip target       |               |
+| `clip.previous`    | select the song before                                                | `[`           |
+| `clip.next`        | select the song after                                                 | `]`           |
+| `view.music`       | **Hide the music list**, or show it                                   |               |
+| `colors.auto`      | colors follow the computer                                            |               |
+| `colors.light`     | light colors                                                          |               |
+| `colors.dark`      | dark colors                                                           |               |
+| `help.basics`      | open the help on the basics                                           |               |
+| `help.tips`        | open the tips                                                         |               |
+| `help.saving`      | open the help on saving                                               |               |
+| `help.quality`     | open the help on sound quality                                        |               |
+| `help.keys`        | open the keyboard shortcuts                                           |               |
+| `help.guide`       | **Full guide** — through `openGuide`, in a shell                      |               |
+| `clip.moveEarlier` | **Move earlier** — the selected song, or a clip target                |               |
+| `clip.moveLater`   | **Move later** — the selected song, or a clip target                  |               |
+| `clip.remove`      | take the song out of the program — the selected one, or a clip target |               |
+| `song.add`         | **Add to program** — a song target only                               |               |
+| `song.replace`     | **Replace** — a song target only                                      |               |
+| `song.info`        | **Info** — a song target only                                         |               |
+| `song.remove`      | take the song off the list — a song target only                       |               |
+
+The `song.*` commands exist only for one song, so the state's own list leaves
+them out; they reach a shell in a `contextMenu` call, with the song they are for.
 
 Ids are never reused for something different (convention 7). A command added
 here is added to the end of the list, so a shell that shows them in order shows
@@ -347,16 +369,17 @@ gives a reason to break it.
 
 In order. Each lands in this document when it lands in the code.
 
-1. **Commands that take a target** ([#133]): `run(id, target)`, for a menu
-   on one clip or song.
-2. **Confirmations** ([#135]): the page asks the shell to confirm destructive
+1. **Confirmations** ([#135]): the page asks the shell to confirm destructive
    actions natively. The color choice ([#127]) is already in the state, as the
    `checked` on the `colors.*` commands.
-3. **The page answers with what it supports**: the other half of convention 8,
+2. **The page answers with what it supports**: the other half of convention 8,
    so a shell can leave out what an older editor cannot do.
 
 ## Changelog
 
+- **Version 1, targets** ([#133]). `run(id, target)`, `contextMenu(target,
+items)`, and the `clip.moveEarlier`, `clip.moveLater`, `clip.remove` and
+  `song.*` commands.
 - **Version 1, capabilities** ([#123]). `skateHost.capabilities`, and `menu`:
   with one, the header's help topics, Settings, Full guide and GitHub are
   hidden.

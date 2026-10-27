@@ -734,7 +734,10 @@ async function main() {
                  dark, light, whileOpen, exporting, afterStop };
       `);
 
-      const expected = await run('return HOST_COMMANDS.map((c) => c.id);');
+      // Song commands exist only for one song, and reach a shell with it instead.
+      const expected = await run(
+        "return HOST_COMMANDS.filter((c) => c.target !== 'song').map((c) => c.id);",
+      );
       eq(out.ids, expected, 'the state lists the commands, in order: ');
       ok(out.start.hasProgram, 'a program with two songs reads as empty');
       eq(out.start.undo.label, 'Undo', 'the label is not the button wording: ');
@@ -946,6 +949,92 @@ async function main() {
       eq(out.noMenu, [true, true], 'a shell without a menu lost its header: ');
       eq(out.after, [true, true], 'the shell went and the header stayed hidden: ');
     });
+
+    await check(
+      'a right-click on a clip or a song is a menu of its own, run on that one',
+      async () => {
+        /* docs/host.md, contextMenu and run(id, target). Asserted on what the
+         page then shows — the order, the list — not on a command being sent. */
+        const out = await run(`
+        window.__reset([['a.mp3', window.__tune(1)], ['b.mp3', window.__tune(2)]]);
+        window.__addToLibrary('spare.mp3', window.__tune(3));
+        state.selected = state.clips[0].id;
+        refresh();
+        const fake = window.__fakeHost();
+        window.skateHost = fake.host;
+        hostConnect(hostEditor());
+        const editor = fake.editor();
+        const order = () => state.clips.map((c) => c.file);
+        const refusal = (id, target) => editor.run(id, target).then(() => null, (why) => why.code);
+        const menus = () => fake.calls.filter(([m]) => m === 'contextMenu');
+
+        // A right-click on the second block: that clip, selected, and its commands.
+        const second = state.clips[1].id;
+        const block = document.querySelector('.tl-clip[data-clip="' + second + '"]');
+        const click = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+        block.dispatchEvent(click);
+        const [, clipTarget, clipItems] = menus().at(-1);
+        const onClip = {
+          stopped: click.defaultPrevented,
+          target: clipTarget,
+          selected: state.selected === second,
+          ids: clipItems.map((c) => c.id),
+          earlier: clipItems.find((c) => c.id === 'clip.moveEarlier').enabled,
+          later: clipItems.find((c) => c.id === 'clip.moveLater').enabled,
+        };
+
+        // Run on a clip that is not the selected one: it is moved, not the other.
+        state.selected = state.clips[0].id;
+        refresh();
+        await editor.run('clip.moveEarlier', { clip: second });
+        const moved = order();
+
+        // A song: its own menu, and Add to program runs on that song.
+        const row = document.querySelector('#libraryList li[data-song="spare.mp3"]');
+        row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+        const [, songTarget, songItems] = menus().at(-1);
+        await editor.run('song.add', { song: 'spare.mp3' });
+        const added = order();
+
+        const refused = {
+          noClip: await refusal('clip.moveLater', { clip: 'nonesuch' }),
+          wrongKind: await refusal('program.undo', { clip: second }),
+          songWithoutSong: await refusal('song.add'),
+          inState: hostState().commands.some((c) => c.id.startsWith('song.')),
+        };
+
+        // With no shell offering a menu, a right-click is the browser's own.
+        delete window.skateHost;
+        const plain = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+        block.isConnected && block.dispatchEvent(plain);
+        window.__reset([]);
+        return { onClip, moved, songTarget, songIds: songItems.map((c) => c.id), added,
+                 refused, plain: plain.defaultPrevented };
+      `);
+        ok(out.onClip.stopped, "the browser's own menu opened over the shell's");
+        eq(out.onClip.target.clip !== undefined, true, 'the clip was not named: ');
+        ok(out.onClip.selected, 'the right-clicked clip was not selected');
+        eq(out.onClip.ids, [
+          'clip.play',
+          'join.play',
+          'clip.moveEarlier',
+          'clip.moveLater',
+          'clip.remove',
+        ]);
+        eq([out.onClip.earlier, out.onClip.later], [true, false], 'the last of two moves later: ');
+        eq(out.moved, ['b.mp3', 'a.mp3'], 'the clip pointed at did not move: ');
+        eq(out.songTarget, { song: 'spare.mp3' });
+        eq(out.songIds, ['song.add', 'song.replace', 'song.info', 'song.remove']);
+        eq(out.added, ['b.mp3', 'a.mp3', 'spare.mp3'], 'Add to program did not add that song: ');
+        eq(out.refused, {
+          noClip: 'not-found',
+          wrongKind: 'refused',
+          songWithoutSong: 'refused',
+          inState: false,
+        });
+        eq(out.plain, false, "with no shell, a right-click stopped being the browser's: ");
+      },
+    );
 
     await check('the page is named for the program in it', async () => {
       /* A tab among several, or a desktop shell's window, then says which

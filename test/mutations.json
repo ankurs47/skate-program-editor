@@ -1345,8 +1345,8 @@
     "guards": "a menu cannot reach past a dialog that owns the page",
     "file": "src/app.js",
     "suite": "dom",
-    "find": "  const blocked = Boolean(openDialog());",
-    "replace": "  const blocked = false;",
+    "find": "  const blocked = Boolean(openDialog());\n  const progress = $('exportProgress');",
+    "replace": "  const blocked = false;\n  const progress = $('exportProgress');",
     "expect": "commands read enabled behind an open dialog"
   },
   {
@@ -1354,7 +1354,7 @@
     "guards": "a menu item does what its button can, and nothing more",
     "file": "src/app.js",
     "suite": "dom",
-    "find": "  if (!describeCommand(command, Boolean(openDialog())).enabled) {",
+    "find": "  if (!describeCommand(command, Boolean(openDialog()), target).enabled) {",
     "replace": "  if (false) {",
     "expect": "a disabled command ran"
   },
@@ -1447,5 +1447,14 @@
     "find": "  const menu = hostCapable('menu');",
     "replace": "  const menu = false;",
     "expect": "a shell with its own menu takes the header's copies of it away"
+  },
+  {
+    "name": "a command run on a clip runs on the selected one instead",
+    "guards": "a right-click menu acts on what was right-clicked",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "    selectClip(target.clip);\n  }\n  if (!describeCommand",
+    "replace": "  }\n  if (!describeCommand",
+    "expect": "a right-click on a clip or a song is a menu of its own, run on that one"
   }
 ]

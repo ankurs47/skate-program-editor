@@ -41,7 +41,7 @@ const HOST_PROJECT_OPTIONAL = [
 ];
 
 /* What the shell itself may offer, beside the project. */
-const HOST_OPTIONAL = ['connect', 'ready', 'openGuide'];
+const HOST_OPTIONAL = ['connect', 'ready', 'openGuide', 'contextMenu'];
 
 /* What a shell may say it has, in `skateHost.capabilities` — things that are
    not a method to call but a fact about the shell the page should know. A name
@@ -160,6 +160,23 @@ function hostOpenGuide(section) {
   return true;
 }
 
+/** Does the shell offer `method` beside the project (one of HOST_OPTIONAL)? */
+function hostOffers(method) {
+  const given = host();
+  return Boolean(given && typeof given[method] === 'function');
+}
+
+/**
+ * Hand the shell a right-click on one clip or song — what it was on, and its
+ * commands as they stand — for a menu of its own. The shell runs the chosen
+ * one with `run(id, target)`.
+ */
+function hostContextMenu(target, items) {
+  if (!hostOffers('contextMenu')) return false;
+  host().contextMenu(target, items);
+  return true;
+}
+
 /** Does the shell say it has `name` (one of HOST_CAPABILITIES)? */
 function hostCapable(name) {
   const given = host();
@@ -184,5 +201,7 @@ if (typeof module !== 'undefined' && module.exports) {
     hostConnect,
     hostReady,
     hostOpenGuide,
+    hostOffers,
+    hostContextMenu,
   };
 }

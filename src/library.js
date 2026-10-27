@@ -331,6 +331,8 @@ function renderLibrary() {
     if (entry.state === 'ready') {
       const add = document.createElement('button');
       add.className = 'small';
+      // Named, so a shell's right-click menu runs this very button (song.add).
+      add.dataset.action = 'add';
       add.textContent = 'Add to program';
       add.onclick = () => addClip(entry);
       row.appendChild(add);
@@ -346,6 +348,7 @@ function renderLibrary() {
       li.classList.add('swappable');
       const swap = document.createElement('button');
       swap.className = 'small';
+      swap.dataset.action = 'replace';
       swap.textContent = 'Replace';
       swap.title =
         'Put a different file under this song — a better copy, say — keeping every ' +
@@ -356,6 +359,7 @@ function renderLibrary() {
 
     const drop = document.createElement('button');
     drop.className = 'small danger';
+    drop.dataset.action = 'remove';
     drop.textContent = 'Remove';
     drop.disabled = used > 0;
     /* Two different promises, because two different things happen. Opened as a
@@ -385,6 +389,7 @@ function renderLibrary() {
       const shown = infoOpen.has(entry.name);
       const info = document.createElement('button');
       info.className = 'small';
+      info.dataset.action = 'info';
       info.textContent = 'Info';
       info.title = 'What this file says about itself';
       info.setAttribute('aria-expanded', String(shown));
