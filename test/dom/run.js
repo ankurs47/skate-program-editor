@@ -2185,6 +2185,34 @@ async function main() {
       eq(otherSong, { cursor: 13, playhead: 30 }, 'clicking the bar in another song: ');
     });
 
+    await check('the waveform marker shows in the trimmed-out part too', async () => {
+      /* Measured off the canvas: the column the marker is in must differ from
+         the one beside it. Without a marker both are the same dimmed waveform,
+         which is what the trimmed-out part looked like with one set there. */
+      const out = await run(`
+        window.__reset([['a.wav', window.__tone(220, 30)]]);
+        state.clips[0].srcStart = 10; state.clips[0].srcEnd = 25;
+        state.selected = state.clips[0].id;
+        refresh();
+        const canvas = __id('clipCanvas');
+        const g = canvas.getContext('2d');
+        const column = (t) => {
+          const x = Math.round((t / 30) * canvas.width);
+          return [...g.getImageData(x, 2, 1, 1).data].join(',');
+        };
+        const differs = (t) => {
+          state.cursor = t;
+          drawClipEditor();
+          const at = column(t);
+          return at !== column(t + 0.5);
+        };
+        return { before: differs(4), inside: differs(15), after: differs(28) };
+      `);
+      eq(out.inside, true, 'the marker does not show inside the song, so this cannot tell: ');
+      eq(out.before, true, 'no marker before the start of the song: ');
+      eq(out.after, true, 'no marker after the end of the song: ');
+    });
+
     await check('a silence before a song delays it, and the blend gives way', async () => {
       /* Through the slider, and onto the sources that are actually started:
          a gap that only moved the timeline would show a silence and play none. */

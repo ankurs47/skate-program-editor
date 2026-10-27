@@ -87,10 +87,16 @@ function drawClipEditor() {
     g.restore();
   }
 
-  // playback cursor
-  if (state.cursor > clip.srcStart && state.cursor < clip.srcEnd) {
+  /* The marker, wherever it is. In the trimmed-out part it is where I or O will
+     move an end to, so hiding it there meant extending a cut blind; it is drawn
+     fainter only because that part is not in the program. */
+  if (state.cursor >= 0 && state.cursor <= duration) {
+    const kept = state.cursor >= clip.srcStart && state.cursor <= clip.srcEnd;
+    g.save();
+    g.globalAlpha = kept ? 1 : 0.6;
     g.fillStyle = css('--ink');
     g.fillRect(x(state.cursor), 0, 1, h);
+    g.restore();
   }
 
   $('lblStart').textContent = fmt(clip.srcStart);

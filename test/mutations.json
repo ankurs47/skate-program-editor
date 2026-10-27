@@ -1168,5 +1168,14 @@
     "find": "  drawScrubber();\n  if (followPlayhead()) drawClipEditor();\n}",
     "replace": "  drawScrubber();\n}",
     "expect": "the waveform marker and the program playhead move together"
+  },
+  {
+    "name": "the waveform marker hides outside the kept part again",
+    "guards": "an end can be moved to a spot that can be seen",
+    "file": "src/editor.js",
+    "suite": "dom",
+    "find": "  if (state.cursor >= 0 && state.cursor <= duration) {",
+    "replace": "  if (state.cursor > clip.srcStart && state.cursor < clip.srcEnd) {",
+    "expect": "the waveform marker shows in the trimmed-out part too"
   }
 ]
