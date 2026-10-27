@@ -1725,6 +1725,8 @@ if (typeof document !== 'undefined') {
     bind,
     onKey,
     openHostMedia,
+    openHostProject,
+    flushHostSave,
     bindHostAdded,
     PROJECT_CONTROLS,
     hideProjectControls,

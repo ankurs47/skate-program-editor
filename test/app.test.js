@@ -11,6 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const { app, check, eq, near, ok, ROOT, SCRIPTS } = require('./harness.js');
 const { validate } = require('./schema.js');
+const { fakeHost } = require('./fake-host.js');
 
 /* ------------------------------------------------------------ 1. the math */
 
@@ -1437,17 +1438,66 @@ async function withHostAsync(given, fn) {
   }
 }
 
-/** A host with everything this app requires, plus whatever `extra` adds. */
+/** A host with everything this app requires and nothing optional, plus whatever `extra` adds. */
 const workingHost = (extra = {}) => ({
-  version: app.HOST_VERSION,
-  project: {
-    name: () => 'a folder',
-    read: () => Promise.resolve(null),
-    write: () => Promise.resolve(),
-    media: () => Promise.resolve([]),
-    open: () => Promise.resolve(new ArrayBuffer(0)),
-  },
+  ...fakeHost({ version: app.HOST_VERSION, omit: app.HOST_PROJECT_OPTIONAL }).host,
   ...extra,
+});
+
+check('host: docs/host.md lists the methods the code checks, uses and fakes', () => {
+  /* Written down for a shell to be built against, and maintained by hand — so
+     held here to the code, the way the schema is held to project(). A drifted
+     document does not fail; somebody builds against it. */
+  const doc = fs.readFileSync(path.join(ROOT, 'docs/host.md'), 'utf8');
+  const section = (heading) => {
+    const from = doc.indexOf(`\n${heading}\n`);
+    ok(from >= 0, `docs/host.md has no "${heading}" section`);
+    const rest = doc.slice(from + heading.length + 2);
+    const end = rest.search(/\n#{2,3} /);
+    return end < 0 ? rest : rest.slice(0, end);
+  };
+  const named = (text) => [...text.matchAll(/^\| `(\w+)\(/gm)].map((m) => m[1]).sort();
+
+  const required = named(section('### Required'));
+  const optional = named(section('### Optional'));
+  eq(
+    required,
+    [...app.HOST_PROJECT_METHODS].sort(),
+    'required methods, document against host.js: ',
+  );
+  eq(
+    optional,
+    [...app.HOST_PROJECT_OPTIONAL].sort(),
+    'optional methods, document against host.js: ',
+  );
+
+  // The fake every test shell is built from offers exactly the documented set.
+  const fake = Object.keys(fakeHost({ version: app.HOST_VERSION }).host.project).sort();
+  eq(fake, [...required, ...optional].sort(), 'the fake shell offers: ');
+  withHost(fakeHost({ version: app.HOST_VERSION }).host, () =>
+    ok(app.hostPresent(), 'the fake shell is not accepted as a shell'),
+  );
+
+  /* Every method the page calls on a folder is one the document describes.
+     Pointed at every script, not one file, because this asserts an absence. */
+  const documented = new Set([...required, ...optional]);
+  for (const file of SCRIPTS) {
+    const source = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    for (const [, method] of source.matchAll(/\bfolder\.(\w+)\b/g)) {
+      ok(
+        documented.has(method),
+        `${file} calls folder.${method}(), which docs/host.md does not describe`,
+      );
+    }
+  }
+
+  /* And what the shell calls by name is still there to be called. Renaming it
+     breaks closing a project in a shell and nothing else (#120). */
+  const called = named(section('## Called by the shell'));
+  ok(called.length > 0, 'docs/host.md names nothing the shell calls');
+  for (const name of called) {
+    eq(typeof app[name], 'function', `the shell calls ${name}(): `);
+  }
 });
 
 check('host: with nothing offering one, there is no host', () => {

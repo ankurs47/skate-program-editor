@@ -28,6 +28,11 @@ const HOST_VERSION = 1;
    project but no way to read one is not offering a project. */
 const HOST_PROJECT_METHODS = ['name', 'read', 'write', 'media', 'open'];
 
+/* What a project may also offer. Each is checked where it is used, and its
+   absence means doing what a browser would. Listed so docs/host.md and the fake
+   shell the tests use can be held to the same set. */
+const HOST_PROJECT_OPTIONAL = ['importFile', 'discard', 'readHistory', 'writeHistory', 'onAdded'];
+
 /**
  * The host object, or null when there isn't a usable one.
  *
@@ -82,6 +87,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     HOST_VERSION,
     HOST_PROJECT_METHODS,
+    HOST_PROJECT_OPTIONAL,
     host,
     hostPresent,
     hostProject,
