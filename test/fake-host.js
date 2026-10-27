@@ -96,6 +96,16 @@ function fakeHost({
       editor = given;
     });
   }
+  /* Recorded with what was on screen at the moment, which is the whole point
+     of being told. */
+  if (!omit.includes('ready')) {
+    host.ready = record('ready', () => {
+      // Under Node there is no page, and so nothing shown.
+      const page = globalThis.document;
+      const shown = page ? page.querySelectorAll('.tl-clip') : null;
+      calls.at(-1).push({ clipsShown: shown ? shown.length : null });
+    });
+  }
 
   return {
     host,
