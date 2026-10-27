@@ -11,6 +11,7 @@
  *   window.skateHost = fake.host;
  *   ... fake.calls  every call made, as [method, ...args]
  *   ... fake.folder what the folder holds now
+ *   ... fake.editor() what the page handed over through connect
  *   await fake.arrive({ name, title }, bytes)   a song lands from elsewhere
  *
  * `omit` takes optional methods away, to be a shell that does not offer them;
@@ -78,18 +79,30 @@ function fakeHost({
   };
   for (const method of omit) delete methods[method];
 
-  const recorded = {};
-  for (const [method, fn] of Object.entries(methods)) {
-    recorded[method] = (...args) => {
+  const record =
+    (method, fn) =>
+    (...args) => {
       calls.push([method, ...args]);
       return fn(...args);
     };
+  const recorded = {};
+  for (const [method, fn] of Object.entries(methods)) recorded[method] = record(method, fn);
+
+  /* Beside the project: what the page hands over for the shell to call. */
+  let editor = null;
+  const host = { version, project: recorded };
+  if (!omit.includes('connect')) {
+    host.connect = record('connect', (given) => {
+      editor = given;
+    });
   }
 
   return {
-    host: { version, project: recorded },
+    host,
     calls,
     folder,
+    /** What the page handed over through `connect`, or null. */
+    editor: () => editor,
     /** Who is listening for songs arriving. */
     listening: () => listeners.length,
     /** A song lands in the folder by a route the page did not start. */

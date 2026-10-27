@@ -1269,13 +1269,31 @@
     "expect": "the README screenshot shows the interface as it is now"
   },
   {
-    "name": "the function a shell closes with is no longer exported",
-    "guards": "what a shell calls by name is still there to be called",
+    "name": "the page stops handing the shell its flush",
+    "guards": "what a shell may call is what the page hands over",
     "file": "src/app.js",
     "suite": "unit",
-    "find": "    flushHostSave,\n    bindHostAdded,",
-    "replace": "    bindHostAdded,",
-    "expect": "the shell calls flushHostSave()"
+    "find": "  return { flush: flushHostSave };",
+    "replace": "  return {};",
+    "expect": "the page hands the shell"
+  },
+  {
+    "name": "connecting says it did without handing anything over",
+    "guards": "a shell that offers connect is given the page",
+    "file": "src/host.js",
+    "suite": "unit",
+    "find": "  given.connect(editor);\n  return true;",
+    "replace": "  return true;",
+    "expect": "the shell was handed something else"
+  },
+  {
+    "name": "an export promised to shells is dropped from the list",
+    "guards": "what shells may build against is written down and declared alike",
+    "file": "src/host.js",
+    "suite": "unit",
+    "find": "  'layout',\n  'readProject',",
+    "replace": "  'readProject',",
+    "expect": "exports for shells, document against host.js"
   },
   {
     "name": "a flush skips the edit still waiting to be written",

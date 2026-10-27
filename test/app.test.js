@@ -1440,7 +1440,10 @@ async function withHostAsync(given, fn) {
 
 /** A host with everything this app requires and nothing optional, plus whatever `extra` adds. */
 const workingHost = (extra = {}) => ({
-  ...fakeHost({ version: app.HOST_VERSION, omit: app.HOST_PROJECT_OPTIONAL }).host,
+  ...fakeHost({
+    version: app.HOST_VERSION,
+    omit: [...app.HOST_PROJECT_OPTIONAL, ...app.HOST_OPTIONAL],
+  }).host,
   ...extra,
 });
 
@@ -1471,9 +1474,24 @@ check('host: docs/host.md lists the methods the code checks, uses and fakes', ()
     'optional methods, document against host.js: ',
   );
 
+  const beside = named(section('### Beside the project'));
+  eq(
+    beside,
+    [...app.HOST_OPTIONAL].sort(),
+    'methods beside the project, document against host.js: ',
+  );
+
   // The fake every test shell is built from offers exactly the documented set.
-  const fake = Object.keys(fakeHost({ version: app.HOST_VERSION }).host.project).sort();
+  const whole = fakeHost({ version: app.HOST_VERSION }).host;
+  const fake = Object.keys(whole.project).sort();
   eq(fake, [...required, ...optional].sort(), 'the fake shell offers: ');
+  eq(
+    Object.keys(whole)
+      .filter((key) => !['version', 'project'].includes(key))
+      .sort(),
+    beside,
+    'the fake shell offers beside the project: ',
+  );
   withHost(fakeHost({ version: app.HOST_VERSION }).host, () =>
     ok(app.hostPresent(), 'the fake shell is not accepted as a shell'),
   );
@@ -1491,13 +1509,49 @@ check('host: docs/host.md lists the methods the code checks, uses and fakes', ()
     }
   }
 
-  /* And what the shell calls by name is still there to be called. Renaming it
-     breaks closing a project in a shell and nothing else (#120). */
+  /* What the page hands the shell is exactly what the document says the shell
+     may call. A method missing here breaks a shell and nothing else; one
+     undocumented is one a shell was never told about. */
   const called = named(section('## Called by the shell'));
   ok(called.length > 0, 'docs/host.md names nothing the shell calls');
+  const editor = app.hostEditor();
+  eq(Object.keys(editor).sort(), called, 'the page hands the shell: ');
   for (const name of called) {
-    eq(typeof app[name], 'function', `the shell calls ${name}(): `);
+    eq(typeof editor[name], 'function', `the shell calls ${name}(): `);
   }
+
+  /* The Node exports a shell builds against: documented, declared, and still
+     exported. Renaming one breaks a shell's own code and nothing here. */
+  const declared = [
+    ...section("## What a shell reads from the editor's code").matchAll(/^\| `(\w+)`/gm),
+  ].map((m) => m[1]);
+  eq(
+    [...declared].sort(),
+    [...app.SHELL_EXPORTS].sort(),
+    'exports for shells, document against host.js: ',
+  );
+  for (const name of app.SHELL_EXPORTS) {
+    ok(app[name] !== undefined, `${name} is promised to shells and no longer exported`);
+  }
+});
+
+check('host: the page hands the shell what it may ask, if the shell takes it', () => {
+  const editor = app.hostEditor();
+  eq(app.hostConnect(editor), false, 'connected with no shell at all: ');
+  withHost(workingHost(), () =>
+    eq(app.hostConnect(editor), false, 'connected to a shell with no connect: '),
+  );
+  const fake = fakeHost({ version: app.HOST_VERSION });
+  withHost(fake.host, () => eq(app.hostConnect(editor), true, 'did not connect: '));
+  eq(fake.editor(), editor, 'the shell was handed something else: ');
+  eq(fake.calls.filter(([method]) => method === 'connect').length, 1, 'connect calls: ');
+
+  // A shell the page refuses is not handed anything either.
+  const refused = fakeHost({ version: app.HOST_VERSION + 1 });
+  withHost(refused.host, () =>
+    eq(app.hostConnect(editor), false, 'connected to a refused shell: '),
+  );
+  eq(refused.editor(), null, 'a refused shell was handed the page anyway: ');
 });
 
 check('host: with nothing offering one, there is no host', () => {
