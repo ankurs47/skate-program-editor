@@ -1411,5 +1411,14 @@
     "find": "  if (given && typeof given.ready === 'function') given.ready();",
     "replace": "  void given;",
     "expect": "a shell is told when the program is on screen, not when the music is"
+  },
+  {
+    "name": "a guide link inside a shell navigates the page again",
+    "guards": "the guide never replaces the program",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "    if (hostOpenGuide(section)) e.preventDefault();",
+    "replace": "    hostOpenGuide(section);",
+    "expect": "inside a shell the guide opens beside the program, not in its place"
   }
 ]

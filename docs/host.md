@@ -113,10 +113,11 @@ Without all five, `project` is not a project and the shell is ignored.
 
 Optional, on `skateHost` itself rather than on `project`.
 
-| Method            | Returns | The editor uses it to                              |
-| ----------------- | ------- | -------------------------------------------------- |
-| `connect(editor)` | nothing | hand over what the shell may ask of the page below |
-| `ready()`         | nothing | say the program is on screen                       |
+| Method               | Returns | The editor uses it to                              |
+| -------------------- | ------- | -------------------------------------------------- |
+| `connect(editor)`    | nothing | hand over what the shell may ask of the page below |
+| `ready()`            | nothing | say the program is on screen                       |
+| `openGuide(section)` | nothing | show the guide, without leaving the program        |
 
 - **`connect(editor)`** is called once, at startup, after the shell is found
   and before the project is read — so a shell closing early can still ask for a
@@ -128,6 +129,12 @@ Optional, on `skateHost` itself rather than on `project`.
   Decoding can take seconds and draws itself in as it goes, so it is not waited
   for. It is called even when the project could not be read, so a shell that
   shows its window on this never keeps it hidden behind an error.
+- **`openGuide(section)`** is called for every link into `docs/help.html`,
+  instead of following it — inside a shell the page is the program, and the
+  guide loaded in its place left no way back but a link that reloaded it.
+  `section` is the part after `#`, such as `saving`, or null for the top. The
+  shell shows the guide wherever suits it: its own window, or a browser. Without
+  this method a link into the guide is an ordinary link.
 
 ## What changes inside a shell
 
@@ -202,27 +209,28 @@ any other way — not a global by name, not a script it injects.
 
 ### Commands
 
-| Id                | What it does                                 | Keys          |
-| ----------------- | -------------------------------------------- | ------------- |
-| `program.undo`    | **Undo**                                     | `Mod+Z`       |
-| `program.redo`    | **Redo**                                     | `Mod+Shift+Z` |
-| `program.evenOut` | **Even out the volume**                      |               |
-| `program.export`  | **Make music file** — opens its dialog       |               |
-| `playback.toggle` | **Play**, or **Pause** while playing         | `Space`       |
-| `playback.stop`   | **Stop**                                     |               |
-| `clip.play`       | **Play this song**, the selected one         |               |
-| `join.play`       | **Play this join**, before the selected song |               |
-| `clip.previous`   | select the song before                       | `[`           |
-| `clip.next`       | select the song after                        | `]`           |
-| `view.music`      | **Hide the music list**, or show it          |               |
-| `colors.auto`     | colors follow the computer                   |               |
-| `colors.light`    | light colors                                 |               |
-| `colors.dark`     | dark colors                                  |               |
-| `help.basics`     | open the help on the basics                  |               |
-| `help.tips`       | open the tips                                |               |
-| `help.saving`     | open the help on saving                      |               |
-| `help.quality`    | open the help on sound quality               |               |
-| `help.keys`       | open the keyboard shortcuts                  |               |
+| Id                | What it does                                     | Keys          |
+| ----------------- | ------------------------------------------------ | ------------- |
+| `program.undo`    | **Undo**                                         | `Mod+Z`       |
+| `program.redo`    | **Redo**                                         | `Mod+Shift+Z` |
+| `program.evenOut` | **Even out the volume**                          |               |
+| `program.export`  | **Make music file** — opens its dialog           |               |
+| `playback.toggle` | **Play**, or **Pause** while playing             | `Space`       |
+| `playback.stop`   | **Stop**                                         |               |
+| `clip.play`       | **Play this song**, the selected one             |               |
+| `join.play`       | **Play this join**, before the selected song     |               |
+| `clip.previous`   | select the song before                           | `[`           |
+| `clip.next`       | select the song after                            | `]`           |
+| `view.music`      | **Hide the music list**, or show it              |               |
+| `colors.auto`     | colors follow the computer                       |               |
+| `colors.light`    | light colors                                     |               |
+| `colors.dark`     | dark colors                                      |               |
+| `help.basics`     | open the help on the basics                      |               |
+| `help.tips`       | open the tips                                    |               |
+| `help.saving`     | open the help on saving                          |               |
+| `help.quality`    | open the help on sound quality                   |               |
+| `help.keys`       | open the keyboard shortcuts                      |               |
+| `help.guide`      | **Full guide** — through `openGuide`, in a shell |               |
 
 Ids are never reused for something different (convention 7). A command added
 here is added to the end of the list, so a shell that shows them in order shows
@@ -318,13 +326,14 @@ In order. Each lands in this document when it lands in the code.
    covers.
 4. **Music files** ([#125]): `writeExport(name, bytes, details)` hands the finished
    file to the shell instead of downloading it.
-5. **The guide** ([#122]) and **confirmations** ([#135]): the page asks the
-   shell to show the guide rather than navigating away from the program, and to
-   confirm destructive actions natively. The color choice ([#127]) is already in
-   the state, as the `checked` on the `colors.*` commands.
+5. **Confirmations** ([#135]): the page asks the shell to confirm destructive
+   actions natively. The color choice ([#127]) is already in the state, as the
+   `checked` on the `colors.*` commands.
 
 ## Changelog
 
+- **Version 1, `openGuide`** ([#122]). `skateHost.openGuide(section)`, asked
+  for every link into the guide, and the `help.guide` command.
 - **Version 1, `ready`** ([#134]). `skateHost.ready()`, called once the
   program is on screen.
 - **Version 1, commands and state** ([#121]). `editor.state()`,
