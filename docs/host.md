@@ -180,6 +180,10 @@ page does not know is ignored, and a shell with no `capabilities` has none.
   its window from the page's title with nothing on the bridge.
 - Removing or replacing a song asks `discard`, and the wording says the file
   goes to the trash rather than that nothing on the computer is touched.
+- The root element carries `data-shell`, and the page behaves like an app's own
+  window rather than a web page: controls show the arrow instead of the
+  pointing hand, and the interface cannot be selected and dragged like a
+  document — fields, a song's details and messages still can.
 
 ## Called by the shell
 
@@ -369,11 +373,13 @@ gives a reason to break it.
 
 In order. Each lands in this document when it lands in the code.
 
-1. **Confirmations** ([#135]): the page asks the shell to confirm destructive
-   actions natively. The color choice ([#127]) is already in the state, as the
-   `checked` on the `colors.*` commands.
-2. **The page answers with what it supports**: the other half of convention 8,
+1. **The page answers with what it supports**: the other half of convention 8,
    so a shell can leave out what an older editor cannot do.
+
+The color choice ([#127]) is in the state already, as the `checked` on the
+`colors.*` commands. Native confirmations ([#135]) were looked at and are not
+planned: inside a shell, every confirmation the page asks is either hidden or a
+dialog with a report in it, which a message box would flatten.
 
 ## Changelog
 

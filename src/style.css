@@ -1422,3 +1422,18 @@ button.primary > kbd {
   color: var(--accent);
   font-size: 12px;
 }
+
+/* Inside a desktop shell the page is the app, so it behaves like one: controls
+   show the arrow a desktop app's controls show rather than the web's pointing
+   hand, and the interface is not text to be selected and dragged like a
+   document's. What is text somebody may want to copy — a field, a song's
+   details, a message — stays selectable. In a browser none of this applies. */
+:root[data-shell] :is(button, .row.check, .notes > summary) {
+  cursor: default;
+}
+:root[data-shell] body {
+  user-select: none;
+}
+:root[data-shell] :is(input, textarea, select, .lib-tags, .warn, #toast, #helpBody) {
+  user-select: text;
+}
