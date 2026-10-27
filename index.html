@@ -411,6 +411,17 @@
             <span class="hint">
               Drag the edges to trim, set them with <kbd>I</kbd> and <kbd>O</kbd>, or type a time
             </span>
+            <div class="zoom-buttons">
+              <button id="btnZoomOut" class="small" aria-label="Zoom out">&minus;</button>
+              <button
+                id="btnZoomIn"
+                class="small"
+                aria-label="Zoom in"
+                title="Look closer, around the end the arrow keys move (+)"
+              >
+                +
+              </button>
+            </div>
             <input
               class="mono time-entry end"
               id="lblEnd"
@@ -723,6 +734,8 @@
             move the start or end point a little &mdash; whichever you last dragged or set with
             <kbd>I</kbd> or <kbd>O</kbd>. Hold <kbd>Shift</kbd> to move more
           </dd>
+          <dt><kbd>+</kbd> <kbd>&minus;</kbd></dt>
+          <dd>zoom the waveform in or out, around the end the arrow keys move</dd>
           <dt><kbd>[</kbd> <kbd>]</kbd></dt>
           <dd>go to the previous or next song</dd>
           <dt><kbd>Ctrl</kbd>+<kbd>Z</kbd></dt>

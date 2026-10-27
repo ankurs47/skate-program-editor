@@ -2302,6 +2302,108 @@ async function main() {
       eq(undone, 0, 'typing a time is not one undo step: ');
     });
 
+    await check('zoomed in, one arrow press visibly moves the handle', async () => {
+      /* Measured off the canvas: the column the active handle is painted in,
+         found by its color, before and after a press. On a whole four-minute
+         song a tenth of a second is under half a pixel, which is the complaint
+         this answers; zoomed in it has to be a visible move. Real keys and a
+         real click, so the hit-testing is checked against the same zoom. */
+      const press = async (key, code, keyCode) => {
+        for (const type of ['rawKeyDown', 'keyUp']) {
+          await page.send('Input.dispatchKeyEvent', {
+            type,
+            key,
+            code,
+            windowsVirtualKeyCode: keyCode,
+          });
+        }
+      };
+      const tap = async ({ x, y }) => {
+        for (const type of ['mousePressed', 'mouseReleased']) {
+          await page.send('Input.dispatchMouseEvent', {
+            type,
+            x,
+            y,
+            button: 'left',
+            clickCount: 1,
+          });
+        }
+      };
+      /* Columns of the top row painted in the accent color at full strength:
+         the active handle's bar, and nothing else reaches the top row. */
+      const handle = () =>
+        run(`
+          const c = __id('clipCanvas'); const g = c.getContext('2d');
+          const probe = document.createElement('canvas').getContext('2d');
+          probe.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent');
+          probe.fillRect(0, 0, 1, 1);
+          const [r, gr, b] = probe.getImageData(0, 0, 1, 1).data;
+          const row = g.getImageData(0, 1, c.width, 1).data;
+          const hits = [];
+          for (let x = 0; x < c.width; x++) {
+            const i = x * 4;
+            if (Math.abs(row[i] - r) + Math.abs(row[i + 1] - gr) + Math.abs(row[i + 2] - b) < 12 && row[i + 3] > 250) hits.push(x);
+          }
+          const rect = c.getBoundingClientRect();
+          const mid = hits.length ? hits.reduce((s, v) => s + v, 0) / hits.length : null;
+          return { x: mid, screenX: mid === null ? null : rect.left + (mid / c.width) * rect.width,
+                   y: rect.top + rect.height / 2 };`);
+      const left = () => press('ArrowLeft', 'ArrowLeft', 37);
+
+      await run(`
+        window.__reset([['long.wav', window.__tone(220, 240)]]);
+        state.clips[0].srcEnd = 200;
+        state.selected = state.clips[0].id;
+        setActiveEdge('end');
+        refresh();
+        document.activeElement.blur();
+      `);
+      const whole0 = await handle();
+      await left();
+      const whole1 = await handle();
+
+      for (let i = 0; i < 3; i++) await press('=', 'Equal', 187); // 8x: thirty seconds across
+      const zoomed0 = await handle();
+      await left();
+      const zoomed1 = await handle();
+      const view = await run(`const v = clipView(state.clips[0]); return { span: v.to - v.from,
+        zoomOutOn: !__id('btnZoomOut').disabled };`);
+
+      // The end handle, found where it is painted, is the one a click grabs.
+      await run(
+        `setActiveEdge('start'); drawClipEditor(); setActiveEdge('end'); drawClipEditor();`,
+      );
+      const end = await handle();
+      await run(`setActiveEdge('start'); drawClipEditor();`);
+      await tap({ x: end.screenX, y: end.y });
+      const grabbed = await run(`return getActiveEdge();`);
+
+      // The marker moved far off screen brings the view with it.
+      const followed = await run(`
+        seekTo(10);
+        const v = clipView(state.clips[0]);
+        return v.from <= state.cursor && state.cursor <= v.to;`);
+
+      for (let i = 0; i < 3; i++) await press('-', 'Minus', 189);
+      const back = await run(`const v = clipView(state.clips[0]);
+        return { from: v.from, to: v.to, zoomOutOff: __id('btnZoomOut').disabled };`);
+
+      ok(whole0.x !== null && zoomed0.x !== null, 'the active handle was not found on the canvas');
+      ok(
+        Math.abs(whole1.x - whole0.x) < 1.5,
+        `on the whole song a nudge should be sub-pixel here: ${whole1.x - whole0.x}`,
+      );
+      near(view.span, 30, 1e-6, 'three presses of + should show thirty seconds: ');
+      ok(view.zoomOutOn, 'zoom out is not offered while zoomed in');
+      ok(
+        whole0.x - whole1.x < zoomed0.x - zoomed1.x && zoomed0.x - zoomed1.x >= 2,
+        `zoomed in, a nudge moved the handle ${zoomed0.x - zoomed1.x} px`,
+      );
+      eq(grabbed, 'end', 'a click on the painted handle did not grab it: ');
+      ok(followed, 'the view did not follow the marker');
+      eq(back, { from: 0, to: 240, zoomOutOff: true }, 'zooming out again: ');
+    });
+
     await check('a silence before a song delays it, and the blend gives way', async () => {
       /* Through the slider, and onto the sources that are actually started:
          a gap that only moved the timeline would show a silence and play none. */

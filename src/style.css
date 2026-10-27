@@ -718,9 +718,13 @@ body.dropping #timelineWrap[data-mode="start"] .empty {
 #btnEvenOut {
   margin-left: auto;
 }
-.undo-buttons {
+.undo-buttons,
+.zoom-buttons {
   display: flex;
   gap: 6px;
+}
+.zoom-buttons button {
+  min-width: 2.2em;
 }
 #timelineWrap {
   position: relative;

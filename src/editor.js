@@ -18,6 +18,54 @@ function setActiveEdge(edge) {
   activeEdge = edge;
 }
 
+/* The stretch of the song the clip waveform shows. Back to the whole song when
+   another clip is selected, so no song opens zoomed in on wherever the last
+   one was. `shownCursor` is the marker as last drawn, so a marker that moves
+   off screen — playing, or clicked on the bar — can be followed. */
+let zoomView = { clipId: null, zoom: 1, center: 0 };
+let shownCursor = null;
+
+/** The length of the song a clip is cut from, as far as anything knows yet. */
+function songLength(clip) {
+  const entry = library.get(clip.file);
+  return entry && entry.buffer ? entry.duration : Math.max(clip.srcEnd, 1);
+}
+
+/** What the waveform shows of this clip's song: `{from, to}` in song seconds. */
+function clipView(clip) {
+  const duration = songLength(clip);
+  if (zoomView.clipId !== clip.id) {
+    zoomView = { clipId: clip.id, zoom: 1, center: duration / 2 };
+    shownCursor = state.cursor;
+  }
+  return viewRange(duration, zoomView.zoom, zoomView.center);
+}
+
+/** Scroll the zoomed waveform so `t` is on screen. Nothing to do when it is. */
+function revealInView(t) {
+  const clip = selectedClip();
+  if (!clip) return;
+  const { from, to } = clipView(clip);
+  if (t >= from && t <= to) return;
+  zoomView.center = t;
+}
+
+/**
+ * Zoom the waveform in (`factor` above 1) or out, around `at` in song seconds.
+ *
+ * Around the end the arrow keys move unless told otherwise, because that is
+ * what zooming is for here: a nudge of a tenth of a second is under a pixel on
+ * a whole four-minute song, so it changes the time and not the picture.
+ */
+function zoomClip(factor, at) {
+  const clip = selectedClip();
+  if (!clip) return;
+  clipView(clip);
+  const anchor = at ?? (activeEdge === 'start' ? clip.srcStart : clip.srcEnd);
+  zoomView = { clipId: clip.id, ...zoomAround(songLength(clip), zoomView, factor, anchor) };
+  drawClipEditor();
+}
+
 function drawClipEditor() {
   const clip = selectedClip();
   const editor = $('editor');
@@ -28,20 +76,37 @@ function drawClipEditor() {
   $('editorTitle').title = clip.title; // CSS cuts the heading short when it is long
   const entry = library.get(clip.file);
   const canvas = $('clipCanvas');
-  const duration = entry && entry.buffer ? entry.duration : Math.max(clip.srcEnd, 1);
+  const duration = songLength(clip);
+  clipView(clip);
+  if (state.cursor !== shownCursor) {
+    shownCursor = state.cursor;
+    revealInView(state.cursor);
+  }
+  const { from, to } = clipView(clip);
 
-  drawWave(
-    canvas,
-    entry ? entry.peaks : null,
-    duration,
-    0,
-    duration,
-    css('--wave'),
-    clipGain(clip),
-  );
+  /* Close in, the song's own summary is coarser than a pixel and draws as
+     blocks, so the stretch on screen is read from the samples instead. */
+  const across = Math.max(1, Math.round(canvas.clientWidth || canvas.width));
+  const fine =
+    entry &&
+    entry.buffer &&
+    entry.peaks &&
+    (to - from) / across < duration / (entry.peaks.length / 2);
+  if (fine) {
+    const peaks = rangePeaks(entry.buffer, from, to, across);
+    drawWave(canvas, peaks, to - from, 0, to - from, css('--wave'), clipGain(clip));
+  } else {
+    drawWave(canvas, entry ? entry.peaks : null, duration, from, to, css('--wave'), clipGain(clip));
+  }
+  $('btnZoomIn').disabled = zoomView.zoom >= maxZoom(duration);
+  $('btnZoomOut').disabled = zoomView.zoom <= 1;
+  $('btnZoomOut').title =
+    zoomView.zoom > 1
+      ? `Showing ${fmt(from)} to ${fmt(to)} — zoom out to see more of the song (−)`
+      : 'Showing the whole song';
 
   const { g, w, h } = fitCanvas(canvas);
-  const x = (t) => (t / duration) * w;
+  const x = (t) => ((t - from) / (to - from)) * w;
 
   /* Fade everything outside the kept region back towards the panel it sits on.
      The panel color rather than a flat rgba(0,0,0,.35): black reads as "dimmed"
@@ -328,6 +393,7 @@ function bindTimeEntries() {
         if (edge === 'start') clip.srcStart = found.at;
         else clip.srcEnd = found.at;
         activeEdge = edge;
+        revealInView(found.at);
         refresh();
       }
       field.value = fmt(found.at);
@@ -349,21 +415,19 @@ function bindClipCanvas() {
   const canvas = $('clipCanvas');
   let dragging = null;
 
+  // In song seconds, through whatever stretch of the song is on screen.
   const timeAt = (e) => {
-    const clip = selectedClip();
-    const entry = library.get(clip.file);
-    const duration = entry && entry.buffer ? entry.duration : Math.max(clip.srcEnd, 1);
+    const { from, to } = clipView(selectedClip());
     const rect = canvas.getBoundingClientRect();
-    return clamp(((e.clientX - rect.left) / rect.width) * duration, 0, duration);
+    return clamp(from + ((e.clientX - rect.left) / rect.width) * (to - from), from, to);
   };
 
   canvas.addEventListener('pointerdown', (e) => {
     const clip = selectedClip();
     if (!clip) return;
     const t = timeAt(e);
-    const entry = library.get(clip.file);
-    const duration = entry && entry.buffer ? entry.duration : Math.max(clip.srcEnd, 1);
-    const grab = (duration / canvas.getBoundingClientRect().width) * 8; // 8px in seconds
+    const { from, to } = clipView(clip);
+    const grab = ((to - from) / canvas.getBoundingClientRect().width) * 8; // 8px in seconds
 
     if (Math.abs(t - clip.srcStart) < grab) dragging = 'start';
     else if (Math.abs(t - clip.srcEnd) < grab) dragging = 'end';
@@ -419,6 +483,32 @@ function bindClipCanvas() {
     const clip = selectedClip();
     if (clip) playClipAudition(clip, timeAt(e));
   });
+
+  /* Ctrl or ⌘ with the wheel — a pinch on a trackpad arrives this way too —
+     zooms around the pointer. Zoomed in, a sideways scroll moves along the
+     song. A plain vertical scroll is left to scroll the page. */
+  canvas.addEventListener(
+    'wheel',
+    (e) => {
+      const clip = selectedClip();
+      if (!clip) return;
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        zoomClip(e.deltaY < 0 ? 1.25 : 1 / 1.25, timeAt(e));
+        return;
+      }
+      const sideways = e.shiftKey ? e.deltaY : e.deltaX;
+      if (zoomView.zoom <= 1 || !sideways) return;
+      e.preventDefault();
+      const { from, to } = clipView(clip);
+      const span = to - from;
+      const shift = (sideways / canvas.getBoundingClientRect().width) * span;
+      const shown = viewRange(songLength(clip), zoomView.zoom, from + span / 2 + shift);
+      zoomView.center = (shown.from + shown.to) / 2;
+      drawClipEditor();
+    },
+    { passive: false },
+  );
 }
 
 /* ---------------------------------------------------------- time budget */
@@ -461,6 +551,10 @@ function updateBudget() {
    them back into the single scope the script tags give them in a browser. */
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
+    songLength,
+    clipView,
+    revealInView,
+    zoomClip,
     getActiveEdge,
     setActiveEdge,
     drawClipEditor,

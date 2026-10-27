@@ -279,6 +279,72 @@ function computePeaks(buffer, buckets = 5000) {
   return peaks;
 }
 
+/**
+ * Peaks for one stretch of a buffer, `buckets` of them.
+ *
+ * `computePeaks` summarizes a whole song into a few thousand buckets, which is
+ * a quarter-second-ish each on a long one — plenty at full width and blocky
+ * once the waveform is zoomed in. This reads the samples for just the stretch
+ * on screen, which is cheap because the stretch is short.
+ */
+function rangePeaks(buffer, from, to, buckets) {
+  const rate = buffer.sampleRate;
+  const s0 = clamp(Math.floor(from * rate), 0, buffer.length);
+  const s1 = clamp(Math.ceil(to * rate), s0, buffer.length);
+  const channels = [];
+  for (let c = 0; c < buffer.numberOfChannels; c++) channels.push(buffer.getChannelData(c));
+  const peaks = new Float32Array(buckets * 2);
+  for (let b = 0; b < buckets; b++) {
+    const s = s0 + Math.floor(((s1 - s0) * b) / buckets);
+    const e = Math.max(s + 1, s0 + Math.floor(((s1 - s0) * (b + 1)) / buckets));
+    let mn = 1,
+      mx = -1;
+    for (const data of channels) {
+      for (let j = s; j < Math.min(e, s1); j++) {
+        if (data[j] < mn) mn = data[j];
+        if (data[j] > mx) mx = data[j];
+      }
+    }
+    peaks[b * 2] = mx < mn ? 0 : mn;
+    peaks[b * 2 + 1] = mx < mn ? 0 : mx;
+  }
+  return peaks;
+}
+
+/* ------------------------------------------------------- zooming the waveform */
+
+/* The narrowest stretch the clip waveform zooms to, in seconds: about a bar at
+   a walking tempo, which is as close as placing a cut by eye needs. */
+const MIN_VIEW = 2;
+
+/** How far the waveform can zoom on a song this long. 1 is the whole song. */
+function maxZoom(duration) {
+  return Math.max(1, duration / MIN_VIEW);
+}
+
+/** The stretch of the song on screen at `zoom`, centered on `center` as far as the song allows. */
+function viewRange(duration, zoom, center) {
+  const span = duration / clamp(zoom, 1, maxZoom(duration));
+  const from = clamp(center - span / 2, 0, Math.max(0, duration - span));
+  return { from, to: from + span };
+}
+
+/**
+ * Zoom by `factor`, holding `at` still on screen — or bringing it to the
+ * middle, when it was not on screen to hold.
+ *
+ * Returns the view centered on what is actually shown, so a center pushed past
+ * the end of the song does not linger and jump the view on the next zoom.
+ */
+function zoomAround(duration, view, factor, at) {
+  const { from, to } = viewRange(duration, view.zoom, view.center);
+  const zoom = clamp(view.zoom * factor, 1, maxZoom(duration));
+  const span = duration / zoom;
+  const share = at >= from && at <= to && to > from ? (at - from) / (to - from) : 0.5;
+  const shown = viewRange(duration, zoom, at - share * span + span / 2);
+  return { zoom, center: (shown.from + shown.to) / 2 };
+}
+
 /* ---------------------------------------------- clips against their files */
 
 /**
@@ -1090,6 +1156,11 @@ if (typeof module !== 'undefined' && module.exports) {
     crossfadeEnvelope,
     valueAt,
     computePeaks,
+    rangePeaks,
+    MIN_VIEW,
+    maxZoom,
+    viewRange,
+    zoomAround,
     clampClipsToFile,
     clampFades,
     trimEdge,

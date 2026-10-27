@@ -1204,5 +1204,23 @@
     "find": "  if (!found.refuse) return found;",
     "replace": "  return found;",
     "expect": "typedEdge: a typed time trims, with the limits I and O have"
+  },
+  {
+    "name": "the zoomed waveform is drawn against the whole song",
+    "guards": "zooming in makes a nudge visible",
+    "file": "src/editor.js",
+    "suite": "dom",
+    "find": "  const x = (t) => ((t - from) / (to - from)) * w;",
+    "replace": "  const x = (t) => (t / duration) * w;",
+    "expect": "zoomed in, one arrow press visibly moves the handle"
+  },
+  {
+    "name": "a click on the zoomed waveform is read against the whole song",
+    "guards": "what is clicked is what is drawn there",
+    "file": "src/editor.js",
+    "suite": "dom",
+    "find": "    return clamp(from + ((e.clientX - rect.left) / rect.width) * (to - from), from, to);",
+    "replace": "    return clamp(((e.clientX - rect.left) / rect.width) * songLength(selectedClip()), from, to);",
+    "expect": "zoomed in, one arrow press visibly moves the handle"
   }
 ]
