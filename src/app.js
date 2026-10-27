@@ -1078,6 +1078,8 @@ function bind() {
   $('btnAlignJoin').onclick = () => withBusy($('btnAlignJoin'), alignSelectedJoin);
   $('btnEvenOut').onclick = () => withBusy($('btnEvenOut'), evenOutLevels);
   $('btnUndo').onclick = undo;
+  $('btnZoomIn').onclick = () => zoomClip(2);
+  $('btnZoomOut').onclick = () => zoomClip(1 / 2);
   $('btnRedo').onclick = redo;
 
   {
@@ -1334,7 +1336,12 @@ function onKey(e) {
     pushUndo(`nudge-${edge}:${clip.id}`);
     if (edge === 'start') clip.srcStart = at;
     else clip.srcEnd = at;
+    revealInView(at); // zoomed in, a held key can carry the end off screen
     refresh();
+  } else if (e.key === '+' || e.key === '=') {
+    zoomClip(2);
+  } else if (e.key === '-') {
+    zoomClip(1 / 2);
   } else if (e.key === '[' || e.key === ']') {
     const i = state.clips.indexOf(clip);
     const next = state.clips[i + (e.key === ']' ? 1 : -1)];

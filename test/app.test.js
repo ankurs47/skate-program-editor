@@ -2299,6 +2299,53 @@ check('parseSongTime: zero is a time, where a program length cannot be', () => {
   eq(app.parseClock('2:10'), 130);
 });
 
+check('zoom: the view stays inside the song, and zooms around a point that holds still', () => {
+  eq(app.viewRange(240, 1, 17), { from: 0, to: 240 }, 'zoom 1 is the whole song: ');
+  eq(app.viewRange(240, 8, 100), { from: 85, to: 115 }, 'centered: ');
+  eq(app.viewRange(240, 8, 2), { from: 0, to: 30 }, 'not before the start: ');
+  eq(app.viewRange(240, 8, 239), { from: 210, to: 240 }, 'not past the end: ');
+  eq(app.viewRange(240, 1e6, 100).to - app.viewRange(240, 1e6, 100).from, app.MIN_VIEW);
+  eq(app.viewRange(240, 0.2, 100), { from: 0, to: 240 }, 'no zooming out past the song: ');
+
+  // A point on screen stays where it was on screen.
+  const was = app.viewRange(240, 2, 120); // 60..180
+  const next = app.zoomAround(240, { zoom: 2, center: 120 }, 2, 90);
+  const now = app.viewRange(240, next.zoom, next.center);
+  near((90 - was.from) / (was.to - was.from), (90 - now.from) / (now.to - now.from), 1e-9);
+  // A point off screen is brought to the middle.
+  const off = app.zoomAround(240, { zoom: 8, center: 20 }, 2, 200);
+  eq(off.center, 200);
+  // Pushed against the end, the center returned is the one actually shown.
+  eq(app.zoomAround(240, { zoom: 2, center: 120 }, 2, 300), { zoom: 4, center: 210 });
+});
+
+check('rangePeaks: the stretch on screen read from the samples', () => {
+  const rate = 1000;
+  const data = new Float32Array(10 * rate);
+  data[2500] = 0.9; // a click 2.5 s in
+  data[7500] = -0.7;
+  const buffer = {
+    sampleRate: rate,
+    length: data.length,
+    numberOfChannels: 1,
+    getChannelData: () => data,
+  };
+  const peaks = app.rangePeaks(buffer, 2, 3, 10); // 0.1 s a bucket
+  eq(peaks.length, 20);
+  eq(
+    Array.from(peaks.slice(10, 12)).map((v) => +v.toFixed(2)),
+    [0, 0.9],
+    'the click lands in bucket 5: ',
+  );
+  near(Math.max(...peaks), 0.9, 1e-6, 'nothing from outside the stretch: ');
+  ok(Math.min(...peaks) === 0, 'the -0.7 at 7.5 s is outside it');
+  eq(
+    app.rangePeaks(buffer, 9.95, 12, 4).length,
+    8,
+    'past the end of the buffer reads as silence: ',
+  );
+});
+
 check('trimEdge: no marker at all is refused rather than read as zero', () => {
   for (const cursor of [NaN, undefined, null, 'x', Infinity]) {
     const found = app.trimEdge(trimClip, 'start', cursor, 30);
