@@ -1099,7 +1099,25 @@ function refresh() {
   drawScrubber();
   drawClipEditor();
   updateBudget();
+  showProgramName();
   save();
+}
+
+/* What the page is called before there is a program: the static <title>,
+   which is what a search result shows. Read once, the first time it is needed. */
+let siteTitle = null;
+
+/**
+ * Name the page for the program in it, the way a document's window is named
+ * for the document — so a tab among several, or a desktop shell's window, says
+ * which program is open. An empty program in a browser keeps the site's own
+ * title: the page then is the site, not anybody's program.
+ */
+function showProgramName() {
+  if (siteTitle === null) siteTitle = document.title;
+  const name = (state.name || '').trim();
+  const program = state.clips.length > 0 || hostPresent();
+  document.title = program && name ? `${name} — Skate Program Editor` : siteTitle;
 }
 
 /* ----------------------------------------------------------- level picker */
@@ -1197,6 +1215,7 @@ function bind() {
   $('programName').oninput = (e) => {
     pushUndo('program-name');
     state.name = e.target.value;
+    showProgramName();
     save();
   };
 
@@ -1916,6 +1935,7 @@ if (typeof document !== 'undefined') {
     onHostState,
     neighbourOf,
     selectNeighbour,
+    showProgramName,
     bindHostAdded,
     PROJECT_CONTROLS,
     hideProjectControls,

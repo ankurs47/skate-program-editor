@@ -758,6 +758,48 @@ async function main() {
       eq(out.afterStop, 0, 'a listener kept hearing after it stopped: ');
     });
 
+    await check('the page is named for the program in it', async () => {
+      /* A tab among several, or a desktop shell's window, then says which
+         program is open — and a shell's title bar follows it (docs/host.md).
+         An empty program in a browser is the site, and keeps its own title. */
+      const out = await run(`
+        const site = 'Skate Program Editor — cut figure skating music online';
+        window.__reset([]);
+        const empty = document.title;
+
+        window.__reset([['a.mp3', window.__tune(1)]]);
+        state.name = 'my 2026 junior long program';
+        refresh();
+        const named = document.title;
+
+        // Typed, letter by letter, as the field reports it.
+        const field = document.getElementById('programName');
+        field.value = 'short program';
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+        const typed = document.title;
+
+        state.name = '   ';
+        refresh();
+        const blank = document.title;
+
+        // In a shell the folder is the program, even before it has music.
+        window.__reset([]);
+        window.skateHost = window.__fakeHost().host;
+        state.name = 'my 2026 junior long program';
+        refresh();
+        const hosted = document.title;
+        delete window.skateHost;
+        window.__reset([]);
+
+        return { site, empty, named, typed, blank, hosted };
+      `);
+      eq(out.empty, out.site, 'an empty program in a browser renamed the site: ');
+      eq(out.named, 'my 2026 junior long program — Skate Program Editor');
+      eq(out.typed, 'short program — Skate Program Editor', 'typing the name left the title: ');
+      eq(out.blank, out.site, 'a blank name left a dash with nothing before it: ');
+      eq(out.hosted, 'my 2026 junior long program — Skate Program Editor', 'in a shell: ');
+    });
+
     await check('inside a shell the page stops offering to manage the project', async () => {
       /* In a browser this page is the whole application and has to be able to
          start a program, save one and open one, because nothing else can.
