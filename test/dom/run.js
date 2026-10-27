@@ -2404,6 +2404,41 @@ async function main() {
       eq(back, { from: 0, to: 240, zoomOutOff: true }, 'zooming out again: ');
     });
 
+    await check('removing a song with a key says so, and Undo brings it back whole', async () => {
+      /* Backspace reaches this from a focused button, which is how it was found:
+         a song gone with nothing on screen to say so. A real keypress, so the
+         path is the one a person takes. */
+      await run(`
+        window.__reset([['a.wav', window.__tone(220, 30)], ['b.wav', window.__tone(330, 30)]]);
+        state.clips[1].srcStart = 3; state.clips[1].srcEnd = 21; state.clips[1].fadeOut = 2;
+        state.selected = state.clips[1].id;
+        refresh();
+        __id('btnMoveLeft').focus();
+      `);
+      for (const type of ['rawKeyDown', 'keyUp']) {
+        await page.send('Input.dispatchKeyEvent', {
+          type,
+          key: 'Backspace',
+          code: 'Backspace',
+          windowsVirtualKeyCode: 8,
+        });
+      }
+      const out = await run(`
+        const after = { count: state.clips.length, said: __id('toast').textContent,
+                        shown: !__id('toast').classList.contains('hidden') };
+        __id('btnUndo').click();
+        const c = state.clips.find((x) => x.file === 'b.wav');
+        return { after, back: c && { start: c.srcStart, end: c.srcEnd, fadeOut: c.fadeOut } };
+      `);
+      eq(out.after.count, 1, 'the song was not removed: ');
+      ok(out.after.shown, 'nothing was shown when the song was removed');
+      ok(
+        out.after.said.includes('“b”') && out.after.said.includes('Undo'),
+        `the message should name the song and the way back: ${out.after.said}`,
+      );
+      eq(out.back, { start: 3, end: 21, fadeOut: 2 }, 'Undo did not bring the song back whole: ');
+    });
+
     await check('a silence before a song delays it, and the blend gives way', async () => {
       /* Through the slider, and onto the sources that are actually started:
          a gap that only moved the timeline would show a silence and play none. */
