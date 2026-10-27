@@ -604,6 +604,7 @@ async function flushHostSave() {
     hostSaveTimer = null;
     try {
       await folder.write(project());
+      hostSaveSucceeded();
     } catch (err) {
       reportHostSaveFailure(err);
       return { saved: false, hosted: true };
@@ -690,6 +691,14 @@ function reportHostSaveFailure() {
   toast('Could not save to the project folder — your editing is still here', 6000);
 }
 
+/* Every write is the whole program, so one that lands leaves the folder up to
+   date however many failed before it. Left set, a single refused write had a
+   shell warning that closing would lose work for the rest of the session — and
+   a folder that later failed again said nothing, the toast already spent. */
+function hostSaveSucceeded() {
+  hostSaveFailed = false;
+}
+
 function save() {
   updateUndoAvailability();
   const folder = hostProject();
@@ -699,7 +708,7 @@ function save() {
     if (hostSaveTimer !== null) clearTimeout(hostSaveTimer);
     hostSaveTimer = setTimeout(() => {
       hostSaveTimer = null;
-      Promise.resolve(folder.write(project())).catch(reportHostSaveFailure);
+      Promise.resolve(folder.write(project())).then(hostSaveSucceeded).catch(reportHostSaveFailure);
     }, HOST_SAVE_DELAY);
     return;
   }
