@@ -44,6 +44,7 @@ const SHELL_EXPORTS = [
   'HOST_PROJECT_METHODS',
   'HOST_PROJECT_OPTIONAL',
   'HOST_OPTIONAL',
+  'HOST_COMMANDS',
   'hostPresent',
   'LEVELS',
   'findLevel',

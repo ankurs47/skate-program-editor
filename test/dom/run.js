@@ -640,6 +640,124 @@ async function main() {
       },
     );
 
+    await check("a shell runs the page's commands and hears every change", async () => {
+      /* What a native menu is built from (docs/host.md, Commands and State).
+         Every command is the click of a real control, so the assertions are
+         on what the page then shows — not on a command having been called. */
+      const out = await run(`
+        window.__reset([['a.mp3', window.__tune(1)], ['b.mp3', window.__tune(2)]]);
+        undoStack.length = 0;
+        redoStack.length = 0;
+        updateUndoAvailability();
+        state.selected = state.clips[0].id;
+        refresh();
+        const fake = window.__fakeHost();
+        window.skateHost = fake.host;
+        hostConnect(hostEditor());
+        const editor = fake.editor();
+        const find = (s, id) => s.commands.find((c) => c.id === id);
+        const settle = () => new Promise((done) => setTimeout(done, 30));
+        const refusal = (id) => editor.run(id).then(() => null, (why) => why);
+
+        const first = editor.state();
+        const heard = [];
+        const stop = editor.onState((s) => heard.push(s));
+
+        const ids = first.commands.map((c) => c.id);
+        const start = {
+          hasProgram: first.hasProgram,
+          undo: find(first, 'program.undo'),
+          previous: find(first, 'clip.previous').enabled,
+          next: find(first, 'clip.next').enabled,
+          play: find(first, 'playback.toggle').label,
+          music: find(first, 'view.music').label,
+          unknown: await refusal('no.such.thing'),
+          refused: await refusal('program.undo'),
+        };
+
+        // A real edit, then the menu's Undo puts it back.
+        const fadeBefore = state.clips[0].fadeIn;
+        pushUndo();
+        state.clips[0].fadeIn = fadeBefore + 1.5;
+        refresh();
+        await settle();
+        const undoAfterEdit = find(editor.state(), 'program.undo').enabled;
+        await editor.run('program.undo');
+        const undone = state.clips[0].fadeIn === fadeBefore;
+
+        await editor.run('clip.next');
+        const selectedNext = state.selected === state.clips[1].id;
+        await editor.run('clip.previous');
+        const selectedBack = state.selected === state.clips[0].id;
+
+        // The label follows the control: the shell is told, and shows it.
+        await editor.run('view.music');
+        await settle();
+        const musicHidden = find(heard.at(-1), 'view.music').label;
+        await editor.run('view.music');
+
+        const was = document.querySelector('[data-theme-choice][aria-checked="true"]').dataset.themeChoice;
+        await editor.run('colors.dark');
+        await settle();
+        const dark = find(heard.at(-1), 'colors.dark').checked;
+        const light = find(heard.at(-1), 'colors.light').checked;
+        chooseTheme(was);
+
+        // A dialog owns the page: every command reads disabled and is refused.
+        await editor.run('help.basics');
+        await settle();
+        const whileOpen = {
+          help: !document.getElementById('helpModal').classList.contains('hidden'),
+          anyEnabled: heard.at(-1).commands.some((c) => c.enabled),
+          refused: await refusal('program.evenOut'),
+        };
+        closeTopDialog();
+
+        // An export in progress, as the dialog shows it.
+        document.getElementById('exportProgress').classList.remove('hidden');
+        document.getElementById('exportBar').style.width = '40%';
+        const exporting = editor.state().exporting;
+        document.getElementById('exportProgress').classList.add('hidden');
+        document.getElementById('exportBar').style.width = '0';
+
+        await settle();
+        const before = heard.length;
+        stop();
+        await editor.run('view.music');
+        await settle();
+        await editor.run('view.music');
+        await settle();
+        const afterStop = heard.length - before;
+
+        delete window.skateHost;
+        return { ids, start, undoAfterEdit, undone, selectedNext, selectedBack, musicHidden,
+                 dark, light, whileOpen, exporting, afterStop };
+      `);
+
+      const expected = await run('return HOST_COMMANDS.map((c) => c.id);');
+      eq(out.ids, expected, 'the state lists the commands, in order: ');
+      ok(out.start.hasProgram, 'a program with two songs reads as empty');
+      eq(out.start.undo.label, 'Undo', 'the label is not the button wording: ');
+      eq(out.start.undo.keys, 'Mod+Z');
+      eq(out.start.undo.enabled, false, 'Undo with nothing to undo: ');
+      eq(out.start.previous, false, 'Previous song on the first song: ');
+      eq(out.start.next, true, 'Next song on the first of two: ');
+      eq(out.start.play, 'Play');
+      eq(out.start.music, 'Hide the music list');
+      eq(out.start.unknown && out.start.unknown.code, 'not-found', 'an unknown command: ');
+      eq(out.start.refused && out.start.refused.code, 'refused', 'a disabled command ran: ');
+      ok(out.undoAfterEdit, 'Undo stayed disabled after an edit');
+      ok(out.undone, 'the menu Undo did not undo');
+      ok(out.selectedNext && out.selectedBack, 'Next and Previous song did not move the selection');
+      eq(out.musicHidden, 'Show the music list', 'the shell was not told the label changed: ');
+      ok(out.dark && !out.light, 'the shell was not told the colors changed');
+      ok(out.whileOpen.help, 'the help command opened nothing');
+      eq(out.whileOpen.anyEnabled, false, 'commands read enabled behind an open dialog: ');
+      eq(out.whileOpen.refused && out.whileOpen.refused.code, 'refused', 'ran behind a dialog: ');
+      eq(out.exporting, { progress: 0.4 }, 'an export in progress: ');
+      eq(out.afterStop, 0, 'a listener kept hearing after it stopped: ');
+    });
+
     await check('inside a shell the page stops offering to manage the project', async () => {
       /* In a browser this page is the whole application and has to be able to
          start a program, save one and open one, because nothing else can.

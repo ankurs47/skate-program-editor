@@ -1520,6 +1520,15 @@ check('host: docs/host.md lists the methods the code checks, uses and fakes', ()
     eq(typeof editor[name], 'function', `the shell calls ${name}(): `);
   }
 
+  /* Every command, in order, by the id a shell's menu is built from. An id
+     renamed here silently drops a menu item; one undocumented is never shown. */
+  const listed = [...section('### Commands').matchAll(/^\| `([\w.]+)`/gm)].map((m) => m[1]);
+  eq(
+    listed,
+    app.HOST_COMMANDS.map((c) => c.id),
+    'commands, document against HOST_COMMANDS: ',
+  );
+
   /* The Node exports a shell builds against: documented, declared, and still
      exported. Renaming one breaks a shell's own code and nothing here. */
   const declared = [
