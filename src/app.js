@@ -1133,7 +1133,7 @@ function fillLevelOptions(select) {
       const option = document.createElement('option');
       option.value = level.id;
       // The time is always visible, so a stale rulebook number is obvious.
-      option.textContent = `${level.label} — ${fmtShort(level.seconds)} ±${level.tol}s`;
+      option.textContent = levelLabel(level);
       optgroup.appendChild(option);
     }
     select.appendChild(optgroup);

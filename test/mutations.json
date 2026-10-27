@@ -1429,5 +1429,14 @@
     "find": "    if (kept) {",
     "replace": "    if (true) {",
     "expect": "a finished music file is handed to the shell, and downloads if it is not kept"
+  },
+  {
+    "name": "a program exactly at the edge of its window reads as off",
+    "guards": "the tolerance includes its own edge, as a rulebook means it",
+    "file": "src/program.js",
+    "suite": "unit",
+    "find": "  if (Math.abs(delta) <= tolerance) {",
+    "replace": "  if (Math.abs(delta) < tolerance) {",
+    "expect": "the editor says how a length stands, in one set of words"
   }
 ]
