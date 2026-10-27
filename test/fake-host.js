@@ -123,6 +123,7 @@ function fakeHost({
     });
   }
   if (!omit.includes('openGuide')) host.openGuide = record('openGuide', () => {});
+  if (!omit.includes('contextMenu')) host.contextMenu = record('contextMenu', () => {});
 
   return {
     host,

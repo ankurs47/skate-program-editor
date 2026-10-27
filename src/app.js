@@ -648,6 +648,11 @@ function hostEditor() {
  * `anywhere` is for controls that work while hidden — the colors live in a
  * closed menu, and a shell's own menu may stand in for the help buttons.
  * `keys` is the page's own key for it, `Mod` meaning Ctrl, or ⌘ on a Mac.
+ *
+ * `target` is what a command can be pointed at, for a menu on one thing: a
+ * 'clip' command runs on that clip, selected first as clicking it would; a
+ * 'song' command exists only for one song, through that song's own button in
+ * the music list (`action`), and is not among the commands the state lists.
  */
 const HOST_COMMANDS = [
   { id: 'program.undo', control: '#btnUndo', keys: 'Mod+Z' },
@@ -656,8 +661,8 @@ const HOST_COMMANDS = [
   { id: 'program.export', control: '#btnExport' },
   { id: 'playback.toggle', control: '#btnPlay', keys: 'Space' },
   { id: 'playback.stop', control: '#btnStop' },
-  { id: 'clip.play', control: '#btnPreviewClip' },
-  { id: 'join.play', control: '#btnPlayJoin' },
+  { id: 'clip.play', control: '#btnPreviewClip', target: 'clip' },
+  { id: 'join.play', control: '#btnPlayJoin', target: 'clip' },
   { id: 'clip.previous', label: 'Previous song', keys: '[', step: -1 },
   { id: 'clip.next', label: 'Next song', keys: ']', step: 1 },
   { id: 'view.music', control: '#btnLibraryToggle', anywhere: true },
@@ -672,7 +677,25 @@ const HOST_COMMANDS = [
     anywhere: true,
   })),
   { id: 'help.guide', control: 'a[href="docs/help.html"]', anywhere: true },
+  { id: 'clip.moveEarlier', control: '#btnMoveLeft', target: 'clip' },
+  { id: 'clip.moveLater', control: '#btnMoveRight', target: 'clip' },
+  { id: 'clip.remove', control: '#btnRemoveClip', target: 'clip' },
+  ...['add', 'replace', 'info', 'remove'].map((action) => ({
+    id: `song.${action}`,
+    action,
+    target: 'song',
+  })),
 ];
+
+/** The control a command clicks: its own, or for a song command, that song's button. */
+function controlOf(command, target) {
+  if (!command.action) return document.querySelector(command.control);
+  if (!target || typeof target.song !== 'string') return null;
+  const row = [...document.querySelectorAll('#libraryList li[data-song]')].find(
+    (li) => li.dataset.song === target.song,
+  );
+  return row ? row.querySelector(`[data-action="${command.action}"]`) : null;
+}
 
 /** What a control says, as a person reads it: its name, without the key hint. */
 function controlLabel(element) {
@@ -683,14 +706,14 @@ function controlLabel(element) {
   return copy.textContent.replace(/\s+/g, ' ').trim();
 }
 
-/** One command as a shell sees it, for the state right now. */
-function describeCommand(command, blocked) {
+/** One command as a shell sees it, for the state right now — and the target, if any. */
+function describeCommand(command, blocked, target = null) {
   const out = { id: command.id, label: command.label || '', keys: command.keys || null };
   if (command.step) {
     out.enabled = !blocked && neighbourOf(command.step) !== null;
     return out;
   }
-  const element = document.querySelector(command.control);
+  const element = controlOf(command, target);
   if (!element) return { ...out, enabled: false };
   out.label = controlLabel(element);
   out.enabled = !blocked && !element.disabled && (command.anywhere || !element.closest('.hidden'));
@@ -716,23 +739,55 @@ function hostState() {
     exporting: progress.classList.contains('hidden')
       ? null
       : { progress: (parseFloat($('exportBar').style.width) || 0) / 100 },
-    commands: HOST_COMMANDS.map((command) => describeCommand(command, blocked)),
+    commands: HOST_COMMANDS.filter((command) => command.target !== 'song').map((command) =>
+      describeCommand(command, blocked),
+    ),
   };
 }
 
+/** Make `id` the selected clip, as clicking it does. */
+function selectClip(id) {
+  if (state.selected === id) return;
+  state.selected = id;
+  refresh();
+}
+
 /**
- * Run a command by its id. Rejects with `{ code, message }`, as every method
- * on the interface does: `not-found` for an id there is no command for, and
- * `refused` for one that cannot run right now.
+ * The commands for one clip or song, as a menu on it shows them. A clip is
+ * selected first, which is what a right-click on it does to the page.
  */
-function runHostCommand(id) {
+function commandsFor(target) {
+  const kind = target && target.clip !== undefined ? 'clip' : 'song';
+  if (kind === 'clip') selectClip(target.clip);
+  const blocked = Boolean(openDialog());
+  return HOST_COMMANDS.filter((command) => command.target === kind).map((command) =>
+    describeCommand(command, blocked, target),
+  );
+}
+
+/**
+ * Run a command by its id, on `target` if one is given — `{ clip: id }` or
+ * `{ song: name }`. Rejects with `{ code, message }`, as every method on the
+ * interface does: `not-found` for an id there is no command for, or a clip
+ * there is no such clip for, and `refused` for one that cannot run right now.
+ */
+function runHostCommand(id, target = null) {
   const command = HOST_COMMANDS.find((c) => c.id === id);
   if (!command) return Promise.reject({ code: 'not-found', message: `no command "${id}"` });
-  if (!describeCommand(command, Boolean(openDialog())).enabled) {
+  if (target && target.clip !== undefined) {
+    if (command.target !== 'clip') {
+      return Promise.reject({ code: 'refused', message: `"${id}" is not for one clip` });
+    }
+    if (!state.clips.some((clip) => clip.id === target.clip)) {
+      return Promise.reject({ code: 'not-found', message: 'there is no such clip' });
+    }
+    selectClip(target.clip);
+  }
+  if (!describeCommand(command, Boolean(openDialog()), target).enabled) {
     return Promise.reject({ code: 'refused', message: `"${id}" cannot run right now` });
   }
   if (command.step) selectNeighbour(command.step);
-  else document.querySelector(command.control).click();
+  else controlOf(command, target).click();
   return Promise.resolve();
 }
 
@@ -1217,6 +1272,20 @@ function bind() {
     if (!link) return;
     const section = link.getAttribute('href').split('#')[1];
     if (hostOpenGuide(section)) e.preventDefault();
+  });
+
+  /* A right-click on a clip or a song, when a shell offers a menu of its own
+     for one. Without one the browser's menu is left alone, and nothing is
+     selected by it either: a web page that changed what was selected on a
+     right-click would be doing something no other web page does. */
+  document.addEventListener('contextmenu', (e) => {
+    if (!hostOffers('contextMenu') || !(e.target instanceof Element)) return;
+    const clip = e.target.closest('.tl-clip[data-clip]');
+    const song = e.target.closest('#libraryList li[data-song]');
+    const target = clip ? { clip: clip.dataset.clip } : song ? { song: song.dataset.song } : null;
+    if (!target) return;
+    e.preventDefault();
+    hostContextMenu(target, commandsFor(target));
   });
 
   $('programName').value = state.name;
@@ -1968,6 +2037,9 @@ if (typeof document !== 'undefined') {
     hostState,
     runHostCommand,
     onHostState,
+    controlOf,
+    commandsFor,
+    selectClip,
     neighbourOf,
     selectNeighbour,
     showProgramName,

@@ -163,6 +163,7 @@ function renderTimeline() {
 
     const el = document.createElement('div');
     el.className = 'tl-clip' + (clip.id === state.selected ? ' selected' : '');
+    el.dataset.clip = clip.id; // what a right-click on it is about
     el.draggable = true;
     el.dataset.index = String(i);
 
