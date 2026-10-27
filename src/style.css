@@ -882,6 +882,28 @@ body.dropping #timelineWrap[data-mode="start"] .empty {
   margin: 6px 2px 14px;
   font-size: 12px;
 }
+/* Reads as the label it used to be until it is pointed at or typed into. */
+.time-entry {
+  width: 8ch;
+  flex: 0 0 auto;
+  font: inherit;
+  font-family: var(--mono);
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 2px 4px;
+}
+.time-entry.end {
+  text-align: right;
+}
+.time-entry:hover {
+  border-color: var(--line);
+}
+.time-entry:focus {
+  background: var(--bg);
+  border-color: var(--accent);
+}
 /* Four buttons now, so they take a second line on a narrow window rather than
    running off the side of the panel. */
 .editor-actions {

@@ -398,11 +398,27 @@
 
           <canvas id="clipCanvas" height="180"></canvas>
           <div class="scrub-row">
-            <span class="mono" id="lblStart">0:00.0</span>
+            <!-- Text fields that look like labels: a time can be typed in, which
+                 is the one precise way to trim on a tablet. -->
+            <input
+              class="mono time-entry"
+              id="lblStart"
+              type="text"
+              value="0:00.0"
+              aria-label="Where this song starts"
+              title="Type a time, like 0:42.5, and press Enter"
+            />
             <span class="hint">
-              Drag the edges to trim, or set them with <kbd>I</kbd> and <kbd>O</kbd>
+              Drag the edges to trim, set them with <kbd>I</kbd> and <kbd>O</kbd>, or type a time
             </span>
-            <span class="mono" id="lblEnd">0:00.0</span>
+            <input
+              class="mono time-entry end"
+              id="lblEnd"
+              type="text"
+              value="0:00.0"
+              aria-label="Where this song ends"
+              title="Type a time, like 2:10, and press Enter"
+            />
           </div>
 
           <div class="controls">

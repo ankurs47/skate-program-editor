@@ -1217,6 +1217,7 @@ function bind() {
   };
 
   bindClipCanvas();
+  bindTimeEntries();
   bindScrubber();
   bindHelp();
   window.addEventListener('resize', () => {

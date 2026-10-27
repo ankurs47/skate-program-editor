@@ -99,8 +99,13 @@ function drawClipEditor() {
     g.restore();
   }
 
-  $('lblStart').textContent = fmt(clip.srcStart);
-  $('lblEnd').textContent = fmt(clip.srcEnd);
+  // Not while one is being typed in, or a redraw would replace what is typed.
+  for (const [id, t] of [
+    ['lblStart', clip.srcStart],
+    ['lblEnd', clip.srcEnd],
+  ]) {
+    if (document.activeElement !== $(id)) $(id).value = fmt(t);
+  }
 
   const gain = clipGain(clip);
   $('level').value = String(clamp(gainToDb(gain), LEVEL_SLIDER.min, LEVEL_SLIDER.max));
@@ -299,6 +304,47 @@ function evenOutLevels() {
   );
 }
 
+/** The start and end times under the waveform, which can be typed into. */
+function bindTimeEntries() {
+  for (const [id, edge] of [
+    ['lblStart', 'start'],
+    ['lblEnd', 'end'],
+  ]) {
+    const field = $(id);
+    field.addEventListener('change', () => {
+      const clip = selectedClip();
+      if (!clip) return;
+      const entry = library.get(clip.file);
+      const found = typedEdge(clip, edge, field.value, entry ? entry.duration : clip.srcEnd);
+      if (found.refuse) {
+        toast(found.refuse);
+        field.value = fmt(edge === 'start' ? clip.srcStart : clip.srcEnd);
+        return;
+      }
+      /* A time beyond the file is brought back to its end, which may be where
+         the end already was: no move, so no undo step that undoes nothing. */
+      if (found.at !== (edge === 'start' ? clip.srcStart : clip.srcEnd)) {
+        pushUndo();
+        if (edge === 'start') clip.srcStart = found.at;
+        else clip.srcEnd = found.at;
+        activeEdge = edge;
+        refresh();
+      }
+      field.value = fmt(found.at);
+    });
+    field.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') field.blur(); // which commits, through `change`
+      if (e.key === 'Escape') {
+        const clip = selectedClip();
+        if (clip) field.value = fmt(edge === 'start' ? clip.srcStart : clip.srcEnd);
+        field.blur();
+      }
+    });
+    // Selected on the way in, so typing replaces the time rather than adding to it.
+    field.addEventListener('focus', () => field.select());
+  }
+}
+
 function bindClipCanvas() {
   const canvas = $('clipCanvas');
   let dragging = null;
@@ -425,6 +471,7 @@ if (typeof module !== 'undefined' && module.exports) {
     alignSelectedJoin,
     updateEvenOutAvailability,
     evenOutLevels,
+    bindTimeEntries,
     bindClipCanvas,
     updateBudget,
   };
