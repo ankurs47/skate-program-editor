@@ -27,7 +27,12 @@ function fakeHost({
   omit = [],
   with: replace = {},
 }) {
-  const folder = { project, history, media: new Map(Object.entries(media)) };
+  const folder = {
+    project,
+    history,
+    media: new Map(Object.entries(media)),
+    exports: new Map(),
+  };
   const calls = [];
   const listeners = [];
 
@@ -74,6 +79,14 @@ function fakeHost({
     },
     onAdded: (listener) => {
       listeners.push(listener);
+    },
+    // Kept apart from the music: a made file is not a song to be decoded.
+    writeExport: async (name, bytes, details) => {
+      let named = name;
+      for (let n = 2; folder.exports.has(named); n++)
+        named = name.replace(/(\.\w+)?$/, ` (${n})$1`);
+      folder.exports.set(named, { bytes: bytes.slice(0), details });
+      return named;
     },
     ...replace,
   };

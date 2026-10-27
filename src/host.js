@@ -31,7 +31,14 @@ const HOST_PROJECT_METHODS = ['name', 'read', 'write', 'media', 'open'];
 /* What a project may also offer. Each is checked where it is used, and its
    absence means doing what a browser would. Listed so docs/host.md and the fake
    shell the tests use can be held to the same set. */
-const HOST_PROJECT_OPTIONAL = ['importFile', 'discard', 'readHistory', 'writeHistory', 'onAdded'];
+const HOST_PROJECT_OPTIONAL = [
+  'importFile',
+  'discard',
+  'readHistory',
+  'writeHistory',
+  'onAdded',
+  'writeExport',
+];
 
 /* What the shell itself may offer, beside the project. */
 const HOST_OPTIONAL = ['connect', 'ready', 'openGuide'];

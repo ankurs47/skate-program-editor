@@ -1420,5 +1420,14 @@
     "find": "    if (hostOpenGuide(section)) e.preventDefault();",
     "replace": "    hostOpenGuide(section);",
     "expect": "inside a shell the guide opens beside the program, not in its place"
+  },
+  {
+    "name": "a music file the shell could not keep is lost",
+    "guards": "a failure to keep the file never costs anybody the file",
+    "file": "src/audio.js",
+    "suite": "dom",
+    "find": "    if (kept) {",
+    "replace": "    if (true) {",
+    "expect": "a finished music file is handed to the shell, and downloads if it is not kept"
   }
 ]
