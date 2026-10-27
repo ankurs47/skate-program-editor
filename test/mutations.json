@@ -1177,5 +1177,14 @@
     "find": "  if (state.cursor >= 0 && state.cursor <= duration) {",
     "replace": "  if (state.cursor > clip.srcStart && state.cursor < clip.srcEnd) {",
     "expect": "the waveform marker shows in the trimmed-out part too"
+  },
+  {
+    "name": "saving no longer updates the Undo and Redo buttons",
+    "guards": "Undo is offered as soon as there is something to undo",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "function save() {\n  updateUndoAvailability();",
+    "replace": "function save() {",
+    "expect": "Undo and Redo buttons work, and say when there is nothing to do"
   }
 ]

@@ -2213,6 +2213,37 @@ async function main() {
       eq(out.after, true, 'no marker after the end of the song: ');
     });
 
+    await check('Undo and Redo buttons work, and say when there is nothing to do', async () => {
+      /* A tablet has no Ctrl+Z, so these are the only undo there. A slider is
+         the edit that reaches only save() rather than refresh(), so it is the
+         one most likely to leave the buttons out of date. */
+      const out = await run(`
+        window.__reset([['a.wav', window.__tone(220, 30)]]);
+        state.selected = state.clips[0].id;
+        refresh();
+        undoStack.length = 0; redoStack.length = 0; refresh();
+        const buttons = () => ({ undo: !__id('btnUndo').disabled, redo: !__id('btnRedo').disabled });
+        const fresh = buttons();
+
+        const slider = __id('fadeOut');
+        slider.dispatchEvent(new Event('pointerdown'));
+        slider.value = '3';
+        slider.dispatchEvent(new Event('input'));
+        slider.dispatchEvent(new Event('change'));
+        const edited = { ...buttons(), fade: state.clips[0].fadeOut };
+
+        __id('btnUndo').click();
+        const undone = { ...buttons(), fade: state.clips[0].fadeOut };
+        __id('btnRedo').click();
+        const redone = { ...buttons(), fade: state.clips[0].fadeOut };
+        return { fresh, edited, undone, redone };
+      `);
+      eq(out.fresh, { undo: false, redo: false }, 'with no history: ');
+      eq(out.edited, { undo: true, redo: false, fade: 3 }, 'after moving a slider: ');
+      eq(out.undone, { undo: false, redo: true, fade: 0 }, 'after Undo: ');
+      eq(out.redone, { undo: true, redo: false, fade: 3 }, 'after Redo: ');
+    });
+
     await check('a silence before a song delays it, and the blend gives way', async () => {
       /* Through the slider, and onto the sources that are actually started:
          a gap that only moved the timeline would show a silence and play none. */
