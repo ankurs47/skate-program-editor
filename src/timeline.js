@@ -22,6 +22,23 @@ function forgetTimelineShape() {
   timelineShape = null;
 }
 
+/** What the marker before a clip says about its join, or null for none. */
+function joinMarker(part) {
+  if (part.gap >= MIN_CROSSFADE) {
+    return {
+      text: `… ${part.gap.toFixed(1)}s`,
+      title: `${part.gap.toFixed(1)}s of silence before this clip`,
+    };
+  }
+  if (part.xf >= MIN_CROSSFADE) {
+    return {
+      text: `↔ ${part.xf.toFixed(1)}s`,
+      title: `blends ${part.xf.toFixed(1)}s into the previous clip`,
+    };
+  }
+  return null;
+}
+
 function timelineSignature(clips, parts) {
   return clips
     .map((clip, i) =>
@@ -31,7 +48,7 @@ function timelineSignature(clips, parts) {
         clip.title,
         clip.id === state.selected ? 1 : 0,
         library.get(clip.file)?.buffer ? 1 : 0,
-        parts[i].xf >= MIN_CROSSFADE ? 1 : 0, // whether a blend marker is shown
+        joinMarker(parts[i]) ? 1 : 0, // whether a join marker is shown
       ].join(':'),
     )
     .join('|');
@@ -86,10 +103,11 @@ function syncTimelineMetrics(parts, total) {
   let marker = 0;
 
   state.clips.forEach((clip, i) => {
-    if (parts[i].xf >= MIN_CROSSFADE && markers[marker]) {
+    const join = joinMarker(parts[i]);
+    if (join && markers[marker]) {
       const tag = markers[marker++];
-      tag.textContent = `↔ ${parts[i].xf.toFixed(1)}s`;
-      tag.title = `blends ${parts[i].xf.toFixed(1)}s into the previous clip`;
+      tag.textContent = join.text;
+      tag.title = join.title;
     }
     const el = blocks[i];
     if (!el) return;
@@ -134,11 +152,12 @@ function renderTimeline() {
   wrap.innerHTML = '';
 
   state.clips.forEach((clip, i) => {
-    if (parts[i].xf >= MIN_CROSSFADE) {
+    const join = joinMarker(parts[i]);
+    if (join) {
       const tag = document.createElement('div');
       tag.className = 'tl-xf';
-      tag.textContent = `↔ ${parts[i].xf.toFixed(1)}s`;
-      tag.title = `blends ${parts[i].xf.toFixed(1)}s into the previous clip`;
+      tag.textContent = join.text;
+      tag.title = join.title;
       wrap.appendChild(tag);
     }
 
@@ -354,6 +373,7 @@ if (typeof module !== 'undefined' && module.exports) {
     CLIP_DRAG_TYPE,
     timelineShape,
     forgetTimelineShape,
+    joinMarker,
     timelineSignature,
     timelineWaveFrame,
     drawTimelineWaves,

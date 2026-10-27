@@ -417,9 +417,15 @@
               <input id="fadeOut" type="range" min="0" max="10" step="0.1" value="0" />
             </label>
             <div id="crossfadeWrap" class="join-cell">
-              <label>
+              <label id="blendWrap">
                 <span>Blend into previous <b id="valCrossfade">0.0s</b></span>
                 <input id="crossfade" type="range" min="0" max="10" step="0.1" value="0" />
+              </label>
+              <label
+                title="Quiet between the song before and this one. While there is silence the two songs cannot blend."
+              >
+                <span>Silence before <b id="valGap">0.0s</b></span>
+                <input id="gap" type="range" min="0" max="10" step="0.1" value="0" />
               </label>
               <div class="join-buttons">
                 <button id="btnPlayJoin" class="small">Play this join</button>

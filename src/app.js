@@ -22,7 +22,7 @@ const state = {
   level: 'usfs-juv', // id from LEVELS, or CUSTOM_LEVEL
   targetSeconds: 135,
   toleranceSeconds: 10,
-  clips: [], // {id, file, title, srcStart, srcEnd, fadeIn, fadeOut, crossfade}
+  clips: [], // {id, file, title, srcStart, srcEnd, fadeIn, fadeOut, crossfade, gap}
   selected: null, // clip id
   cursor: 0, // source-time position inside the selected clip's file
   playPosition: 0, // program-time position of the playhead, kept across stops
@@ -503,7 +503,7 @@ function project() {
     // person opening the file reads.
     $schema: SCHEMA_URL,
     format: FORMAT,
-    version: FORMAT_VERSION,
+    version: formatVersionFor(state.clips),
     name: state.name,
     event: {
       level: state.level,
@@ -536,6 +536,9 @@ function project() {
          value stays in memory, so moving this song back off the front brings
          its blend with it; only saving while it sits there lets it go. */
       blend: Number((i === 0 ? 0 : c.crossfade || 0).toFixed(2)),
+      /* Only when there is one, so a program without silences writes the file
+         an older copy of the app can still read — see `formatVersionFor`. */
+      ...(gapOf(state.clips, i) > 0 ? { silence: Number(gapOf(state.clips, i).toFixed(2)) } : {}),
       /* Clamped to the slider's own range on the way out as well, so the file
          never carries a level the interface cannot show or the reader would
          clamp on the way back in. */
@@ -1080,7 +1083,7 @@ function bind() {
     };
   }
 
-  for (const key of ['fadeIn', 'fadeOut', 'crossfade']) {
+  for (const key of ['fadeIn', 'fadeOut', 'crossfade', 'gap']) {
     const slider = $(key);
     let editing = false;
     // Snapshot before the gesture starts, not after — pushing undo on `change`
