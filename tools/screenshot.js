@@ -87,9 +87,13 @@ const SETUP = `
   };
 `;
 
-function write(file, base64, size) {
-  fs.writeFileSync(file, Buffer.from(base64, 'base64'));
-  const kb = Math.round(fs.statSync(file).size / 1024);
+// The size is read back from the PNG header rather than computed, because the
+// computed one reported 2880 wide while the file was 5760.
+function write(file, base64) {
+  const png = Buffer.from(base64, 'base64');
+  fs.writeFileSync(file, png);
+  const size = `${png.readUInt32BE(16)}x${png.readUInt32BE(20)}`;
+  const kb = Math.round(png.length / 1024);
   console.log(`\n  ${path.relative(process.cwd(), file)} — ${size}, ${kb} KB`);
 }
 
@@ -110,16 +114,18 @@ async function main() {
       throw new Error(`the program should land inside the window, got "${shown.verdict}"`);
     }
 
-    // Crop to the app rather than the window: trailing empty page is not content.
+    /* Crop to the app rather than the window: trailing empty page is not
+       content. The clip's scale multiplies deviceScaleFactor rather than
+       replacing it, so 1 here is what gives 2x. */
     const height = Math.min(shown.height + 12, 900);
     const shot = await session.page.send('Page.captureScreenshot', {
       format: 'png',
-      clip: { x: 0, y: 0, width: 1440, height, scale: 2 },
+      clip: { x: 0, y: 0, width: 1440, height, scale: 1 },
       captureBeyondViewport: true,
     });
 
     fs.mkdirSync(path.dirname(SHOT), { recursive: true });
-    write(SHOT, shot.data, `${1440 * 2}x${height * 2}`);
+    write(SHOT, shot.data);
     console.log(`  ${shown.total} · ${shown.verdict}`);
 
     /* The link preview card, at exactly 1200x630 — 1.91:1, which is what
@@ -147,7 +153,7 @@ async function main() {
       format: 'png',
       clip: { x: 0, y: 0, width: 1200, height: 630, scale: 1 },
     });
-    write(CARD, card.data, '1200x630');
+    write(CARD, card.data);
     console.log('');
   } finally {
     await session.close();
