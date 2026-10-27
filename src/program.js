@@ -134,6 +134,53 @@ function fmtShort(seconds) {
   return `${m}:${String(whole - m * 60).padStart(2, '0')}`;
 }
 
+/* ------------------------------------------------ the editor's own words
+
+   Shared with a desktop shell (docs/host.md, SHELL_EXPORTS) as well as used
+   here, so a list of projects or a new-project dialog says what the editor says
+   — and a change of wording made here reaches both, instead of one of them. */
+
+/** An event as every list of them shows it: "Juvenile — 2:30 ±10s". */
+function levelLabel(level) {
+  return `${level.label} — ${fmtShort(level.seconds)} ±${level.tol}s`;
+}
+
+/**
+ * How a program's length stands against its target, as the timer says it:
+ * `kind` is empty, ok, long or short, and `text` is the words beside the clock.
+ */
+function budgetVerdict(total, target, tolerance) {
+  if (!(total > 0)) return { kind: 'empty', text: 'add some music' };
+  const delta = total - target;
+  if (Math.abs(delta) <= tolerance) {
+    return { kind: 'ok', text: `within ${tolerance}s — good to go` };
+  }
+  return delta > 0
+    ? { kind: 'long', text: `${fmt(delta - tolerance)} too long` }
+    : { kind: 'short', text: `${fmt(-delta - tolerance)} too short` };
+}
+
+/**
+ * One line about a project document, for a list of them: the event, the length
+ * and how it stands, and how many songs. "Juvenile · 2:28.5, within 10s — good
+ * to go · 2 songs".
+ */
+function describeProgram(doc) {
+  const read = readProject(doc);
+  if (read.unsupported) return 'Made by a newer version of the editor';
+  const level = findLevel(read.level);
+  const parts = [level ? level.label : `Custom length, ${fmtShort(read.targetSeconds)}`];
+  const { total } = layout(read.clips);
+  if (total > 0) {
+    parts.push(
+      `${fmt(total)}, ${budgetVerdict(total, read.targetSeconds, read.toleranceSeconds).text}`,
+    );
+  }
+  const songs = new Set(read.clips.map((clip) => clip.file)).size;
+  parts.push(songs === 0 ? 'no music yet' : songs === 1 ? '1 song' : `${songs} songs`);
+  return parts.join(' · ');
+}
+
 function uid() {
   return Math.random().toString(36).slice(2, 9);
 }
@@ -1142,6 +1189,9 @@ if (typeof module !== 'undefined' && module.exports) {
     CUSTOM_LEVEL,
     allLevels,
     findLevel,
+    levelLabel,
+    budgetVerdict,
+    describeProgram,
     fmt,
     fmtShort,
     uid,

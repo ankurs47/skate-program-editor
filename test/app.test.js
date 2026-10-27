@@ -397,6 +397,44 @@ check('blends: the two sides sum to 1 through the overlap', () => {
   }
 });
 
+check('the editor says how a length stands, in one set of words', () => {
+  /* Shared with a desktop shell's own pages (SHELL_EXPORTS), so these are the
+     words a list of projects uses too. */
+  eq(app.budgetVerdict(0, 150, 10), { kind: 'empty', text: 'add some music' });
+  eq(app.budgetVerdict(155, 150, 10), { kind: 'ok', text: 'within 10s — good to go' });
+  eq(
+    app.budgetVerdict(140, 150, 10),
+    { kind: 'ok', text: 'within 10s — good to go' },
+    'the edge: ',
+  );
+  eq(app.budgetVerdict(163.5, 150, 10), { kind: 'long', text: '0:03.5 too long' });
+  eq(app.budgetVerdict(130, 150, 10), { kind: 'short', text: '0:10.0 too short' });
+  eq(app.levelLabel(app.findLevel('usfs-juv')), 'Juvenile — 2:30 ±10s');
+});
+
+check('a project document is described in one line, in those words', () => {
+  const doc = {
+    format: app.FORMAT,
+    version: app.FORMAT_VERSION,
+    event: { level: 'usfs-juv', targetSeconds: 150, toleranceSeconds: 10 },
+    clips: [
+      { id: 'a', song: 'a.mp3', start: 0, end: 80 },
+      { id: 'b', song: 'b.mp3', start: 0, end: 70 },
+      { id: 'c', song: 'a.mp3', start: 90, end: 92 },
+    ],
+  };
+  eq(app.describeProgram(doc), 'Juvenile · 2:32.0, within 10s — good to go · 2 songs');
+  eq(app.describeProgram({ ...doc, clips: [] }), 'Juvenile · no music yet', 'nothing cut yet: ');
+  eq(
+    app.describeProgram({ ...doc, event: { targetSeconds: 200, toleranceSeconds: 5 }, clips: [] }),
+    'Custom length, 3:20 · no music yet',
+  );
+  eq(
+    app.describeProgram({ ...doc, version: app.FORMAT_VERSION + 1 }),
+    'Made by a newer version of the editor',
+  );
+});
+
 check('fmt: carries the minute rather than showing sixty seconds', () => {
   /* Both formatters round before splitting the minutes off. The other way
      round, anything that rounds up to 60 shows as sixty seconds: a 59.98s

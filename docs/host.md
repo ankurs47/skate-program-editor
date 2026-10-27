@@ -250,22 +250,25 @@ A shell may run the editor's pure code under Node, by requiring `src/app.js`,
 which gathers every file's exports. These names are the interface; everything
 else exported is free to change. `SHELL_EXPORTS` in `src/host.js` lists them.
 
-| Name                    | What it is                                                  |
-| ----------------------- | ----------------------------------------------------------- |
-| `HOST_VERSION`          | the version a bridge must announce                          |
-| `HOST_PROJECT_METHODS`  | the project methods a bridge must offer                     |
-| `HOST_PROJECT_OPTIONAL` | the project methods a bridge may offer                      |
-| `HOST_OPTIONAL`         | the methods a bridge may offer beside the project           |
-| `HOST_COMMANDS`         | the commands, in order; each `id` as under Commands         |
-| `hostPresent`           | whether the editor would accept `window.skateHost` as it is |
-| `LEVELS`                | the events and their program lengths, grouped               |
-| `findLevel`             | an event by its id, or null                                 |
-| `layout`                | where each clip falls in program time, and the total length |
-| `readProject`           | a project document read the way the page reads one          |
-| `AUDIO_EXTENSIONS`      | which file names the editor treats as music                 |
-| `FORMAT`                | the `format` every project document carries                 |
-| `FORMAT_VERSION`        | the newest project format this editor reads and writes      |
-| `SCHEMA_URL`            | the `$schema` every project document points at              |
+| Name                    | What it is                                                      |
+| ----------------------- | --------------------------------------------------------------- |
+| `HOST_VERSION`          | the version a bridge must announce                              |
+| `HOST_PROJECT_METHODS`  | the project methods a bridge must offer                         |
+| `HOST_PROJECT_OPTIONAL` | the project methods a bridge may offer                          |
+| `HOST_OPTIONAL`         | the methods a bridge may offer beside the project               |
+| `HOST_COMMANDS`         | the commands, in order; each `id` as under Commands             |
+| `hostPresent`           | whether the editor would accept `window.skateHost` as it is     |
+| `LEVELS`                | the events and their program lengths, grouped                   |
+| `findLevel`             | an event by its id, or null                                     |
+| `levelLabel`            | an event as every list of them shows it: "Juvenile — 2:30 ±10s" |
+| `budgetVerdict`         | how a length stands against its target, in the timer's words    |
+| `describeProgram`       | one line about a project document, for a list of projects       |
+| `layout`                | where each clip falls in program time, and the total length     |
+| `readProject`           | a project document read the way the page reads one              |
+| `AUDIO_EXTENSIONS`      | which file names the editor treats as music                     |
+| `FORMAT`                | the `format` every project document carries                     |
+| `FORMAT_VERSION`        | the newest project format this editor reads and writes          |
+| `SCHEMA_URL`            | the `$schema` every project document points at                  |
 
 ## Offered but not used
 
@@ -338,6 +341,8 @@ In order. Each lands in this document when it lands in the code.
 
 ## Changelog
 
+- **The editor's wording** ([#126]). `levelLabel`, `budgetVerdict` and
+  `describeProgram` added to `SHELL_EXPORTS`.
 - **Version 1, `writeExport`** ([#125]). `project.writeExport(name, bytes,
 details)`, handed the finished music file.
 - **Version 1, `openGuide`** ([#122]). `skateHost.openGuide(section)`, asked
@@ -362,6 +367,7 @@ details)`, handed the finished music file.
 [#122]: https://github.com/ankurs47/skate-program-editor/issues/122
 [#123]: https://github.com/ankurs47/skate-program-editor/issues/123
 [#125]: https://github.com/ankurs47/skate-program-editor/issues/125
+[#126]: https://github.com/ankurs47/skate-program-editor/issues/126
 [#127]: https://github.com/ankurs47/skate-program-editor/issues/127
 [#129]: https://github.com/ankurs47/skate-program-editor/issues/129
 [#130]: https://github.com/ankurs47/skate-program-editor/issues/130

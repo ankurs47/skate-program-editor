@@ -601,24 +601,12 @@ function updateBudget() {
 
   $('totalTime').textContent = fmt(total);
 
-  const delta = total - target;
-  const ok = Math.abs(delta) <= tol;
+  const verdict = budgetVerdict(total, target, tol);
+  const ok = verdict.kind === 'ok';
   const label = $('budgetDelta');
   const fill = $('budgetFill');
-
-  if (total === 0) {
-    label.textContent = 'add some music';
-    label.className = 'delta';
-  } else if (ok) {
-    label.textContent = `within ${tol}s — good to go`;
-    label.className = 'delta ok';
-  } else if (delta > 0) {
-    label.textContent = `${fmt(delta - tol)} too long`;
-    label.className = 'delta bad';
-  } else {
-    label.textContent = `${fmt(-delta - tol)} too short`;
-    label.className = 'delta bad';
-  }
+  label.textContent = verdict.text;
+  label.className = verdict.kind === 'empty' ? 'delta' : ok ? 'delta ok' : 'delta bad';
 
   const scale = target + tol * 3;
   fill.style.width = `${clamp((total / scale) * 100, 0, 100)}%`;
