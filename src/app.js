@@ -1343,6 +1343,7 @@ function onKey(e) {
     if (edge === 'start') clip.srcStart = at;
     else clip.srcEnd = at;
     revealInView(at); // zoomed in, a held key can carry the end off screen
+    showCloseup(edge, CLOSEUP_LINGER);
     refresh();
   } else if (e.key === '+' || e.key === '=') {
     zoomClip(2);

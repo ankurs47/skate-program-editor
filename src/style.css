@@ -868,6 +868,20 @@ body.dropping #timelineWrap[data-mode="start"] .empty {
 .editor {
   margin-top: 16px;
 }
+.clip-wrap {
+  position: relative;
+}
+.closeup {
+  position: absolute;
+  top: 8px;
+  width: min(360px, 60%);
+  height: 64px;
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  pointer-events: none; /* the drag underneath must keep every event */
+}
 #clipCanvas {
   width: 100%;
   height: 180px;
