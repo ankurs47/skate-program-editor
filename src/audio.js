@@ -252,6 +252,28 @@ function weakSources() {
   return [...seen.values()];
 }
 
+/**
+ * Give the finished file to a desktop shell, which keeps it in the project
+ * folder, and answer with the name it was kept under — or null, and the file
+ * downloads as it would in any browser.
+ *
+ * A shell used to catch the download instead, choosing where it went from the
+ * file name alone and falling back to a Save dialog when that failed; the page
+ * never learned where its file had gone. Handed over, the shell knows what it
+ * is (`details`) and the page knows where it went. A shell that fails to keep
+ * it is not the end of the file: the download still happens.
+ */
+async function handToShell(blob, filename, details) {
+  const folder = hostProject();
+  if (!folder || typeof folder.writeExport !== 'function') return null;
+  try {
+    const named = await folder.writeExport(filename, await blob.arrayBuffer(), details);
+    return typeof named === 'string' && named ? named : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 function download(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -468,8 +490,18 @@ async function doExport() {
     }
     bar.style.width = '100%';
     const filename = exportFileName(ext);
-    download(blob, filename);
-    toast(`Saved “${filename}” — ${fmt(rendered.duration)}`, 4500);
+    const kept = await handToShell(blob, filename, {
+      format: ext,
+      seconds: rendered.duration,
+      targetSeconds: state.targetSeconds,
+      toleranceSeconds: state.toleranceSeconds,
+    });
+    if (kept) {
+      toast(`Saved “${kept}” in the project folder — ${fmt(rendered.duration)}`, 4500);
+    } else {
+      download(blob, filename);
+      toast(`Saved “${filename}” — ${fmt(rendered.duration)}`, 4500);
+    }
     closeExportDialog();
   } catch (err) {
     toast(`Could not make the file: ${err.message}`);
@@ -658,6 +690,7 @@ if (typeof module !== 'undefined' && module.exports) {
     playClipAudition,
     tickPlayhead,
     weakSources,
+    handToShell,
     download,
     clippingAccepted,
     forgetClippingChoice,

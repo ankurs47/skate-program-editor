@@ -77,13 +77,14 @@ Without all five, `project` is not a project and the shell is ignored.
 
 ### Optional
 
-| Method                    | Returns                                 | The editor uses it to                            |
-| ------------------------- | --------------------------------------- | ------------------------------------------------ |
-| `importFile(name, bytes)` | the name the file was stored under      | copy a song brought from outside into the folder |
-| `discard(name)`           | `{ ok: true }`, or `{ ok: false, why }` | be rid of a song the program no longer uses      |
-| `readHistory()`           | `{ current, undo, redo }`, or `null`    | restore undo after the project opens             |
-| `writeHistory(history)`   | anything                                | keep undo, 2.5 s after the last edit             |
-| `onAdded(listener)`       | nothing                                 | hear that a song arrived in the folder           |
+| Method                              | Returns                                 | The editor uses it to                            |
+| ----------------------------------- | --------------------------------------- | ------------------------------------------------ |
+| `importFile(name, bytes)`           | the name the file was stored under      | copy a song brought from outside into the folder |
+| `discard(name)`                     | `{ ok: true }`, or `{ ok: false, why }` | be rid of a song the program no longer uses      |
+| `readHistory()`                     | `{ current, undo, redo }`, or `null`    | restore undo after the project opens             |
+| `writeHistory(history)`             | anything                                | keep undo, 2.5 s after the last edit             |
+| `onAdded(listener)`                 | nothing                                 | hear that a song arrived in the folder           |
+| `writeExport(name, bytes, details)` | the name the file was kept under        | keep the finished music file                     |
 
 - **`importFile(name, bytes)`** gets the file's name and its bytes as an
   `ArrayBuffer`. The answer may differ from `name` — one already taken gets a
@@ -108,6 +109,13 @@ Without all five, `project` is not a project and the shell is ignored.
   knows that the file cannot say. Other fields are kept as they are. All of it
   goes into the project once a clip uses the song. The page then reads `media()`
   again.
+- **`writeExport(name, bytes, details)`** is handed the finished music file,
+  instead of the browser downloading it: its name, its bytes as an
+  `ArrayBuffer`, and `{ format, seconds, targetSeconds, toleranceSeconds }` —
+  `mp3` or `wav`, how long it came out, and what it was cut for. The shell keeps
+  it where it likes, and answers with the name it was kept under, which the page
+  shows. A falsy answer or a rejection is not the end of the file: it downloads,
+  as it would without this method.
 
 ### Beside the project
 
@@ -324,14 +332,14 @@ In order. Each lands in this document when it lands in the code.
 2. **Capabilities**: `skateHost.capabilities`, as in convention 8.
 3. **A native menu** ([#123]): with one, the page hides the header items the menu
    covers.
-4. **Music files** ([#125]): `writeExport(name, bytes, details)` hands the finished
-   file to the shell instead of downloading it.
-5. **Confirmations** ([#135]): the page asks the shell to confirm destructive
+4. **Confirmations** ([#135]): the page asks the shell to confirm destructive
    actions natively. The color choice ([#127]) is already in the state, as the
    `checked` on the `colors.*` commands.
 
 ## Changelog
 
+- **Version 1, `writeExport`** ([#125]). `project.writeExport(name, bytes,
+details)`, handed the finished music file.
 - **Version 1, `openGuide`** ([#122]). `skateHost.openGuide(section)`, asked
   for every link into the guide, and the `help.guide` command.
 - **Version 1, `ready`** ([#134]). `skateHost.ready()`, called once the

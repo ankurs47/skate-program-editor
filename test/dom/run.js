@@ -860,6 +860,55 @@ async function main() {
       eq(out.plain, false, 'with no shell the guide link stopped being a link: ');
     });
 
+    await check(
+      'a finished music file is handed to the shell, and downloads if it is not kept',
+      async () => {
+        /* docs/host.md, writeExport. The bytes handed over are the file — a WAV
+         that says RIFF — not a promise of one, and a shell that cannot keep it
+         costs nobody the file: it downloads as it always did. */
+        const out = await run(`
+        window.__reset([['a.mp3', window.__tone(220, 2, 0.3)]]);
+        const realDownload = window.download;
+        const downloaded = [];
+        window.download = (blob, name) => downloaded.push(name);
+        const make = async () => {
+          __id('btnExport').click();
+          __id('exportFormat').value = 'wav';
+          await doExport();
+          __id('exportDialog').classList.add('hidden');
+        };
+        try {
+          const fake = window.__fakeHost();
+          window.skateHost = fake.host;
+          await make();
+          const [[name, kept]] = [...fake.folder.exports];
+          const head = new TextDecoder().decode(new Uint8Array(kept.bytes).slice(0, 4));
+          const handed = { name, head, details: kept.details, downloaded: downloaded.length,
+                           said: __id('toast').textContent };
+
+          const refusing = window.__fakeHost({
+            with: { writeExport: async () => { throw new Error('the disk is full'); } },
+          });
+          window.skateHost = refusing.host;
+          await make();
+          const fellBack = downloaded.length;
+          return { handed, fellBack };
+        } finally {
+          delete window.skateHost;
+          window.download = realDownload;
+        }
+      `);
+        ok(/\.wav$/.test(out.handed.name), `kept under the wrong name: ${out.handed.name}`);
+        eq(out.handed.head, 'RIFF', 'what the shell was handed is not a WAV file: ');
+        eq(out.handed.details.format, 'wav');
+        near(out.handed.details.seconds, 2, 0.05, 'the length handed over: ');
+        eq(out.handed.details.targetSeconds, 150, 'the target handed over: ');
+        eq(out.handed.downloaded, 0, 'the file also downloaded, so it exists twice: ');
+        ok(out.handed.said.includes(out.handed.name), 'the page did not say what it was kept as');
+        eq(out.fellBack, 1, 'a shell that could not keep the file lost it: ');
+      },
+    );
+
     await check('the page is named for the program in it', async () => {
       /* A tab among several, or a desktop shell's window, then says which
          program is open — and a shell's title bar follows it (docs/host.md).
