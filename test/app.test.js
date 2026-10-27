@@ -187,6 +187,22 @@ check('songTimeAt: program time inside a clip is song time inside its trims', ()
   eq(app.songTimeAt(clips, 1, NaN), null, 'no time at all: ');
 });
 
+check('programTimeAt: a moment of the song is found in the program, if it plays', () => {
+  const clips = [
+    { srcStart: 0, srcEnd: 60, crossfade: 0 },
+    { srcStart: 30, srcEnd: 90, crossfade: 2 },
+  ];
+  eq(app.programTimeAt(clips, 1, 30), 58, 'the start of the kept part: ');
+  eq(app.programTimeAt(clips, 1, 42), 70);
+  eq(app.programTimeAt(clips, 1, 10), null, 'trimmed out, so never played: ');
+  eq(app.programTimeAt(clips, 1, 95), null, 'past the end of the trim: ');
+  eq(app.programTimeAt(clips, 4, 10), null, 'a clip that is not there: ');
+  for (const t of [0, 31, 59.5, 90]) {
+    const at = app.programTimeAt(clips, 1, t);
+    if (at !== null) eq(app.songTimeAt(clips, 1, at), t, `songTimeAt undoes it at ${t}: `);
+  }
+});
+
 check('join preview: stays inside the program, and declines when there is no join', () => {
   const clips = [
     { srcStart: 0, srcEnd: 3, crossfade: 0 },

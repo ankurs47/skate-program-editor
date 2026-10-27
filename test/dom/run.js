@@ -2135,6 +2135,56 @@ async function main() {
       near(end, heard.expected, 1e-6, 'O did not end the song where it was heard: ');
     });
 
+    await check('the waveform marker and the program playhead move together', async () => {
+      /* Two markers that did not know about each other: clicking the waveform
+         left Space playing from somewhere else, and clicking the bar left I and
+         O trimming to somewhere else. Real clicks, through each canvas's own
+         pointer handling. */
+      const tap = async ({ x, y }) => {
+        for (const type of ['mousePressed', 'mouseReleased']) {
+          await page.send('Input.dispatchMouseEvent', {
+            type,
+            x,
+            y,
+            button: 'left',
+            clickCount: 1,
+          });
+        }
+      };
+      await run(`
+        window.__reset([['a.wav', window.__tone(220, 30)], ['b.wav', window.__tone(330, 30)]]);
+        state.clips[0].srcStart = 5; state.clips[0].srcEnd = 25;
+        state.clips[1].crossfade = 0;
+        state.selected = state.clips[0].id;
+        refresh();
+        seekTo(0);
+      `);
+      const onWave = (t) =>
+        run(`const r = __id('clipCanvas').getBoundingClientRect();
+             return { x: r.left + r.width * ${t} / 30, y: r.top + r.height / 2 };`);
+      const onBar = (t) =>
+        run(`const r = __id('scrubber').getBoundingClientRect();
+             return { x: r.left + r.width * ${t} / scrubberSpan(), y: r.top + r.height / 2 };`);
+      const read = () =>
+        run(
+          `return { cursor: +state.cursor.toFixed(1), playhead: +state.playPosition.toFixed(1) };`,
+        );
+
+      await tap(await onWave(15)); // 10 s into the kept part
+      const inKept = await read();
+      await tap(await onWave(2)); // trimmed out: not in the program
+      const trimmedOut = await read();
+      await tap(await onBar(8)); // 8 s into the program, so 13 s into the song
+      const fromBar = await read();
+      await tap(await onBar(30)); // the second song: this one's marker stays
+      const otherSong = await read();
+
+      eq(inKept, { cursor: 15, playhead: 10 }, 'clicking the waveform: ');
+      eq(trimmedOut, { cursor: 2, playhead: 10 }, 'clicking the trimmed-out part: ');
+      eq(fromBar, { cursor: 13, playhead: 8 }, 'clicking the bar: ');
+      eq(otherSong, { cursor: 13, playhead: 30 }, 'clicking the bar in another song: ');
+    });
+
     await check('a silence before a song delays it, and the blend gives way', async () => {
       /* Through the slider, and onto the sources that are actually started:
          a gap that only moved the timeline would show a silence and play none. */

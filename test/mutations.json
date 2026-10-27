@@ -1150,5 +1150,23 @@
     "find": "      if (followPlayhead()) drawClipEditor();",
     "replace": "      void 0;",
     "expect": "O while the program plays ends the song where it is being heard"
+  },
+  {
+    "name": "clicking the waveform leaves the program playhead behind",
+    "guards": "Space plays from the spot just picked",
+    "file": "src/editor.js",
+    "suite": "dom",
+    "find": "      if (at !== null) {\n        const wasPlaying",
+    "replace": "      if (false) {\n        const wasPlaying",
+    "expect": "the waveform marker and the program playhead move together"
+  },
+  {
+    "name": "moving the playhead leaves the waveform marker behind",
+    "guards": "I and O trim to the spot picked on the bar",
+    "file": "src/timeline.js",
+    "suite": "dom",
+    "find": "  drawScrubber();\n  if (followPlayhead()) drawClipEditor();\n}",
+    "replace": "  drawScrubber();\n}",
+    "expect": "the waveform marker and the program playhead move together"
   }
 ]
