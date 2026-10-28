@@ -257,6 +257,7 @@ any other way — not a global by name, not a script it injects.
 | `program.export`   | **Make music file** — opens its dialog                                |               |
 | `playback.toggle`  | **Play**, or **Pause** while playing                                  | `Space`       |
 | `playback.stop`    | **Stop**                                                              |               |
+| `clip.play`        | **Play this song**, the selected one — or a clip target               |               |
 | `join.play`        | **Play this join**, before the selected song — or a clip target       |               |
 | `clip.previous`    | select the song before                                                | `[`           |
 | `clip.next`        | select the song after                                                 | `]`           |
@@ -382,9 +383,6 @@ dialog with a report in it, which a message box would flatten.
 
 ## Changelog
 
-- **`clip.play` removed** ([#118]). The page's **Play this song** button went,
-  and the command with it: a song is heard by double-clicking its waveform.
-  A shell that still asks for `clip.play` is refused with `not-found`.
 - **The header** ([#110], [#119]). One Help menu holds the help topics and the
   guide, the colors sit in the header, and Settings is gone; `menu` hides those
   three and GitHub. `help.guide` reads **Guide**, and **Forget it all** is now
@@ -417,7 +415,6 @@ details)`, handed the finished music file.
   changed.
 
 [#110]: https://github.com/ankurs47/skate-program-editor/issues/110
-[#118]: https://github.com/ankurs47/skate-program-editor/issues/118
 [#119]: https://github.com/ankurs47/skate-program-editor/issues/119
 [#120]: https://github.com/ankurs47/skate-program-editor/issues/120
 [#121]: https://github.com/ankurs47/skate-program-editor/issues/121
