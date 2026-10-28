@@ -1454,6 +1454,11 @@ function bind() {
     seekTo(0);
   };
   $('btnPreviewClip').onclick = () => {
+    // While a clip is playing this button is its Stop.
+    if (playing && playing.mode === 'clip') {
+      stopPlayback();
+      return;
+    }
     const clip = selectedClip();
     if (clip) playClipAudition(clip, auditionFrom(clip, state.cursor));
   };

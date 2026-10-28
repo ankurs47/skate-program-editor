@@ -127,6 +127,7 @@ function stopPlayback() {
   }
   cancelAnimationFrame(rafId);
   $('btnPlayLabel').textContent = 'Play';
+  $('btnPreviewClip').textContent = 'Play this clip';
   showNowPlaying();
   drawScrubber(); // the playhead stays where it is, so Space resumes there
 }
@@ -161,7 +162,7 @@ function playProgram(fromTime = 0, until = Infinity) {
 }
 
 /**
- * Where Play this song starts: the marker, wherever it is — inside the trims or
+ * Where Play this clip starts: the marker, wherever it is — inside the trims or
  * out in the part that was cut — except on the end of the song, where it is
  * left when a play finishes, and where starting over is what was meant.
  */
@@ -221,6 +222,8 @@ function playClipAudition(clip, fromSource) {
     scheduled: [playingKey(clip)],
   };
   $('btnPlayLabel').textContent = 'Pause';
+  // However it was started — the button or a double-click — this stops it.
+  $('btnPreviewClip').textContent = 'Stop this clip';
   showNowPlaying();
   tickPlayhead();
 }
@@ -247,8 +250,8 @@ function tickPlayhead() {
         return;
       }
     } else {
-      /* Held at the end it stopped on, so pressing Play this song again finds
-         the marker on the cut and starts the song over (`auditionFrom`). */
+      /* Held at the end it stopped on, so pressing Play this clip again finds
+         the marker on the cut and starts the clip over (`auditionFrom`). */
       const at = Math.min(playing.fromTime + elapsed, playing.until);
       state.cursor = at;
       drawClipEditor();

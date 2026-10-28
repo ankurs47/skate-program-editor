@@ -2667,7 +2667,33 @@ async function main() {
       eq(
         result.from,
         { cut: 0.5, kept: 8, end: 2 },
-        'Play this song starts at the marker, or over from the end: ',
+        'Play this clip starts at the marker, or over from the end: ',
+      );
+    });
+
+    await check('Play this clip becomes Stop this clip while it plays, and stops it', async () => {
+      const result = await run(`
+        window.__reset([['a.mp3', window.__tone(220, 20)]]);
+        const button = __id('btnPreviewClip');
+        const read = () => ({ label: button.textContent, mode: playing ? playing.mode : null });
+        const before = read();
+        button.click();
+        const during = read();
+        button.click();
+        const after = read();
+        // Started some other way — a double-click — the button still stops it.
+        playClipAudition(state.clips[0], 5);
+        button.click();
+        const fromElsewhere = read();
+        return { before, during, after, fromElsewhere };
+      `);
+      eq(result.before, { label: 'Play this clip', mode: null });
+      eq(result.during, { label: 'Stop this clip', mode: 'clip' }, 'while it plays: ');
+      eq(result.after, { label: 'Play this clip', mode: null }, 'pressed again: ');
+      eq(
+        result.fromElsewhere,
+        { label: 'Play this clip', mode: null },
+        'started by double-click: ',
       );
     });
 

@@ -249,35 +249,35 @@ any other way — not a global by name, not a script it injects.
 
 ### Commands
 
-| Id                 | What it does                                                          | Keys          |
-| ------------------ | --------------------------------------------------------------------- | ------------- |
-| `program.undo`     | **Undo**                                                              | `Mod+Z`       |
-| `program.redo`     | **Redo**                                                              | `Mod+Shift+Z` |
-| `program.evenOut`  | **Even out the volume**                                               |               |
-| `program.export`   | **Make music file** — opens its dialog                                |               |
-| `playback.toggle`  | **Play**, or **Pause** while playing                                  | `Space`       |
-| `playback.stop`    | **Stop**                                                              |               |
-| `clip.play`        | **Play this song**, the selected one — or a clip target               |               |
-| `join.play`        | **Play this join**, before the selected song — or a clip target       |               |
-| `clip.previous`    | select the song before                                                | `[`           |
-| `clip.next`        | select the song after                                                 | `]`           |
-| `view.music`       | **Hide the music list**, or show it                                   |               |
-| `colors.auto`      | colors follow the computer                                            |               |
-| `colors.light`     | light colors                                                          |               |
-| `colors.dark`      | dark colors                                                           |               |
-| `help.basics`      | open the help on the basics                                           |               |
-| `help.tips`        | open the tips                                                         |               |
-| `help.saving`      | open the help on saving                                               |               |
-| `help.quality`     | open the help on sound quality                                        |               |
-| `help.keys`        | open the keyboard shortcuts                                           |               |
-| `help.guide`       | **Guide** — through `openGuide`, in a shell                           |               |
-| `clip.moveEarlier` | **Move earlier** — the selected song, or a clip target                |               |
-| `clip.moveLater`   | **Move later** — the selected song, or a clip target                  |               |
-| `clip.remove`      | take the song out of the program — the selected one, or a clip target |               |
-| `song.add`         | **Add to program** — a song target only                               |               |
-| `song.replace`     | **Replace** — a song target only                                      |               |
-| `song.info`        | **Info** — a song target only                                         |               |
-| `song.remove`      | take the song off the list — a song target only                       |               |
+| Id                 | What it does                                                                                  | Keys          |
+| ------------------ | --------------------------------------------------------------------------------------------- | ------------- |
+| `program.undo`     | **Undo**                                                                                      | `Mod+Z`       |
+| `program.redo`     | **Redo**                                                                                      | `Mod+Shift+Z` |
+| `program.evenOut`  | **Even out the volume**                                                                       |               |
+| `program.export`   | **Make music file** — opens its dialog                                                        |               |
+| `playback.toggle`  | **Play**, or **Pause** while playing                                                          | `Space`       |
+| `playback.stop`    | **Stop**                                                                                      |               |
+| `clip.play`        | **Play this clip**, or **Stop this clip** while it plays — the selected one, or a clip target |               |
+| `join.play`        | **Play this join**, before the selected song — or a clip target                               |               |
+| `clip.previous`    | select the song before                                                                        | `[`           |
+| `clip.next`        | select the song after                                                                         | `]`           |
+| `view.music`       | **Hide the music list**, or show it                                                           |               |
+| `colors.auto`      | colors follow the computer                                                                    |               |
+| `colors.light`     | light colors                                                                                  |               |
+| `colors.dark`      | dark colors                                                                                   |               |
+| `help.basics`      | open the help on the basics                                                                   |               |
+| `help.tips`        | open the tips                                                                                 |               |
+| `help.saving`      | open the help on saving                                                                       |               |
+| `help.quality`     | open the help on sound quality                                                                |               |
+| `help.keys`        | open the keyboard shortcuts                                                                   |               |
+| `help.guide`       | **Guide** — through `openGuide`, in a shell                                                   |               |
+| `clip.moveEarlier` | **Move earlier** — the selected song, or a clip target                                        |               |
+| `clip.moveLater`   | **Move later** — the selected song, or a clip target                                          |               |
+| `clip.remove`      | take the song out of the program — the selected one, or a clip target                         |               |
+| `song.add`         | **Add to program** — a song target only                                                       |               |
+| `song.replace`     | **Replace** — a song target only                                                              |               |
+| `song.info`        | **Info** — a song target only                                                                 |               |
+| `song.remove`      | take the song off the list — a song target only                                               |               |
 
 The `song.*` commands exist only for one song, so the state's own list leaves
 them out; they reach a shell in a `contextMenu` call, with the song they are for.
@@ -383,6 +383,9 @@ dialog with a report in it, which a message box would flatten.
 
 ## Changelog
 
+- **Play this clip** ([#118]). `clip.play` reads **Play this clip**, and
+  **Stop this clip** while a clip is playing, when running it stops it. Same id,
+  same meaning; only the words changed.
 - **The header** ([#110], [#119]). One Help menu holds the help topics and the
   guide, the colors sit in the header, and Settings is gone; `menu` hides those
   three and GitHub. `help.guide` reads **Guide**, and **Forget it all** is now
@@ -415,6 +418,7 @@ details)`, handed the finished music file.
   changed.
 
 [#110]: https://github.com/ankurs47/skate-program-editor/issues/110
+[#118]: https://github.com/ankurs47/skate-program-editor/issues/118
 [#119]: https://github.com/ankurs47/skate-program-editor/issues/119
 [#120]: https://github.com/ankurs47/skate-program-editor/issues/120
 [#121]: https://github.com/ankurs47/skate-program-editor/issues/121
