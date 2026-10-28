@@ -1460,8 +1460,10 @@ function bind() {
       stopPlayback();
       return;
     }
+    /* The clip, start marker to end marker, whatever the waveform's marker is
+       on. Hearing past the cut is double-click's job. */
     const clip = selectedClip();
-    if (clip) playClipAudition(clip, auditionFrom(clip, state.cursor));
+    if (clip) playClipAudition(clip, clip.srcStart);
   };
   $('btnRemoveClip').onclick = () => {
     if (state.selected) removeClip(state.selected);
