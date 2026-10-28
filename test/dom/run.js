@@ -943,11 +943,11 @@ async function main() {
         const after = shown();
         return { before, withMenu, helpOpened, noMenu, after };
       `);
-      eq(out.before, [true, true], 'hidden in a plain browser, so hiding proves nothing: ');
-      eq(out.withMenu, [false, false], "the header kept the menu's copies: ");
+      eq(out.before, [true], 'hidden in a plain browser, so hiding proves nothing: ');
+      eq(out.withMenu, [false], "the header kept the menu's copies: ");
       ok(out.helpOpened, 'a hidden help topic could not be reached from the menu');
-      eq(out.noMenu, [true, true], 'a shell without a menu lost its header: ');
-      eq(out.after, [true, true], 'the shell went and the header stayed hidden: ');
+      eq(out.noMenu, [true], 'a shell without a menu lost its header: ');
+      eq(out.after, [true], 'the shell went and the header stayed hidden: ');
     });
 
     await check(
@@ -3872,31 +3872,75 @@ async function main() {
       );
     });
 
-    await check('the settings menu opens, closes, and says what is stored', async () => {
+    await check('the help menu opens, closes, and shuts behind a topic', async () => {
       const out = await run(`
         /* Shared page: start shut whatever anything above left behind. */
-        setSettingsOpen(false);
-        const button = document.getElementById('btnSettings');
-        const menu = document.getElementById('settingsMenu');
+        setHelpMenuOpen(false);
+        const button = document.getElementById('btnHelp');
+        const menu = document.getElementById('helpMenu');
         const shut = () => menu.classList.contains('hidden');
         const start = shut();
         button.click();
-        const opened = { shut: shut(), expanded: button.getAttribute('aria-expanded'),
-                         note: document.getElementById('forgetNote').textContent };
+        const opened = { shut: shut(), expanded: button.getAttribute('aria-expanded') };
         document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
         const afterOutside = shut();
         button.click();
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
         const afterEscape = shut();
-        setSettingsOpen(false);
-        return { start, opened, afterOutside, afterEscape };
+
+        // A topic opens its help, shuts the menu, and Close lands back on Help.
+        button.click();
+        menu.querySelector('.help-btn[data-help="tips"]').click();
+        const topic = {
+          menuShut: shut(),
+          title: document.getElementById('helpTitle').textContent,
+        };
+        closeTopDialog();
+        topic.focus = document.activeElement && document.activeElement.id;
+        setHelpMenuOpen(false);
+        return { start, opened, afterOutside, afterEscape, topic };
       `);
       eq(out.start, true, 'the menu should begin shut: ');
-      eq(out.opened.shut, false, 'clicking the gear did not open it: ');
+      eq(out.opened.shut, false, 'clicking Help did not open it: ');
       eq(out.opened.expanded, 'true', 'aria-expanded: ');
-      ok(out.opened.note.length > 0, 'the menu says nothing about what is stored');
       eq(out.afterOutside, true, 'a click outside did not shut it: ');
       eq(out.afterEscape, true, 'Escape did not shut it: ');
+      eq(out.topic.menuShut, true, 'choosing a topic left the menu open: ');
+      ok(out.topic.title.length > 0, 'choosing a topic opened no help');
+      eq(out.topic.focus, 'btnHelp', 'closing the help lost the keyboard: ');
+    });
+
+    await check('clearing this browser asks first, and Keep it changes nothing', async () => {
+      const out = await run(`
+        state.clips = [{ id: 'x', title: 'a song', file: 'a song.mp3',
+          srcStart: 0, srcEnd: 10, fadeIn: 0, fadeOut: 0, crossfade: 0, gain: 1 }];
+        save();
+        document.getElementById('btnNew').click();
+        document.getElementById('btnForget').click();
+        const asked = {
+          open: !document.getElementById('forgetDialog').classList.contains('hidden'),
+          newShut: document.getElementById('startDialog').classList.contains('hidden'),
+          focus: document.activeElement && document.activeElement.id,
+          note: document.getElementById('forgetNote').textContent,
+        };
+        document.getElementById('btnForgetCancel').click();
+        const kept = { shut: document.getElementById('forgetDialog').classList.contains('hidden'),
+                       clips: state.clips.length,
+                       stored: !!localStorage.getItem('skate.program.v1'),
+                       focus: document.activeElement && document.activeElement.id };
+        return { asked, kept };
+      `);
+      eq(out.asked.open, true, 'the button cleared without asking: ');
+      eq(out.asked.newShut, true, 'the question opened on top of New: ');
+      eq(out.kept.focus, 'btnNew', 'Keep it lost the keyboard: ');
+      eq(out.asked.focus, 'btnForgetCancel', 'the safe answer is not under the keyboard: ');
+      ok(
+        out.asked.note.includes('program'),
+        `the question does not name the program: ${out.asked.note}`,
+      );
+      eq(out.kept.shut, true, 'Keep it left the question open: ');
+      eq(out.kept.clips, 1, 'Keep it cleared the program: ');
+      eq(out.kept.stored, true, 'Keep it cleared what was stored: ');
     });
 
     await check('the export format defaults to MP3 and remembers only a real choice', async () => {
@@ -3947,12 +3991,12 @@ async function main() {
         describeStored();
         const before = { stored: !!localStorage.getItem('skate.program.v1'),
                          note: document.getElementById('forgetNote').textContent,
-                         disabled: document.getElementById('btnForget').disabled };
+                         disabled: document.getElementById('btnForgetGo').disabled };
         await forgetEverything();
         const after = { stored: !!localStorage.getItem('skate.program.v1'),
                         clips: state.clips.length,
                         note: document.getElementById('forgetNote').textContent,
-                        disabled: document.getElementById('btnForget').disabled };
+                        disabled: document.getElementById('btnForgetGo').disabled };
         return { before, after };
       `);
       eq(out.before.stored, true, 'nothing was stored to begin with: ');
