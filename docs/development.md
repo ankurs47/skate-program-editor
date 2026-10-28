@@ -106,7 +106,7 @@ into two words on purpose and is `/bin/sh` with no arrays to do it otherwise,
 and `mutate-worktree.sh` indents a multi-line value, which parameter expansion
 cannot do.
 
-Node 22.13 or later. The browser tests need the global `WebSocket` that Node 22
+Node 22.13 or later; CI runs Node 24, the current LTS. The browser tests need the global `WebSocket` that Node 22
 brought, and eslint 10 raises the floor to 22.13: it declares
 `^20.19.0 || ^22.13.0 || >=24`, which npm enforces as a warning at install time
 and nothing enforces after that — so an older 22 gets you an unsupported linter

@@ -34,7 +34,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: '24'
 
       # Exits 1 when something moved, or when a source could not be reached at
       # all — a page that has gone is itself a change worth hearing about.
