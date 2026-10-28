@@ -484,7 +484,7 @@ anything above become load-bearing.
 - **The audition is a third playback path, and it drifts.** `AGENTS.md` says
   preview and export share `scheduleProgram`, and they do — but
   `playClipAudition()` builds its own graph, and for a long time that graph was
-  `source → destination`, so **Play this song** ignored the clip's level and
+  `source → destination`, so auditioning a song ignored the clip's level and
   fades entirely. Setting a song to 40% and then auditioning it at 100% teaches
   the wrong thing about the edit. It now applies level and `fadeEnvelope`;
   the blend is deliberately left out, because that belongs to the join and there
