@@ -607,13 +607,72 @@ section {
   border: 0;
   background: #fff;
 }
-#libraryList .lib-wave {
-  position: relative;
+#libraryList .lib-play canvas {
   flex: 1 1 auto;
   min-width: 0;
 }
+
+/* ---- song player ---- */
+/* A song from the music list, in a dialog of its own in the middle of the
+   dimmed page — the modal card does the placing. */
+/* Darker than the other dialogs: this one is for listening, and the page
+   behind it is not what anyone is looking at. */
+#songPlayer.modal {
+  background: rgba(0, 0, 0, 0.72);
+}
+.modal-card.song-player {
+  gap: 16px;
+  width: min(720px, 94vw);
+  padding: 24px 28px 28px;
+}
+.song-player-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* The song's own name, as written — not the small capitals of a section
+   heading. */
+.song-player-head h2 {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+.song-player-close {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 24px;
+  line-height: 1;
+}
+.song-player-close:hover {
+  color: var(--ink);
+  background: var(--bg);
+}
+/* The waveform is where to click or drag to move through the song. */
+.song-player-wave {
+  position: relative;
+  cursor: pointer;
+  touch-action: none;
+}
+.song-player-wave canvas {
+  display: block;
+  width: 100%;
+  height: 120px;
+}
 /* The part already heard, tinted, with a line where the music is now. */
-#libraryList .lib-progress {
+.song-player-progress {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -622,6 +681,27 @@ section {
   border-right: 2px solid var(--accent);
   background: color-mix(in srgb, var(--accent) 22%, transparent);
   pointer-events: none;
+}
+#songSeek {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.song-player-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.song-player-row button {
+  min-width: 96px;
+  padding: 9px 18px;
+  font-size: 15px;
+}
+.song-time {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 16px;
+  color: var(--muted);
 }
 #libraryList .lib-dur {
   min-width: 0;

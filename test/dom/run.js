@@ -2317,8 +2317,8 @@ async function main() {
       eq(result.on.mode, 'song', 'the card did not play its song: ');
       eq(result.on.pressed, 'true', 'the card does not show it is playing: ');
       eq(result.on.to, ['AudioDestinationNode'], 'the list played it through something: ');
-      eq(result.on.started, [], 'not the whole song from the top: ');
-      eq(result.off, { playing: false, pressed: 'false' }, 'a second click did not stop it: ');
+      eq(result.on.started, [0], 'not the whole song from the top: ');
+      eq(result.off, { playing: false, pressed: 'false' }, 'a second click did not pause it: ');
       eq(
         result.overtaken,
         { mode: 'program', pressed: 'false' },
@@ -2326,38 +2326,151 @@ async function main() {
       );
     });
 
-    await check(
-      'a playing card shows how far it has got, and forgets it when stopped',
-      async () => {
-        const result = await run(`
+    await check('the song player shows how far it has got', async () => {
+      const result = await run(`
         window.__reset([]);
         window.__addToLibrary('a.mp3', window.__tone(220, 80));
         forgetLibraryShape(); renderLibrary();
-        const li = document.querySelector('#libraryList li[data-song="a.mp3"]');
         const read = () => ({
-          bar: li.querySelector('.lib-progress').hidden ? null : li.querySelector('.lib-progress').style.width,
-          time: li.querySelector('.lib-dur').textContent,
+          bar: __id('songPlayerProgress').style.width,
+          time: __id('songTime').textContent,
+          seek: __id('songSeek').value,
         });
-        const idle = read();
-        playSong('a.mp3');
-        // Left to play, the playhead's own tick fills it in.
+        toggleSong('a.mp3');
+        // Left to play, the playhead's own tick moves it along.
         await new Promise((r) => setTimeout(r, 500));
         const moving = read();
         // And at a known point, what that tick shows.
         showSongProgress('a.mp3', 20);
-        const playing20 = read();
-        stopPlayback();
-        return { idle, moving, playing20, stopped: read() };
+        const at20 = read();
+        stopSong();
+        return { moving, at20 };
       `);
-        eq(result.idle, { bar: null, time: '1:20' }, 'before it plays: ');
-        ok(
-          result.moving.bar !== null && / \/ 1:20$/.test(result.moving.time),
-          `playing did not show any progress: ${JSON.stringify(result.moving)}`,
-        );
-        eq(result.playing20, { bar: '25%', time: '0:20 / 1:20' }, 'a quarter of the way in: ');
-        eq(result.stopped, { bar: null, time: '1:20' }, 'once stopped: ');
-      },
-    );
+      ok(
+        parseFloat(result.moving.bar) > 0 && / \/ 1:20$/.test(result.moving.time),
+        `playing did not show any progress: ${JSON.stringify(result.moving)}`,
+      );
+      eq(result.at20, { bar: '25%', time: '0:20 / 1:20', seek: '20' }, 'a quarter of the way in: ');
+    });
+
+    await check('the song player pauses, carries on, seeks, stops and closes', async () => {
+      /* ▶ on a card opens the player over the page: Pause and Play keep the
+         place, the bar and the waveform move it, Stop goes back to the start,
+         × closes it, and anything else playing closes it the way one song
+         stops another. Only the card's ▶ is on the card. */
+      const result = await run(`
+        window.__reset([['other.mp3', window.__tone(330, 20)]]);
+        window.__addToLibrary('a.mp3', window.__tone(220, 80));
+        forgetLibraryShape(); renderLibrary();
+        const li = document.querySelector('#libraryList li[data-song="a.mp3"]');
+        const box = __id('songPlayer');
+        const read = () => ({
+          open: !box.classList.contains('hidden'),
+          button: __id('btnSongPause').textContent,
+          mode: playing ? playing.mode : null,
+          from: playing ? +playing.fromTime.toFixed(1) : null,
+          time: __id('songTime').textContent,
+        });
+        const closed = read();
+        li.querySelector('.lib-play').click();
+        const opened = { ...read(), title: __id('songPlayerTitle').textContent,
+                         onCard: li.querySelectorAll('input, .lib-player').length };
+
+        // Pause where it is, move the bar while paused, and Play from there.
+        __id('btnSongPause').click();
+        const paused = read();
+        const seek = __id('songSeek');
+        seek.value = '40';
+        seek.dispatchEvent(new Event('input'));
+        seek.dispatchEvent(new Event('change'));
+        const sought = read();
+        __id('btnSongPause').click();
+        const resumed = read();
+
+        // Moved while playing, it plays on from where it is let go.
+        seek.value = '60';
+        seek.dispatchEvent(new Event('input'));
+        seek.dispatchEvent(new Event('change'));
+        const jumped = read();
+
+        __id('btnSongStop').click();
+        const stopped = read();
+        __id('btnSongClose').click();
+        const shut = read();
+
+        // Anything else playing closes it.
+        li.querySelector('.lib-play').click();
+        playProgram(0);
+        const overtaken = read();
+        stopPlayback();
+
+        // A dialog like the others: focus goes in, Escape and the dimmed page
+        // close it, and focus comes back to the card's ▶.
+        const play = li.querySelector('.lib-play');
+        play.focus();
+        play.click();
+        const focusIn = document.activeElement && document.activeElement.id;
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        const escaped = { ...read(), focusBack: document.activeElement === play };
+        play.click();
+        box.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        const backdrop = read();
+        return { closed, opened, paused, sought, resumed, jumped, stopped, shut, overtaken,
+                 focusIn, escaped, backdrop };
+      `);
+      eq(result.focusIn, 'btnSongPause', 'the keyboard did not go into the player: ');
+      eq(
+        [result.escaped.open, result.escaped.mode, result.escaped.focusBack],
+        [false, null, true],
+        'Escape: ',
+      );
+      eq(
+        [result.backdrop.open, result.backdrop.mode],
+        [false, null],
+        'a click on the dimmed page: ',
+      );
+      eq(result.closed.open, false, 'a player open before anything played: ');
+      eq(
+        result.opened,
+        {
+          open: true,
+          button: 'Pause',
+          mode: 'song',
+          from: 0,
+          time: '0:00 / 1:20',
+          title: 'a.mp3',
+          onCard: 0,
+        },
+        '▶ did not open a playing player: ',
+      );
+      eq(
+        [result.paused.open, result.paused.button, result.paused.mode],
+        [true, 'Play', null],
+        'Pause: ',
+      );
+      eq(
+        [result.sought.time, result.sought.mode],
+        ['0:40 / 1:20', null],
+        'moving the bar while paused: ',
+      );
+      eq(
+        [result.resumed.mode, result.resumed.from],
+        ['song', 40],
+        'Play did not carry on from the bar: ',
+      );
+      eq([result.jumped.mode, result.jumped.from], ['song', 60], 'moving it while playing: ');
+      eq(
+        [result.stopped.open, result.stopped.mode, result.stopped.time],
+        [true, null, '0:00 / 1:20'],
+        'Stop: ',
+      );
+      eq([result.shut.open, result.shut.mode], [false, null], '×: ');
+      eq(
+        [result.overtaken.open, result.overtaken.mode],
+        [false, 'program'],
+        'the program playing: ',
+      );
+    });
 
     await check('a card keeps Remove in its corner and only what applies on its row', async () => {
       /* The card had grown to four buttons beside a badge, a length and a tag.

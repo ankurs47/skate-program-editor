@@ -12,7 +12,14 @@
    controls behind it, which are unreachable by mouse and still operable by
    keyboard. */
 
-const DIALOGS = ['helpModal', 'startDialog', 'exportDialog', 'replaceDialog', 'forgetDialog'];
+const DIALOGS = [
+  'helpModal',
+  'startDialog',
+  'exportDialog',
+  'replaceDialog',
+  'forgetDialog',
+  'songPlayer',
+];
 
 /** Whichever dialog is on top, or null when none is open. */
 function openDialog() {
@@ -64,6 +71,7 @@ function closeTopDialog() {
   else if (el.id === 'startDialog') closeStartDialog();
   else if (el.id === 'replaceDialog') closeReplaceDialog();
   else if (el.id === 'forgetDialog') closeForgetDialog();
+  else if (el.id === 'songPlayer') stopSong();
   else closeExportDialog();
   return true;
 }
