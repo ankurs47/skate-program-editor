@@ -127,6 +127,7 @@ function stopPlayback() {
   }
   cancelAnimationFrame(rafId);
   $('btnPlayLabel').textContent = 'Play';
+  $('btnPreviewClip').textContent = 'Play this clip';
   showNowPlaying();
   drawScrubber(); // the playhead stays where it is, so Space resumes there
 }
@@ -158,6 +159,15 @@ function playProgram(fromTime = 0, until = Infinity) {
   $('btnPlayLabel').textContent = 'Pause';
   showNowPlaying();
   tickPlayhead();
+}
+
+/**
+ * Where Play this clip starts: the marker, wherever it is — inside the trims or
+ * out in the part that was cut — except on the end of the song, where it is
+ * left when a play finishes, and where starting over is what was meant.
+ */
+function auditionFrom(clip, cursor) {
+  return Math.abs(cursor - clip.srcEnd) < 0.01 ? clip.srcStart : cursor;
 }
 
 /**
@@ -212,6 +222,8 @@ function playClipAudition(clip, fromSource) {
     scheduled: [playingKey(clip)],
   };
   $('btnPlayLabel').textContent = 'Pause';
+  // However it was started — the button or a double-click — this stops it.
+  $('btnPreviewClip').textContent = 'Stop this clip';
   showNowPlaying();
   tickPlayhead();
 }
@@ -238,7 +250,8 @@ function tickPlayhead() {
         return;
       }
     } else {
-      // Held at the end it stopped on, rather than a frame past it.
+      /* Held at the end it stopped on, so pressing Play this clip again finds
+         the marker on the cut and starts the clip over (`auditionFrom`). */
       const at = Math.min(playing.fromTime + elapsed, playing.until);
       state.cursor = at;
       drawClipEditor();
@@ -702,6 +715,7 @@ if (typeof module !== 'undefined' && module.exports) {
     stopIfGone,
     playingKey,
     playProgram,
+    auditionFrom,
     playClipAudition,
     tickPlayhead,
     weakSources,

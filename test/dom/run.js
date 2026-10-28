@@ -1014,7 +1014,13 @@ async function main() {
         ok(out.onClip.stopped, "the browser's own menu opened over the shell's");
         eq(out.onClip.target.clip !== undefined, true, 'the clip was not named: ');
         ok(out.onClip.selected, 'the right-clicked clip was not selected');
-        eq(out.onClip.ids, ['join.play', 'clip.moveEarlier', 'clip.moveLater', 'clip.remove']);
+        eq(out.onClip.ids, [
+          'clip.play',
+          'join.play',
+          'clip.moveEarlier',
+          'clip.moveLater',
+          'clip.remove',
+        ]);
         eq([out.onClip.earlier, out.onClip.later], [true, false], 'the last of two moves later: ');
         eq(out.moved, ['b.mp3', 'a.mp3'], 'the clip pointed at did not move: ');
         eq(out.songTarget, { song: 'spare.mp3' });
@@ -2637,6 +2643,11 @@ async function main() {
             level: +chain[1].gain.value.toFixed(4),
             wanted: +clipGain(clip).toFixed(4),
             started, until, envelopes,
+            from: {
+              cut: auditionFrom(clip, 0.5),
+              kept: auditionFrom(clip, 8),
+              end: auditionFrom(clip, 20),
+            },
           };
         } finally {
           AudioNode.prototype.connect = realConnect;
@@ -2653,6 +2664,37 @@ async function main() {
       eq(result.started, { offset: 0.5, duration: 29.5 }, 'not played from there to the end: ');
       eq(result.until, 30, 'the marker would stop at the trim: ');
       eq(result.envelopes, 0, 'fades were applied to the part that was cut: ');
+      eq(
+        result.from,
+        { cut: 0.5, kept: 8, end: 2 },
+        'Play this clip starts at the marker, or over from the end: ',
+      );
+    });
+
+    await check('Play this clip becomes Stop this clip while it plays, and stops it', async () => {
+      const result = await run(`
+        window.__reset([['a.mp3', window.__tone(220, 20)]]);
+        const button = __id('btnPreviewClip');
+        const read = () => ({ label: button.textContent, mode: playing ? playing.mode : null });
+        const before = read();
+        button.click();
+        const during = read();
+        button.click();
+        const after = read();
+        // Started some other way — a double-click — the button still stops it.
+        playClipAudition(state.clips[0], 5);
+        button.click();
+        const fromElsewhere = read();
+        return { before, during, after, fromElsewhere };
+      `);
+      eq(result.before, { label: 'Play this clip', mode: null });
+      eq(result.during, { label: 'Stop this clip', mode: 'clip' }, 'while it plays: ');
+      eq(result.after, { label: 'Play this clip', mode: null }, 'pressed again: ');
+      eq(
+        result.fromElsewhere,
+        { label: 'Play this clip', mode: null },
+        'started by double-click: ',
+      );
     });
 
     await check(
