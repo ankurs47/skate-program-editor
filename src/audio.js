@@ -162,15 +162,6 @@ function playProgram(fromTime = 0, until = Infinity) {
 }
 
 /**
- * Where Play this clip starts: the marker, wherever it is — inside the trims or
- * out in the part that was cut — except on the end of the song, where it is
- * left when a play finishes, and where starting over is what was meant.
- */
-function auditionFrom(clip, cursor) {
-  return Math.abs(cursor - clip.srcEnd) < 0.01 ? clip.srcStart : cursor;
-}
-
-/**
  * Play one clip on its own, from a point inside it.
  *
  * Its level and its own fades are applied, because hearing what this song will
@@ -250,8 +241,7 @@ function tickPlayhead() {
         return;
       }
     } else {
-      /* Held at the end it stopped on, so pressing Play this clip again finds
-         the marker on the cut and starts the clip over (`auditionFrom`). */
+      // Held at the end it stopped on, rather than a frame past it.
       const at = Math.min(playing.fromTime + elapsed, playing.until);
       state.cursor = at;
       drawClipEditor();
@@ -715,7 +705,6 @@ if (typeof module !== 'undefined' && module.exports) {
     stopIfGone,
     playingKey,
     playProgram,
-    auditionFrom,
     playClipAudition,
     tickPlayhead,
     weakSources,
