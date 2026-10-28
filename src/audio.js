@@ -161,6 +161,15 @@ function playProgram(fromTime = 0, until = Infinity) {
 }
 
 /**
+ * Where Play this song starts: the marker, wherever it is — inside the trims or
+ * out in the part that was cut — except on the end of the song, where it is
+ * left when a play finishes, and where starting over is what was meant.
+ */
+function auditionFrom(clip, cursor) {
+  return Math.abs(cursor - clip.srcEnd) < 0.01 ? clip.srcStart : cursor;
+}
+
+/**
  * Play one clip on its own, from a point inside it.
  *
  * Its level and its own fades are applied, because hearing what this song will
@@ -168,6 +177,12 @@ function playProgram(fromTime = 0, until = Infinity) {
  * have just set to 40% tells you nothing. The blend is not applied: that belongs
  * to the join rather than to the song, and there is no previous song here to
  * blend with.
+ *
+ * From a point outside the trims it plays the original instead, from there to
+ * the end of the file and with no fades: the cut-away part is exactly what
+ * somebody deciding where to cut needs to hear, and `I` or `O` while it plays
+ * moves the cut to what they are hearing. The level still applies, so the two
+ * sides of a cut sound the way they will next to each other.
  */
 function playClipAudition(clip, fromSource) {
   const entry = library.get(clip.file);
@@ -184,20 +199,25 @@ function playClipAudition(clip, fromSource) {
   level.gain.value = clipGain(clip);
   src.connect(level).connect(fade).connect(context.destination);
 
-  const from = clamp(fromSource, clip.srcStart, clip.srcEnd);
+  const kept = fromSource >= clip.srcStart && fromSource < clip.srcEnd;
+  const from = clamp(fromSource, 0, entry.duration);
+  const until = kept ? clip.srcEnd : entry.duration;
   const when = context.currentTime + 0.05;
-  // Clip time zero sits `skip` seconds before we actually start, so the
-  // envelope is anchored back there and applyEnvelope joins it part-way.
-  const skip = from - clip.srcStart;
-  applyEnvelope(fade.gain, fadeEnvelope(clip), when - skip, skip, context.currentTime);
+  if (kept) {
+    // Clip time zero sits `skip` seconds before we actually start, so the
+    // envelope is anchored back there and applyEnvelope joins it part-way.
+    const skip = from - clip.srcStart;
+    applyEnvelope(fade.gain, fadeEnvelope(clip), when - skip, skip, context.currentTime);
+  }
 
-  src.start(when, from, clip.srcEnd - from);
+  src.start(when, from, until - from);
   playing = {
     nodes: [src],
     startedAt: when,
     fromTime: from,
     mode: 'clip',
     clip,
+    until,
     scheduled: [playingKey(clip)],
   };
   $('btnPlayLabel').textContent = 'Pause';
@@ -227,10 +247,12 @@ function tickPlayhead() {
         return;
       }
     } else {
-      const at = playing.fromTime + elapsed;
+      /* Held at the end it stopped on, so pressing Play this song again finds
+         the marker on the cut and starts the song over (`auditionFrom`). */
+      const at = Math.min(playing.fromTime + elapsed, playing.until);
       state.cursor = at;
       drawClipEditor();
-      if (at >= playing.clip.srcEnd) {
+      if (at >= playing.until) {
         stopPlayback();
         return;
       }
@@ -690,6 +712,7 @@ if (typeof module !== 'undefined' && module.exports) {
     stopIfGone,
     playingKey,
     playProgram,
+    auditionFrom,
     playClipAudition,
     tickPlayhead,
     weakSources,

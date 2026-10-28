@@ -1546,5 +1546,14 @@
     "find": "    if (used) {\n      const tag = document.createElement('span');",
     "replace": "    if (false) {\n      const tag = document.createElement('span');",
     "expect": "says so on its card"
+  },
+  {
+    "name": "the audition clamps to the trims again",
+    "guards": "the part that was cut away can be heard",
+    "file": "src/audio.js",
+    "suite": "dom",
+    "find": "  const kept = fromSource >= clip.srcStart && fromSource < clip.srcEnd;",
+    "replace": "  const kept = true;",
+    "expect": "the part that was cut away can be heard"
   }
 ]
