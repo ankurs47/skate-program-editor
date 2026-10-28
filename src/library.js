@@ -345,6 +345,18 @@ function renderLibrary() {
       row.insertBefore(badge, row.firstChild);
     }
 
+    /* Whether the program uses this song, said on the card rather than left to
+       be worked out from which buttons are offered. It also says why there is
+       no Remove: a tooltip on a grayed button never shows on a touchscreen. */
+    const used = clipsUsing(entry.name);
+    if (used) {
+      const tag = document.createElement('span');
+      tag.className = 'lib-used';
+      tag.textContent = `In program${used === 1 ? '' : used === 2 ? ' twice' : ` ${used} times`}`;
+      tag.title = 'Take it out of the program to remove it from this list';
+      row.insertBefore(tag, dur.nextSibling);
+    }
+
     if (entry.state === 'ready') {
       const add = document.createElement('button');
       add.className = 'small';
@@ -360,7 +372,6 @@ function renderLibrary() {
        and a better one added; a song the program is built on cannot be removed
        without gutting the edit, and swapping underneath it is the only way to
        change which file it plays from. */
-    const used = clipsUsing(entry.name);
     if (used && entry.state === 'ready') {
       li.classList.add('swappable');
       const swap = document.createElement('button');
@@ -379,6 +390,10 @@ function renderLibrary() {
     drop.dataset.action = 'remove';
     drop.textContent = 'Remove';
     drop.disabled = used > 0;
+    /* Not shown at all while the program uses it: the tag says why, and a
+       grayed button beside it would only repeat it less clearly. Disabled as
+       well, so a shell's menu reads it as unavailable. */
+    drop.classList.toggle('hidden', used > 0);
     /* Two different promises, because two different things happen. Opened as a
        web page this has no file to touch and never did. Opened on a project
        folder it takes the song out of that folder as well — which is the point

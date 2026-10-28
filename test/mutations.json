@@ -1537,5 +1537,14 @@
     "find": "  session.playbackState = playing ? 'playing' : 'paused';",
     "replace": "  session.playbackState = 'paused';",
     "expect": "the keyboard's media keys and the system's controls run the program"
+  },
+  {
+    "name": "the music list stops saying which songs are in the program",
+    "guards": "a card says whether, and how often, the program uses its song",
+    "file": "src/library.js",
+    "suite": "dom",
+    "find": "    if (used) {\n      const tag = document.createElement('span');",
+    "replace": "    if (false) {\n      const tag = document.createElement('span');",
+    "expect": "says so on its card"
   }
 ]
