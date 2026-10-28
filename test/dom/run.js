@@ -2251,6 +2251,28 @@ async function main() {
       );
     });
 
+    await check('a song in the program says so on its card, and how often', async () => {
+      /* #107. Which buttons were offered was the only clue, and the reason
+         Remove was grayed lived in a tooltip a touchscreen never shows. */
+      const result = await run(`
+        window.__reset([['a.mp3', window.__tune(1)], ['b.mp3', window.__tune(2)]]);
+        addClip(library.get('b.mp3'));
+        window.__addToLibrary('spare.mp3', window.__tune(3));
+        renderLibrary();
+        return [...document.querySelectorAll('#libraryList li')].map((li) => {
+          const tag = li.querySelector('.lib-used');
+          const remove = li.querySelector('[data-action="remove"]');
+          return { file: li.dataset.song, tag: tag ? tag.textContent : null,
+                   removeShown: !remove.classList.contains('hidden') };
+        });
+      `);
+      eq(result, [
+        { file: 'a.mp3', tag: 'In program', removeShown: false },
+        { file: 'b.mp3', tag: 'In program twice', removeShown: false },
+        { file: 'spare.mp3', tag: null, removeShown: true },
+      ]);
+    });
+
     await check('a better copy of the same song keeps every trim', async () => {
       const result = await run(`
         window.__reset([['rough.mp3', window.__tune(4, 20)]]);

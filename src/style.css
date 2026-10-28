@@ -539,6 +539,15 @@ section {
   font-size: 12px;
   color: var(--muted);
 }
+/* In the program: plain words in the accent, not a badge, so it does not read
+   as a verdict on the song the way Good / Fair / Low do. */
+#libraryList .lib-used {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+}
 #libraryList canvas {
   width: 100%;
   height: 28px;
