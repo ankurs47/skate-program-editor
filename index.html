@@ -113,72 +113,60 @@
         <img class="logo" src="src/logo.svg" width="24" height="24" alt="" />
         <h1>Skate Program Editor</h1>
       </span>
-      <nav class="help-nav" aria-label="Help topics">
-        <button class="help-btn" data-help="basics">Basics</button>
-        <button class="help-btn" data-help="tips">Tips</button>
-        <button class="help-btn" data-help="saving">Saving</button>
-        <button class="help-btn" data-help="quality">Sound quality</button>
-        <button class="help-btn" data-help="keys">Keyboard</button>
-      </nav>
       <span class="topbar-links">
         <span class="menu-wrap">
           <button
             class="topbar-link"
-            id="btnSettings"
+            id="btnHelp"
             type="button"
             aria-haspopup="true"
             aria-expanded="false"
-            aria-controls="settingsMenu"
+            aria-controls="helpMenu"
           >
+            Help
             <svg
               viewBox="0 0 24 24"
-              width="16"
-              height="16"
+              width="12"
+              height="12"
               fill="none"
               stroke="currentColor"
-              stroke-width="2"
+              stroke-width="2.5"
               stroke-linecap="round"
               stroke-linejoin="round"
               aria-hidden="true"
             >
-              <circle cx="12" cy="12" r="3" />
-              <path
-                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"
-              />
+              <path d="m6 9 6 6 6-6" />
             </svg>
-            Settings
           </button>
-          <div
-            class="menu hidden"
-            id="settingsMenu"
-            role="dialog"
-            aria-modal="false"
-            aria-label="Settings"
-          >
-            <p class="menu-head" id="themeGroupLabel">Colors</p>
-            <div class="seg" role="radiogroup" aria-labelledby="themeGroupLabel">
-              <button type="button" role="radio" data-theme-choice="auto" aria-checked="true">
-                Auto
-              </button>
-              <button type="button" role="radio" data-theme-choice="light" aria-checked="false">
-                Light
-              </button>
-              <button type="button" role="radio" data-theme-choice="dark" aria-checked="false">
-                Dark
-              </button>
-            </div>
-            <p class="hint menu-note" id="themeNote">
-              Auto follows whatever this computer is set to.
-            </p>
-
-            <div id="storageSection">
-              <p class="menu-head">This computer</p>
-              <p class="hint menu-note" id="forgetNote"></p>
-              <button type="button" id="btnForget" class="small danger">Forget it all</button>
-            </div>
+          <div class="menu hidden" id="helpMenu" role="dialog" aria-modal="false" aria-label="Help">
+            <nav class="help-nav" aria-label="Help topics">
+              <button class="help-btn" data-help="basics">Basics</button>
+              <button class="help-btn" data-help="tips">Tips</button>
+              <button class="help-btn" data-help="saving">Saving</button>
+              <button class="help-btn" data-help="quality">Sound quality</button>
+              <button class="help-btn" data-help="keys">Keyboard</button>
+            </nav>
+            <hr />
+            <a class="menu-link" href="docs/help.html">Guide</a>
           </div>
         </span>
-        <a class="topbar-link" href="docs/help.html">Full guide</a>
+        <div
+          class="seg topbar-seg"
+          id="themeChoice"
+          role="radiogroup"
+          aria-label="Colors"
+          title="Auto follows whatever this computer is set to."
+        >
+          <button type="button" role="radio" data-theme-choice="auto" aria-checked="true">
+            Auto
+          </button>
+          <button type="button" role="radio" data-theme-choice="light" aria-checked="false">
+            Light
+          </button>
+          <button type="button" role="radio" data-theme-choice="dark" aria-checked="false">
+            Dark
+          </button>
+        </div>
         <a
           class="topbar-link"
           href="https://github.com/ankurs47/skate-program-editor"
@@ -539,6 +527,13 @@
           nothing is uploaded.
         </p>
         <div class="modal-actions" id="startCancelRow">
+          <button
+            id="btnForget"
+            class="danger start-forget"
+            title="Clear what this browser remembers: the program you are working on and the way back to your song files"
+          >
+            Clear this browser
+          </button>
           <button id="btnStartCancel">Cancel</button>
         </div>
       </div>
@@ -769,6 +764,21 @@
         <div class="modal-actions">
           <button id="btnReplaceCancel">Cancel</button>
           <button id="btnReplaceGo" class="primary">Replace</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="forgetDialog" class="modal hidden">
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="forgetTitle">
+        <h2 id="forgetTitle">Clear what this browser remembers?</h2>
+        <p class="hint" id="forgetNote"></p>
+        <p class="hint">
+          Your song files and any project you saved stay where they are, and so does your choice of
+          colors.
+        </p>
+        <div class="modal-actions">
+          <button id="btnForgetCancel">Keep it</button>
+          <button id="btnForgetGo" class="danger-solid">Clear it</button>
         </div>
       </div>
     </div>

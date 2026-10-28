@@ -361,7 +361,7 @@ main.library-collapsed #library .panel-head {
 main.library-collapsed #library .panel-head > :not(.lib-toggle) {
   display: none;
 }
-/* ---- settings menu ---- */
+/* ---- help menu ---- */
 
 .menu-wrap {
   position: relative;
@@ -371,30 +371,16 @@ main.library-collapsed #library .panel-head > :not(.lib-toggle) {
   right: 0;
   top: calc(100% + 6px);
   z-index: 40;
-  width: 260px;
-  padding: 14px;
+  width: 200px;
+  padding: 6px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 2px;
   background: var(--panel);
   color: var(--ink);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
-}
-.menu-head {
-  margin: 0;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--muted);
-}
-.menu-head + * {
-  margin-top: -2px;
-}
-.menu-note {
-  font-size: 12px;
 }
 .menu hr {
   width: 100%;
@@ -992,11 +978,6 @@ body.dropping #timelineWrap[data-mode="start"] .empty {
   margin: 0 20px 0 0;
   color: var(--topbar-ink);
 }
-.help-nav {
-  display: flex;
-  gap: 2px;
-  flex-wrap: wrap;
-}
 /* Logo and title travel together; without this they can be split by the wrap
    that the rest of the bar depends on at narrow widths. */
 .topbar-brand {
@@ -1005,14 +986,13 @@ body.dropping #timelineWrap[data-mode="start"] .empty {
   gap: 9px;
   flex: 0 0 auto;
 }
-/* The two outbound links sit apart from the help buttons, at the far end of the
-   bar: they leave the page, and the help buttons open a dialog over it. Looking
-   alike was the whole problem — same shape, two different kinds of thing. The
-   distance is what separates them now, so no rule is needed between. */
+/* Help, the colors and GitHub, at the far end of the bar. Six help entries
+   used to sit here in a row and wrapped onto a second line on a phone, above
+   the app; one menu keeps the bar to one line. */
 .topbar-links {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   flex: 0 0 auto;
   margin-left: auto;
 }
@@ -1034,34 +1014,49 @@ body.dropping #timelineWrap[data-mode="start"] .empty {
 .topbar-link svg {
   display: block;
 }
-/* The toggle is a button wearing the link styling, so it has to shed the
-   button defaults first. Only the icon for the current mode is shown; all
-   three ship in the markup so no JavaScript has to build an icon. */
+/* The Help button wears the link styling, so it has to shed the button
+   defaults first. */
 button.topbar-link {
   border: 0;
   background: transparent;
   font: inherit;
   cursor: pointer;
 }
-.theme-btn .ico {
-  display: none;
+/* The colors on the bar's dark background, rather than the panel's. */
+.topbar-seg {
+  border-color: rgba(255, 255, 255, 0.18);
 }
-.theme-btn[data-mode="auto"] .ico-auto,
-.theme-btn[data-mode="light"] .ico-light,
-.theme-btn[data-mode="dark"] .ico-dark {
-  display: block;
-}
-.help-btn {
-  border: none;
-  background: transparent;
+.topbar-seg > button {
+  padding: 4px 9px;
+  font-size: 12px;
   color: var(--topbar-dim);
-  font-size: 13px;
-  padding: 5px 11px;
-  border-radius: 8px;
 }
-.help-btn:hover {
+.topbar-seg > button + button {
+  border-left-color: rgba(255, 255, 255, 0.18);
+}
+.topbar-seg > button:hover:not([aria-checked="true"]) {
   color: var(--topbar-ink);
   background: rgba(255, 255, 255, 0.11);
+}
+/* The help menu: a list, not a row of buttons. */
+.help-nav {
+  display: flex;
+  flex-direction: column;
+}
+.help-btn,
+.menu-link {
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+  text-align: left;
+  text-decoration: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+.help-btn:hover,
+.menu-link:hover {
+  background: var(--bg);
   border-color: transparent;
 }
 .help-btn:focus-visible {
@@ -1283,6 +1278,11 @@ button.primary > kbd {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 4px;
+}
+/* Starting over, taken further: at the far end from Cancel, so it is not the
+   button a hurried click finds. */
+.start-forget {
+  margin-right: auto;
 }
 .progress {
   height: 6px;

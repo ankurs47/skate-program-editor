@@ -256,7 +256,7 @@
     "guards": "the documentation is reachable from the app",
     "file": "index.html",
     "suite": "unit",
-    "find": "    <a class=\"topbar-link\" href=\"docs/help.html\">Full guide</a>\n",
+    "find": "            <a class=\"menu-link\" href=\"docs/help.html\">Guide</a>\n",
     "replace": "",
     "expect": "no longer links to the guide"
   },
@@ -315,13 +315,31 @@
     "expect": "still live with nothing left"
   },
   {
-    "name": "a click outside stops closing the settings menu",
+    "name": "a click outside stops closing the help menu",
     "guards": "the menu does not stay open over the page",
     "file": "src/app.js",
     "suite": "dom",
-    "find": "    if (!inside) setSettingsOpen(false);",
+    "find": "    if (!inside) setHelpMenuOpen(false);",
     "replace": "    void inside;",
     "expect": "click outside did not shut it"
+  },
+  {
+    "name": "a help topic leaves its menu open",
+    "guards": "choosing from the help menu shuts it",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "    if (e.target instanceof Element && e.target.closest('.help-btn, a')) setHelpMenuOpen(false);",
+    "replace": "    void e;",
+    "expect": "choosing a topic left the menu open"
+  },
+  {
+    "name": "clearing this browser stops asking first",
+    "guards": "a destructive action confirms before it acts",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "    openForgetDialog();\n  };",
+    "replace": "    forgetEverything();\n  };",
+    "expect": "cleared without asking"
   },
   {
     "name": "the first run is told to pick a song that is not there",

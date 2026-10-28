@@ -99,7 +99,7 @@ function applyTheme(mode) {
   for (const button of document.querySelectorAll('[data-theme-choice]')) {
     button.setAttribute('aria-checked', String(button.dataset.themeChoice === mode));
   }
-  $('themeNote').textContent =
+  $('themeChoice').title =
     mode === 'auto'
       ? 'Auto follows whatever this computer is set to.'
       : `Always ${THEME_WORDS[mode].toLowerCase()}, whatever this computer is set to.`;
@@ -119,17 +119,32 @@ function chooseTheme(mode) {
   repaintForTheme();
 }
 
-/* ------------------------------------------------------- settings menu */
+/* ------------------------------------------------------------ help menu */
 
-/** Open or shut the settings menu, and say which for anything listening. */
-function setSettingsOpen(open) {
-  $('settingsMenu').classList.toggle('hidden', !open);
-  $('btnSettings').setAttribute('aria-expanded', String(open));
-  if (open) describeStored();
+/** Open or shut the help menu, and say which for anything listening. */
+function setHelpMenuOpen(open) {
+  $('helpMenu').classList.toggle('hidden', !open);
+  $('btnHelp').setAttribute('aria-expanded', String(open));
 }
 
-function settingsOpen() {
-  return !$('settingsMenu').classList.contains('hidden');
+function helpMenuOpen() {
+  return !$('helpMenu').classList.contains('hidden');
+}
+
+/* ------------------------------------------------- clearing this browser */
+
+/** Ask before clearing, naming what would go. */
+function openForgetDialog() {
+  describeStored();
+  rememberFocus();
+  $('forgetDialog').classList.remove('hidden');
+  // The safe answer is the one under the keyboard.
+  $('btnForgetCancel').focus();
+}
+
+function closeForgetDialog() {
+  $('forgetDialog').classList.add('hidden');
+  restoreFocus();
 }
 
 /**
@@ -166,7 +181,7 @@ function describeStored() {
     : parts.length
       ? `This browser is keeping ${parts.join(' and ')}. Your music itself is never uploaded.`
       : 'This browser is not keeping anything from the editor right now.';
-  $('btnForget').disabled = !parts.length;
+  $('btnForgetGo').disabled = !parts.length;
 }
 
 /**
@@ -212,7 +227,7 @@ async function forgetEverything() {
     /* private mode */
   }
   describeStored();
-  toast('Forgotten. Nothing from the editor is left in this browser.');
+  toast('Cleared. Nothing from the editor is left in this browser.');
 }
 
 /* ------------------------------------------------------- the music sidebar */
@@ -1552,20 +1567,36 @@ function bind() {
     drawScrubber();
     drawClipEditor();
   });
-  $('btnSettings').onclick = () => setSettingsOpen(!settingsOpen());
+  $('btnHelp').onclick = () => setHelpMenuOpen(!helpMenuOpen());
+  /* Choosing a topic or the guide is done with the menu. Listening on the menu
+     rather than the items, so it runs after the topic's own handler. */
+  $('helpMenu').addEventListener('click', (e) => {
+    if (e.target instanceof Element && e.target.closest('.help-btn, a')) setHelpMenuOpen(false);
+  });
   for (const button of document.querySelectorAll('[data-theme-choice]')) {
     button.onclick = () => chooseTheme(button.dataset.themeChoice);
   }
-  $('btnForget').onclick = forgetEverything;
+  /* Offered from New, so it replaces that dialog rather than stacking on it,
+     and Keep it hands the keyboard back to New. */
+  $('btnForget').onclick = () => {
+    $('btnNew').focus();
+    $('startDialog').classList.add('hidden');
+    openForgetDialog();
+  };
+  $('btnForgetCancel').onclick = closeForgetDialog;
+  $('btnForgetGo').onclick = () => {
+    closeForgetDialog();
+    return forgetEverything();
+  };
   /* Anywhere outside shuts it. The menu is not modal — it sits over a page you
      can still use — so a click meant for the editor should land there and close
      the menu, not be swallowed by a backdrop. */
   document.addEventListener('pointerdown', (e) => {
-    if (!settingsOpen()) return;
+    if (!helpMenuOpen()) return;
     /* Not every event target is an Element — a pointerdown can arrive on the
        document itself, which has no closest(). */
     const inside = e.target instanceof Element && e.target.closest('.menu-wrap');
-    if (!inside) setSettingsOpen(false);
+    if (!inside) setHelpMenuOpen(false);
   });
   $('btnLibraryToggle').onclick = () =>
     setLibraryCollapsed(!document.querySelector('main').classList.contains('library-collapsed'));
@@ -1578,9 +1609,9 @@ function bind() {
 
 function onKey(e) {
   // The menu is the shallowest thing on screen, so it goes first.
-  if (e.key === 'Escape' && settingsOpen()) {
-    setSettingsOpen(false);
-    $('btnSettings').focus();
+  if (e.key === 'Escape' && helpMenuOpen()) {
+    setHelpMenuOpen(false);
+    $('btnHelp').focus();
     return;
   }
 
@@ -1698,7 +1729,7 @@ const PROJECT_CONTROLS = [
   'btnLoadProject', // opening one is the shell's landing page
   'btnNew', // so is starting one
   'btnEmptyLoad',
-  'storageSection', // "Forget it all" clears storage a hosted page does not use
+  'btnForget', // it clears storage a hosted page does not use
 ];
 
 /**
@@ -1726,11 +1757,11 @@ function hideProjectControls() {
   }
 }
 
-/* What a shell's own menu stands in for: the help topics, Settings, the guide
-   and the GitHub link. Every one is a command (HOST_COMMANDS) — the help
-   topics, the colors, the guide — and works while hidden, so the menu loses
-   nothing by the header losing them. */
-const MENU_COVERED = ['.help-nav', '.topbar-links'];
+/* What a shell's own menu stands in for: the help menu, the colors and the
+   GitHub link. Every one is a command (HOST_COMMANDS) — the help topics, the
+   guide, the colors — and works while hidden, so the menu loses nothing by the
+   header losing them. */
+const MENU_COVERED = ['.topbar-links'];
 
 /** Hide what a shell's menu covers when it has one, and show it otherwise. */
 function hideMenuCovered() {
@@ -2044,8 +2075,10 @@ if (typeof document !== 'undefined') {
     storedTheme,
     applyTheme,
     chooseTheme,
-    setSettingsOpen,
-    settingsOpen,
+    setHelpMenuOpen,
+    helpMenuOpen,
+    openForgetDialog,
+    closeForgetDialog,
     describeStored,
     forgetEverything,
     LIBRARY_KEY,
