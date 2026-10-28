@@ -1650,7 +1650,7 @@ async function main() {
         renderLibrary();
         const buttons = () => [...document.querySelectorAll('#libraryList li')].map(li => ({
           file: li.querySelector('.lib-title').textContent,
-          removable: ![...li.querySelectorAll('button')].find(b => b.textContent === 'Remove').disabled,
+          removable: !li.querySelector('[data-action="remove"]').disabled,
         }));
         const before = buttons();
         removeClip(state.clips[1].id);
@@ -2231,7 +2231,7 @@ async function main() {
         return [...document.querySelectorAll('#libraryList li')].map(li => ({
           file: li.dataset.song,
           canReplace: [...li.querySelectorAll('button')].some(b => b.textContent === 'Replace'),
-          canRemove: ![...li.querySelectorAll('button')].find(b => b.textContent === 'Remove').disabled,
+          canRemove: !li.querySelector('[data-action="remove"]').disabled,
           swappable: li.classList.contains('swappable'),
         }));
       `);
@@ -2265,6 +2265,100 @@ async function main() {
         { file: 'b.mp3', tag: 'In program twice', removeShown: false },
         { file: 'spare.mp3', tag: null, removeShown: true },
       ]);
+    });
+
+    await check('a card plays its whole song, untouched, and stops when asked', async () => {
+      /* #118. The list is the songs as they are: the whole file from the top,
+         straight to the output with no level node between — asserted on the
+         graph that was built. Any other playback stops it, and it stops them. */
+      const result = await run(`
+        window.__reset([['a.mp3', window.__tone(220, 20)]]);
+        state.clips[0].srcStart = 3; state.clips[0].gain = dbToGain(-8); refresh();
+        const context = ctx();
+        const edges = [];
+        const realConnect = AudioNode.prototype.connect;
+        AudioNode.prototype.connect = function (target) {
+          edges.push({ from: this, to: target });
+          return realConnect.apply(this, arguments);
+        };
+        let source = null, started = null;
+        const realSource = context.createBufferSource.bind(context);
+        context.createBufferSource = () => {
+          source = realSource();
+          const realStart = source.start.bind(source);
+          source.start = (...args) => { started = args.slice(1); return realStart(...args); };
+          return source;
+        };
+        const play = () => document.querySelector('#libraryList li[data-song="a.mp3"] .lib-play');
+        try {
+          play().click();
+          const on = { mode: playing && playing.mode, pressed: play().getAttribute('aria-pressed'),
+                       to: edges.filter((e) => e.from === source).map((e) => e.to.constructor.name),
+                       started };
+          play().click();
+          const off = { playing: Boolean(playing), pressed: play().getAttribute('aria-pressed') };
+          play().click();
+          playProgram(0);
+          const overtaken = { mode: playing && playing.mode, pressed: play().getAttribute('aria-pressed') };
+          stopPlayback();
+          return { on, off, overtaken };
+        } finally {
+          AudioNode.prototype.connect = realConnect;
+          context.createBufferSource = realSource;
+          stopPlayback();
+        }
+      `);
+      eq(result.on.mode, 'song', 'the card did not play its song: ');
+      eq(result.on.pressed, 'true', 'the card does not show it is playing: ');
+      eq(result.on.to, ['AudioDestinationNode'], 'the list played it through something: ');
+      eq(result.on.started, [], 'not the whole song from the top: ');
+      eq(result.off, { playing: false, pressed: 'false' }, 'a second click did not stop it: ');
+      eq(
+        result.overtaken,
+        { mode: 'program', pressed: 'false' },
+        'the program did not take over: ',
+      );
+    });
+
+    await check('a card keeps Remove in its corner and only what applies on its row', async () => {
+      /* The card had grown to four buttons beside a badge, a length and a tag.
+         Remove is the corner ×, there only while nothing in the program uses
+         the song; the row has Add to program, Replace when the program uses
+         it, and Info when the file says something about itself. */
+      const result = await run(`
+        window.__reset([['a.mp3', window.__tune(1)]]);
+        library.get('a.mp3').tags = { title: 'A song', artist: 'Somebody' };
+        window.__addToLibrary('spare.mp3', window.__tune(2));
+        forgetLibraryShape(); renderLibrary();
+        const rowOf = (name) => [...document.querySelectorAll(
+          '#libraryList li[data-song="' + name + '"] .lib-row button')].map((b) => b.textContent);
+        const corner = (name) => {
+          const x = document.querySelector('#libraryList li[data-song="' + name + '"] .lib-remove');
+          return { shown: !x.classList.contains('hidden'), name: controlLabel(x) };
+        };
+        const forShell = ['song.replace', 'song.info', 'song.remove'].map((id) =>
+          describeCommand(HOST_COMMANDS.find((c) => c.id === id), false, { song: 'spare.mp3' }));
+        return {
+          rows: { used: rowOf('a.mp3'), spare: rowOf('spare.mp3') },
+          remove: { used: corner('a.mp3'), spare: corner('spare.mp3') },
+          removeForShell: { label: forShell[2].label, enabled: forShell[2].enabled },
+        };
+      `);
+      eq(
+        result.rows,
+        { used: ['Add to program', 'Replace', 'Info'], spare: ['Add to program'] },
+        'the card rows: ',
+      );
+      eq(
+        result.remove,
+        { used: { shown: false, name: 'Remove' }, spare: { shown: true, name: 'Remove' } },
+        'the corner ×: ',
+      );
+      eq(
+        result.removeForShell,
+        { label: 'Remove', enabled: true },
+        'a shell’s right-click lost Remove: ',
+      );
     });
 
     await check('a better copy of the same song keeps every trim', async () => {

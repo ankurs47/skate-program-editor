@@ -319,14 +319,38 @@ function renderLibrary() {
     if (entry.peaks) {
       const canvas = document.createElement('canvas');
       canvas.height = 28;
-      li.appendChild(canvas);
+      /* The waveform is the play control: the whole song from the top, with no
+         trims and no level — the file as it is, before any of the program's
+         decisions. A button of its own would have been one more thing on a
+         card that already had too many. */
+      if (entry.buffer) {
+        const play = document.createElement('button');
+        play.type = 'button';
+        play.className = 'lib-play';
+        play.dataset.action = 'play';
+        play.title = 'Play the whole song';
+        play.setAttribute('aria-label', `Play ${named || entry.name}`);
+        const icon = document.createElement('span');
+        icon.className = 'lib-play-icon';
+        icon.setAttribute('aria-hidden', 'true');
+        play.append(icon, canvas);
+        play.onclick = () => toggleSong(entry.name);
+        li.appendChild(play);
+      } else {
+        li.appendChild(canvas);
+      }
       requestAnimationFrame(() =>
         drawWave(canvas, entry.peaks, entry.duration, 0, entry.duration, css('--wave')),
       );
     }
 
+    /* What the song is — verdict, length, whether the program uses it — on one
+       side, and the one thing to do with it on the other. */
     const row = document.createElement('div');
     row.className = 'lib-row';
+    const facts = document.createElement('div');
+    facts.className = 'lib-facts';
+    row.appendChild(facts);
     const dur = document.createElement('span');
     dur.className = 'lib-dur';
     dur.textContent =
@@ -335,14 +359,14 @@ function renderLibrary() {
         : entry.state === 'error'
           ? 'unreadable'
           : fmtShort(entry.duration);
-    row.appendChild(dur);
+    facts.appendChild(dur);
 
     if (entry.quality) {
       const badge = document.createElement('span');
       badge.className = `badge ${entry.quality.kind}`;
       badge.textContent = qualityLabel(entry.quality);
       badge.title = qualityDetail(entry.quality);
-      row.insertBefore(badge, row.firstChild);
+      facts.insertBefore(badge, dur);
     }
 
     /* Whether the program uses this song, said on the card rather than left to
@@ -354,7 +378,7 @@ function renderLibrary() {
       tag.className = 'lib-used';
       tag.textContent = `In program${used === 1 ? '' : used === 2 ? ' twice' : ` ${used} times`}`;
       tag.title = 'Take it out of the program to remove it from this list';
-      row.insertBefore(tag, dur.nextSibling);
+      facts.appendChild(tag);
     }
 
     if (entry.state === 'ready') {
@@ -385,10 +409,15 @@ function renderLibrary() {
       row.appendChild(swap);
     }
 
+    /* Remove is the card's corner ×, where closing something away is found,
+       rather than one more button in the row. Named "Remove" for a screen
+       reader and for a shell's right-click menu, which reads that name. */
     const drop = document.createElement('button');
-    drop.className = 'small danger';
+    drop.type = 'button';
+    drop.className = 'lib-remove';
     drop.dataset.action = 'remove';
-    drop.textContent = 'Remove';
+    drop.textContent = '×';
+    drop.setAttribute('aria-label', 'Remove');
     drop.disabled = used > 0;
     /* Not shown at all while the program uses it: the tag says why, and a
        grayed button beside it would only repeat it less clearly. Disabled as
@@ -409,7 +438,7 @@ function renderLibrary() {
         : 'Take this file out of the list and give back the memory it is holding. ' +
           'Your program is untouched, and nothing is deleted from your computer.';
     drop.onclick = () => removeFromLibrary(entry.name);
-    row.appendChild(drop);
+    li.insertBefore(drop, li.firstChild);
 
     /* What the file says about itself, when it says anything. Competition entry
        forms ask for the title and often the composer, and a file called
@@ -425,7 +454,7 @@ function renderLibrary() {
       info.textContent = 'Info';
       info.title = 'What this file says about itself';
       info.setAttribute('aria-expanded', String(shown));
-      row.insertBefore(info, drop);
+      row.appendChild(info);
 
       panel = document.createElement('dl');
       panel.className = 'lib-tags';
@@ -465,6 +494,16 @@ function renderLibrary() {
     li.appendChild(row);
     if (panel) li.appendChild(panel);
     list.appendChild(li);
+  }
+  syncSongPlay();
+}
+
+/** Show on each card whether its song is the one playing. */
+function syncSongPlay() {
+  const now = playing && playing.mode === 'song' ? playing.song : null;
+  for (const li of document.querySelectorAll('#libraryList li[data-song]')) {
+    const play = li.querySelector('.lib-play');
+    if (play) play.setAttribute('aria-pressed', String(li.dataset.song === now));
   }
 }
 
@@ -1043,6 +1082,7 @@ if (typeof module !== 'undefined' && module.exports) {
     forgetSongs,
     librarySignature,
     renderLibrary,
+    syncSongPlay,
     HANDLE_DB,
     HANDLE_STORE,
     rememberedNames,

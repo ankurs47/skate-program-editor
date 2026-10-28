@@ -1555,5 +1555,23 @@
     "find": "  const kept = fromSource >= clip.srcStart && fromSource < clip.srcEnd;",
     "replace": "  const kept = true;",
     "expect": "the part that was cut away can be heard"
+  },
+  {
+    "name": "a card plays its song at the program's level",
+    "guards": "the music list plays songs as they are",
+    "file": "src/audio.js",
+    "suite": "dom",
+    "find": "  src.buffer = entry.buffer;\n  src.connect(context.destination);",
+    "replace": "  src.buffer = entry.buffer;\n  const level = context.createGain();\n  src.connect(level).connect(context.destination);",
+    "expect": "a card plays its whole song"
+  },
+  {
+    "name": "the corner × loses its name",
+    "guards": "Remove is named for a screen reader and a shell's menu",
+    "file": "src/library.js",
+    "suite": "dom",
+    "find": "    drop.setAttribute('aria-label', 'Remove');",
+    "replace": "",
+    "expect": "keeps Remove in its corner"
   }
 ]

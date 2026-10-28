@@ -108,6 +108,11 @@ function playingKey(clip) {
  * the next play either way, which is how this has always worked.
  */
 function stopIfGone() {
+  // A song played from the list has no clip; it is gone when the list lets it go.
+  if (playing && playing.mode === 'song' && !library.has(playing.song)) {
+    stopPlayback();
+    return;
+  }
   if (!playing || !playing.scheduled) return;
   const here = new Set(state.clips.map(playingKey));
   if (playing.scheduled.every((was) => here.has(was))) return;
@@ -128,7 +133,46 @@ function stopPlayback() {
   cancelAnimationFrame(rafId);
   $('btnPlayLabel').textContent = 'Play';
   showNowPlaying();
+  syncSongPlay();
   drawScrubber(); // the playhead stays where it is, so Space resumes there
+}
+
+/**
+ * Play a song from the music list: the whole file from the top, straight to
+ * the speakers.
+ *
+ * No trims, no fades and no level — the list is the songs as they are, before
+ * the program has decided anything about them, and hearing one there is how
+ * somebody decides whether it belongs in the program at all.
+ */
+function playSong(name) {
+  const entry = library.get(name);
+  if (!entry || !entry.buffer) return;
+  stopPlayback();
+  const context = ctx();
+  const src = context.createBufferSource();
+  src.buffer = entry.buffer;
+  src.connect(context.destination);
+  const when = context.currentTime + 0.05;
+  src.start(when);
+  playing = {
+    nodes: [src],
+    startedAt: when,
+    fromTime: 0,
+    mode: 'song',
+    song: name,
+    until: entry.duration,
+  };
+  $('btnPlayLabel').textContent = 'Pause';
+  showNowPlaying();
+  syncSongPlay();
+  tickPlayhead();
+}
+
+/** The card's control: play that song, or stop it if it is the one playing. */
+function toggleSong(name) {
+  if (playing && playing.mode === 'song' && playing.song === name) stopPlayback();
+  else playSong(name);
 }
 
 /** `until` stops playback at a point in program time, for auditioning a join. */
@@ -234,6 +278,11 @@ function tickPlayhead() {
       if (followPlayhead()) drawClipEditor();
       const stopAt = Math.min(playing.total, playing.until ?? Infinity);
       if (at >= stopAt) {
+        stopPlayback();
+        return;
+      }
+    } else if (playing.mode === 'song') {
+      if (elapsed >= playing.until) {
         stopPlayback();
         return;
       }
@@ -703,6 +752,8 @@ if (typeof module !== 'undefined' && module.exports) {
     playingKey,
     playProgram,
     playClipAudition,
+    playSong,
+    toggleSong,
     tickPlayhead,
     weakSources,
     handToShell,

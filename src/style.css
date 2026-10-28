@@ -507,6 +507,7 @@ section {
   padding: 0;
 }
 #libraryList li {
+  position: relative; /* for the corner × */
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -519,21 +520,98 @@ section {
   font-size: 13px;
   word-break: break-word;
 }
-/* Badge and button hold their size; the duration gives way first, and the row
-   wraps rather than pushing the Add button out of the card. */
+/* Room for the corner × beside the name. */
+#libraryList li:has(.lib-remove:not(.hidden)) .lib-title {
+  padding-right: 26px;
+}
+/* In the red of every other removal, softened until it is pointed at: it is
+   the one thing on the card that takes something away, not the thing to
+   look at first. */
+#libraryList .lib-remove {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--bad);
+  opacity: 0.6;
+  font-size: 18px;
+  line-height: 1;
+}
+#libraryList .lib-remove:hover,
+#libraryList .lib-remove:focus-visible {
+  opacity: 1;
+  background: var(--bg);
+}
+/* What the song is on the left, what to do with it on the right. The facts
+   give way first, and the row wraps rather than pushing a button out. */
 #libraryList .lib-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 6px;
   flex-wrap: wrap;
+}
+#libraryList .lib-facts {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 #libraryList .lib-row .badge,
 #libraryList .lib-row button {
   flex: 0 0 auto;
 }
-#libraryList .lib-dur {
+/* The waveform is the play control, with the mark that says so at its left. */
+#libraryList .lib-play {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+#libraryList .lib-play:hover canvas {
+  opacity: 0.75;
+}
+#libraryList .lib-play-icon {
+  position: relative;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+/* A triangle while it would play, a square while it would stop. */
+#libraryList .lib-play-icon::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  border-left: 8px solid #fff;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+}
+#libraryList .lib-play[aria-pressed="true"] .lib-play-icon::after {
+  top: 7px;
+  left: 7px;
+  width: 8px;
+  height: 8px;
+  border: 0;
+  background: #fff;
+}
+#libraryList .lib-play canvas {
   flex: 1 1 auto;
+  min-width: 0;
+}
+#libraryList .lib-dur {
   min-width: 0;
   font-family: var(--mono);
   font-size: 12px;
