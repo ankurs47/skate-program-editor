@@ -108,6 +108,11 @@ function playingKey(clip) {
  * the next play either way, which is how this has always worked.
  */
 function stopIfGone() {
+  // A song played from the list has no clip; it is gone when the list lets it go.
+  if (playing && playing.mode === 'song' && !library.has(playing.song)) {
+    stopPlayback();
+    return;
+  }
   if (!playing || !playing.scheduled) return;
   const here = new Set(state.clips.map(playingKey));
   if (playing.scheduled.every((was) => here.has(was))) return;
@@ -116,6 +121,8 @@ function stopIfGone() {
 
 function stopPlayback() {
   if (playing) {
+    // A card's song keeps its place, however it was stopped — Space included.
+    if (playing.mode === 'song') keepSongPlace(playing.song, songPosition());
     for (const node of playing.nodes) {
       try {
         node.stop();
@@ -129,7 +136,48 @@ function stopPlayback() {
   $('btnPlayLabel').textContent = 'Play';
   $('btnPreviewClip').textContent = 'Play this clip';
   showNowPlaying();
+  syncSongPlay();
   drawScrubber(); // the playhead stays where it is, so Space resumes there
+}
+
+/**
+ * Play a song from the music list, from `from` seconds to the end of the file,
+ * straight to the speakers.
+ *
+ * No trims, no fades and no level — the list is the songs as they are, before
+ * the program has decided anything about them, and hearing one there is how
+ * somebody decides whether it belongs in the program at all.
+ */
+function playSong(name, from = 0) {
+  const entry = library.get(name);
+  if (!entry || !entry.buffer) return;
+  stopPlayback();
+  const context = ctx();
+  const src = context.createBufferSource();
+  src.buffer = entry.buffer;
+  src.connect(context.destination);
+  const when = context.currentTime + 0.05;
+  const start = clamp(from, 0, entry.duration);
+  src.start(when, start);
+  playing = {
+    nodes: [src],
+    startedAt: when,
+    fromTime: start,
+    mode: 'song',
+    song: name,
+    until: entry.duration,
+  };
+  $('btnPlayLabel').textContent = 'Pause';
+  showNowPlaying();
+  syncSongPlay();
+  tickPlayhead();
+}
+
+/** Where a song playing from the list has got to, or null when none is. */
+function songPosition() {
+  if (!playing || playing.mode !== 'song') return null;
+  const elapsed = Math.max(0, ctx().currentTime - playing.startedAt);
+  return Math.min(playing.fromTime + elapsed, playing.until);
 }
 
 /** `until` stops playback at a point in program time, for auditioning a join. */
@@ -158,6 +206,7 @@ function playProgram(fromTime = 0, until = Infinity) {
   };
   $('btnPlayLabel').textContent = 'Pause';
   showNowPlaying();
+  syncSongPlay(); // a card's player closes when anything else plays
   tickPlayhead();
 }
 
@@ -216,6 +265,7 @@ function playClipAudition(clip, fromSource) {
   // However it was started — the button or a double-click — this stops it.
   $('btnPreviewClip').textContent = 'Stop this clip';
   showNowPlaying();
+  syncSongPlay(); // a card's player closes when anything else plays
   tickPlayhead();
 }
 
@@ -238,6 +288,15 @@ function tickPlayhead() {
       const stopAt = Math.min(playing.total, playing.until ?? Infinity);
       if (at >= stopAt) {
         stopPlayback();
+        return;
+      }
+    } else if (playing.mode === 'song') {
+      const at = songPosition();
+      // Not while the seek bar is held: the finger says where it is.
+      if (!seekHeld()) showSongProgress(playing.song, at);
+      if (at >= playing.until) {
+        // Played to the end: the card's player has nothing left to do.
+        stopSong();
         return;
       }
     } else {
@@ -706,6 +765,8 @@ if (typeof module !== 'undefined' && module.exports) {
     playingKey,
     playProgram,
     playClipAudition,
+    playSong,
+    songPosition,
     tickPlayhead,
     weakSources,
     handToShell,

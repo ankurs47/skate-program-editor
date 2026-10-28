@@ -319,14 +319,39 @@ function renderLibrary() {
     if (entry.peaks) {
       const canvas = document.createElement('canvas');
       canvas.height = 28;
-      li.appendChild(canvas);
+      /* The waveform is the play control: the whole song from the top, with no
+         trims and no level — the file as it is, before any of the program's
+         decisions. A button of its own would have been one more thing on a
+         card that already had too many. */
+      if (entry.buffer) {
+        const play = document.createElement('button');
+        play.type = 'button';
+        play.className = 'lib-play';
+        play.dataset.action = 'play';
+        play.title = 'Play the whole song';
+        play.setAttribute('aria-label', `Play ${named || entry.name}`);
+        const icon = document.createElement('span');
+        icon.className = 'lib-play-icon';
+        icon.setAttribute('aria-hidden', 'true');
+        play.append(icon, canvas);
+        // Opens the song player, which has everything else.
+        play.onclick = () => toggleSong(entry.name);
+        li.appendChild(play);
+      } else {
+        li.appendChild(canvas);
+      }
       requestAnimationFrame(() =>
         drawWave(canvas, entry.peaks, entry.duration, 0, entry.duration, css('--wave')),
       );
     }
 
+    /* What the song is — verdict, length, whether the program uses it — on one
+       side, and the one thing to do with it on the other. */
     const row = document.createElement('div');
     row.className = 'lib-row';
+    const facts = document.createElement('div');
+    facts.className = 'lib-facts';
+    row.appendChild(facts);
     const dur = document.createElement('span');
     dur.className = 'lib-dur';
     dur.textContent =
@@ -335,14 +360,14 @@ function renderLibrary() {
         : entry.state === 'error'
           ? 'unreadable'
           : fmtShort(entry.duration);
-    row.appendChild(dur);
+    facts.appendChild(dur);
 
     if (entry.quality) {
       const badge = document.createElement('span');
       badge.className = `badge ${entry.quality.kind}`;
       badge.textContent = qualityLabel(entry.quality);
       badge.title = qualityDetail(entry.quality);
-      row.insertBefore(badge, row.firstChild);
+      facts.insertBefore(badge, dur);
     }
 
     /* Whether the program uses this song, said on the card rather than left to
@@ -354,7 +379,7 @@ function renderLibrary() {
       tag.className = 'lib-used';
       tag.textContent = `In program${used === 1 ? '' : used === 2 ? ' twice' : ` ${used} times`}`;
       tag.title = 'Take it out of the program to remove it from this list';
-      row.insertBefore(tag, dur.nextSibling);
+      facts.appendChild(tag);
     }
 
     if (entry.state === 'ready') {
@@ -385,10 +410,15 @@ function renderLibrary() {
       row.appendChild(swap);
     }
 
+    /* Remove is the card's corner ×, where closing something away is found,
+       rather than one more button in the row. Named "Remove" for a screen
+       reader and for a shell's right-click menu, which reads that name. */
     const drop = document.createElement('button');
-    drop.className = 'small danger';
+    drop.type = 'button';
+    drop.className = 'lib-remove';
     drop.dataset.action = 'remove';
-    drop.textContent = 'Remove';
+    drop.textContent = '×';
+    drop.setAttribute('aria-label', 'Remove');
     drop.disabled = used > 0;
     /* Not shown at all while the program uses it: the tag says why, and a
        grayed button beside it would only repeat it less clearly. Disabled as
@@ -409,7 +439,7 @@ function renderLibrary() {
         : 'Take this file out of the list and give back the memory it is holding. ' +
           'Your program is untouched, and nothing is deleted from your computer.';
     drop.onclick = () => removeFromLibrary(entry.name);
-    row.appendChild(drop);
+    li.insertBefore(drop, li.firstChild);
 
     /* What the file says about itself, when it says anything. Competition entry
        forms ask for the title and often the composer, and a file called
@@ -425,7 +455,7 @@ function renderLibrary() {
       info.textContent = 'Info';
       info.title = 'What this file says about itself';
       info.setAttribute('aria-expanded', String(shown));
-      row.insertBefore(info, drop);
+      row.appendChild(info);
 
       panel = document.createElement('dl');
       panel.className = 'lib-tags';
@@ -466,6 +496,167 @@ function renderLibrary() {
     if (panel) li.appendChild(panel);
     list.appendChild(li);
   }
+  syncSongPlay();
+}
+
+/* ---------------------------------------------------- the song player */
+
+/* The song open in the player, and where it waits when it is not playing:
+   `{ song, at }`, or null when the player is shut. */
+let songPlayer = null;
+
+/* Whether the position is being dragged, so playback does not pull it back. */
+let seeking = false;
+
+// The song whose name, length and waveform the player is showing.
+let shownInPlayer = null;
+
+const seekHeld = () => seeking;
+
+/** Remember where the player's song stopped, so Play carries on there. */
+function keepSongPlace(name, at) {
+  if (songPlayer && songPlayer.song === name) songPlayer.at = at;
+}
+
+/** ▶ on a card, and the player's Pause: open and play, pause, or carry on. */
+function toggleSong(name) {
+  if (playing && playing.mode === 'song' && playing.song === name) {
+    stopPlayback(); // which keeps the place, for Play to carry on from
+    return;
+  }
+  const from = songPlayer && songPlayer.song === name ? songPlayer.at : 0;
+  songPlayer = { song: name, at: from };
+  playSong(name, from);
+}
+
+/** Move the player's song to `at`: playing on from there, or waiting there. */
+function seekSong(at) {
+  if (!songPlayer) return;
+  songPlayer.at = at;
+  if (playing && playing.mode === 'song') playSong(songPlayer.song, at);
+  else syncSongPlay();
+}
+
+/** Stop: the music stops and goes back to the start, and the player stays. */
+function rewindSong() {
+  if (!songPlayer) return;
+  if (playing && playing.mode === 'song') stopPlayback();
+  songPlayer.at = 0;
+  syncSongPlay();
+}
+
+/** Close the player, and the music with it. */
+function stopSong() {
+  songPlayer = null;
+  if (playing && playing.mode === 'song') stopPlayback();
+  else syncSongPlay();
+}
+
+/**
+ * Show the player and the cards as they now are. Anything else starting to
+ * play closes the player, the way starting one song stops another.
+ */
+function syncSongPlay() {
+  if (playing && (playing.mode !== 'song' || !songPlayer || playing.song !== songPlayer.song)) {
+    songPlayer = playing.mode === 'song' ? { song: playing.song, at: 0 } : null;
+  }
+  if (songPlayer && !library.has(songPlayer.song)) songPlayer = null;
+  const now = playing && playing.mode === 'song' ? playing.song : null;
+  for (const li of document.querySelectorAll('#libraryList li[data-song]')) {
+    const play = li.querySelector('.lib-play');
+    if (play) play.setAttribute('aria-pressed', String(li.dataset.song === now));
+  }
+
+  const box = $('songPlayer');
+  const wasOpen = !box.classList.contains('hidden');
+  box.classList.toggle('hidden', !songPlayer);
+  /* A dialog like the others: the keyboard goes in when it opens and back to
+     where it was when it shuts. */
+  if (!songPlayer) {
+    if (wasOpen) restoreFocus();
+    return;
+  }
+  if (!wasOpen) {
+    rememberFocus();
+    $('btnSongPause').focus();
+  }
+  const entry = library.get(songPlayer.song);
+  /* The entry, not its name: a file put back under the same name is a
+     different song, with its own length and its own waveform. */
+  if (entry !== shownInPlayer) {
+    shownInPlayer = entry;
+    $('songPlayerTitle').textContent = (entry.tags && entry.tags.title) || entry.name;
+    $('songSeek').max = String(entry.duration);
+    requestAnimationFrame(() =>
+      drawWave(
+        $('songPlayerCanvas'),
+        entry.peaks,
+        entry.duration,
+        0,
+        entry.duration,
+        css('--wave'),
+      ),
+    );
+  }
+  $('btnSongPause').textContent = now ? 'Pause' : 'Play';
+  showSongProgress(songPlayer.song, now ? songPosition() : songPlayer.at);
+}
+
+/** How far the player's song has got: on its waveform, its time and its bar. */
+function showSongProgress(name, at) {
+  const entry = library.get(name);
+  if (!entry || !songPlayer || songPlayer.song !== name) return;
+  $('songPlayerProgress').style.width = `${Math.min(100, (100 * at) / entry.duration)}%`;
+  $('songTime').textContent = `${fmtShort(at)} / ${fmtShort(entry.duration)}`;
+  if (!seeking) $('songSeek').value = String(at);
+}
+
+/** The player's own controls: once, at start-up. */
+function bindSongPlayer() {
+  $('btnSongPause').onclick = () => songPlayer && toggleSong(songPlayer.song);
+  $('btnSongStop').onclick = rewindSong;
+  $('btnSongClose').onclick = stopSong;
+  // Clicking the dimmed page around it closes it; clicking inside does not.
+  $('songPlayer').addEventListener('click', (e) => {
+    if (e.target === $('songPlayer')) stopSong();
+  });
+
+  /* While the position is held, the time follows the finger and the music
+     waits; it carries on from wherever it is let go. The bar and the waveform
+     both do this, the waveform for a mouse and the bar for a keyboard. */
+  const hold = (at) => {
+    seeking = true;
+    if (songPlayer) showSongProgress(songPlayer.song, at);
+  };
+  const letGo = (at) => {
+    seeking = false;
+    seekSong(at);
+  };
+  const seek = $('songSeek');
+  seek.oninput = () => hold(Number(seek.value));
+  seek.onchange = () => letGo(Number(seek.value));
+
+  const wave = $('songPlayerWave');
+  const timeAt = (e) => {
+    const entry = songPlayer && library.get(songPlayer.song);
+    const rect = wave.getBoundingClientRect();
+    return entry
+      ? clamp(((e.clientX - rect.left) / rect.width) * entry.duration, 0, entry.duration)
+      : 0;
+  };
+  wave.addEventListener('pointerdown', (e) => {
+    if (!songPlayer) return;
+    wave.setPointerCapture(e.pointerId);
+    hold(timeAt(e));
+  });
+  wave.addEventListener('pointermove', (e) => {
+    if (seeking && wave.hasPointerCapture(e.pointerId)) hold(timeAt(e));
+  });
+  wave.addEventListener('pointerup', (e) => {
+    if (!seeking) return;
+    wave.releasePointerCapture(e.pointerId);
+    letGo(timeAt(e));
+  });
 }
 
 /* ------------------------------------------------------ remembering files */
@@ -1043,6 +1234,15 @@ if (typeof module !== 'undefined' && module.exports) {
     forgetSongs,
     librarySignature,
     renderLibrary,
+    syncSongPlay,
+    showSongProgress,
+    toggleSong,
+    seekSong,
+    rewindSong,
+    stopSong,
+    seekHeld,
+    keepSongPlace,
+    bindSongPlayer,
     HANDLE_DB,
     HANDLE_STORE,
     rememberedNames,

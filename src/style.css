@@ -507,6 +507,7 @@ section {
   padding: 0;
 }
 #libraryList li {
+  position: relative; /* for the corner × */
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -519,21 +520,190 @@ section {
   font-size: 13px;
   word-break: break-word;
 }
-/* Badge and button hold their size; the duration gives way first, and the row
-   wraps rather than pushing the Add button out of the card. */
+/* Room for the corner × beside the name. */
+#libraryList li:has(.lib-remove:not(.hidden)) .lib-title {
+  padding-right: 26px;
+}
+/* In the red of every other removal, softened until it is pointed at: it is
+   the one thing on the card that takes something away, not the thing to
+   look at first. */
+#libraryList .lib-remove {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--bad);
+  opacity: 0.6;
+  font-size: 18px;
+  line-height: 1;
+}
+#libraryList .lib-remove:hover,
+#libraryList .lib-remove:focus-visible {
+  opacity: 1;
+  background: var(--bg);
+}
+/* What the song is on the left, what to do with it on the right. The facts
+   give way first, and the row wraps rather than pushing a button out. */
 #libraryList .lib-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 6px;
   flex-wrap: wrap;
+}
+#libraryList .lib-facts {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 #libraryList .lib-row .badge,
 #libraryList .lib-row button {
   flex: 0 0 auto;
 }
-#libraryList .lib-dur {
+/* The waveform is the play control, with the mark that says so at its left. */
+#libraryList .lib-play {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+#libraryList .lib-play:hover canvas {
+  opacity: 0.75;
+}
+#libraryList .lib-play-icon {
+  position: relative;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+/* A triangle while it would play, a square while it would stop. */
+#libraryList .lib-play-icon::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  border-left: 8px solid #fff;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+}
+#libraryList .lib-play[aria-pressed="true"] .lib-play-icon::after {
+  top: 7px;
+  left: 7px;
+  width: 8px;
+  height: 8px;
+  border: 0;
+  background: #fff;
+}
+#libraryList .lib-play canvas {
   flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* ---- song player ---- */
+/* A song from the music list, in a dialog of its own in the middle of the
+   dimmed page — the modal card does the placing. */
+/* Darker than the other dialogs: this one is for listening, and the page
+   behind it is not what anyone is looking at. */
+#songPlayer.modal {
+  background: rgba(0, 0, 0, 0.72);
+}
+.modal-card.song-player {
+  gap: 16px;
+  width: min(720px, 94vw);
+  padding: 24px 28px 28px;
+}
+.song-player-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* The song's own name, as written — not the small capitals of a section
+   heading. */
+.song-player-head h2 {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+.song-player-close {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 24px;
+  line-height: 1;
+}
+.song-player-close:hover {
+  color: var(--ink);
+  background: var(--bg);
+}
+/* The waveform is where to click or drag to move through the song. */
+.song-player-wave {
+  position: relative;
+  cursor: pointer;
+  touch-action: none;
+}
+.song-player-wave canvas {
+  display: block;
+  width: 100%;
+  height: 120px;
+}
+/* The part already heard, tinted, with a line where the music is now. */
+.song-player-progress {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  border-right: 2px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  pointer-events: none;
+}
+#songSeek {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.song-player-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.song-player-row button {
+  min-width: 96px;
+  padding: 9px 18px;
+  font-size: 15px;
+}
+.song-time {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 16px;
+  color: var(--muted);
+}
+#libraryList .lib-dur {
   min-width: 0;
   font-family: var(--mono);
   font-size: 12px;

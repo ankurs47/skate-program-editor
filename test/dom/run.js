@@ -1656,7 +1656,7 @@ async function main() {
         renderLibrary();
         const buttons = () => [...document.querySelectorAll('#libraryList li')].map(li => ({
           file: li.querySelector('.lib-title').textContent,
-          removable: ![...li.querySelectorAll('button')].find(b => b.textContent === 'Remove').disabled,
+          removable: !li.querySelector('[data-action="remove"]').disabled,
         }));
         const before = buttons();
         removeClip(state.clips[1].id);
@@ -2237,7 +2237,7 @@ async function main() {
         return [...document.querySelectorAll('#libraryList li')].map(li => ({
           file: li.dataset.song,
           canReplace: [...li.querySelectorAll('button')].some(b => b.textContent === 'Replace'),
-          canRemove: ![...li.querySelectorAll('button')].find(b => b.textContent === 'Remove').disabled,
+          canRemove: !li.querySelector('[data-action="remove"]').disabled,
           swappable: li.classList.contains('swappable'),
         }));
       `);
@@ -2271,6 +2271,246 @@ async function main() {
         { file: 'b.mp3', tag: 'In program twice', removeShown: false },
         { file: 'spare.mp3', tag: null, removeShown: true },
       ]);
+    });
+
+    await check('a card plays its whole song, untouched, and stops when asked', async () => {
+      /* #118. The list is the songs as they are: the whole file from the top,
+         straight to the output with no level node between — asserted on the
+         graph that was built. Any other playback stops it, and it stops them. */
+      const result = await run(`
+        window.__reset([['a.mp3', window.__tone(220, 20)]]);
+        state.clips[0].srcStart = 3; state.clips[0].gain = dbToGain(-8); refresh();
+        const context = ctx();
+        const edges = [];
+        const realConnect = AudioNode.prototype.connect;
+        AudioNode.prototype.connect = function (target) {
+          edges.push({ from: this, to: target });
+          return realConnect.apply(this, arguments);
+        };
+        let source = null, started = null;
+        const realSource = context.createBufferSource.bind(context);
+        context.createBufferSource = () => {
+          source = realSource();
+          const realStart = source.start.bind(source);
+          source.start = (...args) => { started = args.slice(1); return realStart(...args); };
+          return source;
+        };
+        const play = () => document.querySelector('#libraryList li[data-song="a.mp3"] .lib-play');
+        try {
+          play().click();
+          const on = { mode: playing && playing.mode, pressed: play().getAttribute('aria-pressed'),
+                       to: edges.filter((e) => e.from === source).map((e) => e.to.constructor.name),
+                       started };
+          play().click();
+          const off = { playing: Boolean(playing), pressed: play().getAttribute('aria-pressed') };
+          play().click();
+          playProgram(0);
+          const overtaken = { mode: playing && playing.mode, pressed: play().getAttribute('aria-pressed') };
+          stopPlayback();
+          return { on, off, overtaken };
+        } finally {
+          AudioNode.prototype.connect = realConnect;
+          context.createBufferSource = realSource;
+          stopPlayback();
+        }
+      `);
+      eq(result.on.mode, 'song', 'the card did not play its song: ');
+      eq(result.on.pressed, 'true', 'the card does not show it is playing: ');
+      eq(result.on.to, ['AudioDestinationNode'], 'the list played it through something: ');
+      eq(result.on.started, [0], 'not the whole song from the top: ');
+      eq(result.off, { playing: false, pressed: 'false' }, 'a second click did not pause it: ');
+      eq(
+        result.overtaken,
+        { mode: 'program', pressed: 'false' },
+        'the program did not take over: ',
+      );
+    });
+
+    await check('the song player shows how far it has got', async () => {
+      const result = await run(`
+        window.__reset([]);
+        window.__addToLibrary('a.mp3', window.__tone(220, 80));
+        forgetLibraryShape(); renderLibrary();
+        const read = () => ({
+          bar: __id('songPlayerProgress').style.width,
+          time: __id('songTime').textContent,
+          seek: __id('songSeek').value,
+        });
+        toggleSong('a.mp3');
+        // Left to play, the playhead's own tick moves it along.
+        await new Promise((r) => setTimeout(r, 500));
+        const moving = read();
+        // And at a known point, what that tick shows.
+        showSongProgress('a.mp3', 20);
+        const at20 = read();
+        stopSong();
+        return { moving, at20 };
+      `);
+      ok(
+        parseFloat(result.moving.bar) > 0 && / \/ 1:20$/.test(result.moving.time),
+        `playing did not show any progress: ${JSON.stringify(result.moving)}`,
+      );
+      eq(result.at20, { bar: '25%', time: '0:20 / 1:20', seek: '20' }, 'a quarter of the way in: ');
+    });
+
+    await check('the song player pauses, carries on, seeks, stops and closes', async () => {
+      /* ▶ on a card opens the player over the page: Pause and Play keep the
+         place, the bar and the waveform move it, Stop goes back to the start,
+         × closes it, and anything else playing closes it the way one song
+         stops another. Only the card's ▶ is on the card. */
+      const result = await run(`
+        window.__reset([['other.mp3', window.__tone(330, 20)]]);
+        window.__addToLibrary('a.mp3', window.__tone(220, 80));
+        forgetLibraryShape(); renderLibrary();
+        const li = document.querySelector('#libraryList li[data-song="a.mp3"]');
+        const box = __id('songPlayer');
+        const read = () => ({
+          open: !box.classList.contains('hidden'),
+          button: __id('btnSongPause').textContent,
+          mode: playing ? playing.mode : null,
+          from: playing ? +playing.fromTime.toFixed(1) : null,
+          time: __id('songTime').textContent,
+        });
+        const closed = read();
+        li.querySelector('.lib-play').click();
+        const opened = { ...read(), title: __id('songPlayerTitle').textContent,
+                         onCard: li.querySelectorAll('input, .lib-player').length };
+
+        // Pause where it is, move the bar while paused, and Play from there.
+        __id('btnSongPause').click();
+        const paused = read();
+        const seek = __id('songSeek');
+        seek.value = '40';
+        seek.dispatchEvent(new Event('input'));
+        seek.dispatchEvent(new Event('change'));
+        const sought = read();
+        __id('btnSongPause').click();
+        const resumed = read();
+
+        // Moved while playing, it plays on from where it is let go.
+        seek.value = '60';
+        seek.dispatchEvent(new Event('input'));
+        seek.dispatchEvent(new Event('change'));
+        const jumped = read();
+
+        __id('btnSongStop').click();
+        const stopped = read();
+        __id('btnSongClose').click();
+        const shut = read();
+
+        // Anything else playing closes it.
+        li.querySelector('.lib-play').click();
+        playProgram(0);
+        const overtaken = read();
+        stopPlayback();
+
+        // A dialog like the others: focus goes in, Escape and the dimmed page
+        // close it, and focus comes back to the card's ▶.
+        const play = li.querySelector('.lib-play');
+        play.focus();
+        play.click();
+        const focusIn = document.activeElement && document.activeElement.id;
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        const escaped = { ...read(), focusBack: document.activeElement === play };
+        play.click();
+        box.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        const backdrop = read();
+        return { closed, opened, paused, sought, resumed, jumped, stopped, shut, overtaken,
+                 focusIn, escaped, backdrop };
+      `);
+      eq(result.focusIn, 'btnSongPause', 'the keyboard did not go into the player: ');
+      eq(
+        [result.escaped.open, result.escaped.mode, result.escaped.focusBack],
+        [false, null, true],
+        'Escape: ',
+      );
+      eq(
+        [result.backdrop.open, result.backdrop.mode],
+        [false, null],
+        'a click on the dimmed page: ',
+      );
+      eq(result.closed.open, false, 'a player open before anything played: ');
+      eq(
+        result.opened,
+        {
+          open: true,
+          button: 'Pause',
+          mode: 'song',
+          from: 0,
+          time: '0:00 / 1:20',
+          title: 'a.mp3',
+          onCard: 0,
+        },
+        '▶ did not open a playing player: ',
+      );
+      eq(
+        [result.paused.open, result.paused.button, result.paused.mode],
+        [true, 'Play', null],
+        'Pause: ',
+      );
+      eq(
+        [result.sought.time, result.sought.mode],
+        ['0:40 / 1:20', null],
+        'moving the bar while paused: ',
+      );
+      eq(
+        [result.resumed.mode, result.resumed.from],
+        ['song', 40],
+        'Play did not carry on from the bar: ',
+      );
+      eq([result.jumped.mode, result.jumped.from], ['song', 60], 'moving it while playing: ');
+      eq(
+        [result.stopped.open, result.stopped.mode, result.stopped.time],
+        [true, null, '0:00 / 1:20'],
+        'Stop: ',
+      );
+      eq([result.shut.open, result.shut.mode], [false, null], '×: ');
+      eq(
+        [result.overtaken.open, result.overtaken.mode],
+        [false, 'program'],
+        'the program playing: ',
+      );
+    });
+
+    await check('a card keeps Remove in its corner and only what applies on its row', async () => {
+      /* The card had grown to four buttons beside a badge, a length and a tag.
+         Remove is the corner ×, there only while nothing in the program uses
+         the song; the row has Add to program, Replace when the program uses
+         it, and Info when the file says something about itself. */
+      const result = await run(`
+        window.__reset([['a.mp3', window.__tune(1)]]);
+        library.get('a.mp3').tags = { title: 'A song', artist: 'Somebody' };
+        window.__addToLibrary('spare.mp3', window.__tune(2));
+        forgetLibraryShape(); renderLibrary();
+        const rowOf = (name) => [...document.querySelectorAll(
+          '#libraryList li[data-song="' + name + '"] .lib-row button')].map((b) => b.textContent);
+        const corner = (name) => {
+          const x = document.querySelector('#libraryList li[data-song="' + name + '"] .lib-remove');
+          return { shown: !x.classList.contains('hidden'), name: controlLabel(x) };
+        };
+        const forShell = ['song.replace', 'song.info', 'song.remove'].map((id) =>
+          describeCommand(HOST_COMMANDS.find((c) => c.id === id), false, { song: 'spare.mp3' }));
+        return {
+          rows: { used: rowOf('a.mp3'), spare: rowOf('spare.mp3') },
+          remove: { used: corner('a.mp3'), spare: corner('spare.mp3') },
+          removeForShell: { label: forShell[2].label, enabled: forShell[2].enabled },
+        };
+      `);
+      eq(
+        result.rows,
+        { used: ['Add to program', 'Replace', 'Info'], spare: ['Add to program'] },
+        'the card rows: ',
+      );
+      eq(
+        result.remove,
+        { used: { shown: false, name: 'Remove' }, spare: { shown: true, name: 'Remove' } },
+        'the corner ×: ',
+      );
+      eq(
+        result.removeForShell,
+        { label: 'Remove', enabled: true },
+        'a shell’s right-click lost Remove: ',
+      );
     });
 
     await check('a better copy of the same song keeps every trim', async () => {

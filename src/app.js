@@ -1447,6 +1447,7 @@ function bind() {
 
   bindFileDrops();
   bindReplace();
+  bindSongPlayer();
 
   $('btnPlay').onclick = () => (playing ? stopPlayback() : playFromPlayhead());
   $('btnStop').onclick = () => {

@@ -1557,6 +1557,24 @@
     "expect": "the part that was cut away can be heard"
   },
   {
+    "name": "a card plays its song at the program's level",
+    "guards": "the music list plays songs as they are",
+    "file": "src/audio.js",
+    "suite": "dom",
+    "find": "  src.buffer = entry.buffer;\n  src.connect(context.destination);",
+    "replace": "  src.buffer = entry.buffer;\n  const level = context.createGain();\n  src.connect(level).connect(context.destination);",
+    "expect": "a card plays its whole song"
+  },
+  {
+    "name": "the corner × loses its name",
+    "guards": "Remove is named for a screen reader and a shell's menu",
+    "file": "src/library.js",
+    "suite": "dom",
+    "find": "    drop.setAttribute('aria-label', 'Remove');",
+    "replace": "",
+    "expect": "keeps Remove in its corner"
+  },
+  {
     "name": "Play this clip cannot stop what it started",
     "guards": "the clip button stops the clip it is playing",
     "file": "src/app.js",
@@ -1564,6 +1582,24 @@
     "find": "    if (playing && playing.mode === 'clip') {\n      stopPlayback();\n      return;\n    }",
     "replace": "",
     "expect": "becomes Stop this clip while it plays"
+  },
+  {
+    "name": "a playing card stops showing its progress",
+    "guards": "a song played from the list shows how far it has got",
+    "file": "src/audio.js",
+    "suite": "dom",
+    "find": "      if (!seekHeld()) showSongProgress(playing.song, at);\n",
+    "replace": "",
+    "expect": "shows how far it has got"
+  },
+  {
+    "name": "the song player stays open over the program",
+    "guards": "anything else playing closes the song player",
+    "file": "src/library.js",
+    "suite": "dom",
+    "find": "    songPlayer = playing.mode === 'song' ? { song: playing.song, at: 0 } : null;",
+    "replace": "    songPlayer = playing.mode === 'song' ? { song: playing.song, at: 0 } : songPlayer;",
+    "expect": "pauses, carries on, seeks, stops and closes"
   },
   {
     "name": "Play this clip starts at the waveform's marker",
