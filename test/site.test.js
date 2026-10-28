@@ -147,6 +147,18 @@ check('every link that opens a new tab is safe, and the source is reachable', ()
   }
 });
 
+check('every key that differs on a Mac carries its Mac label', () => {
+  /* A Mac reads ⌘ and "delete" where the hint says Ctrl and Del (#111). The
+     page swaps each `data-mac` label in; a hint written without one shows
+     Ctrl to somebody whose keyboard has none. */
+  for (const file of ['index.html', 'docs/help.html']) {
+    const page = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    for (const [tag] of page.matchAll(/<kbd[^>]*>(Ctrl|Del|Delete)<\/kbd>/g)) {
+      ok(/data-mac="/.test(tag), `${file}: a key hint with no Mac label: ${tag}`);
+    }
+  }
+});
+
 check('the site tells crawlers where to look, and points only at real pages', () => {
   /* A sitemap listing a page that is not served, or carrying the wrong
      namespace, is worse than none: it looks handled and is quietly ignored.

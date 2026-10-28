@@ -30,7 +30,7 @@ docs/            help.html — the user guide, linked from the topbar;
                  development.md; host.md, the desktop shell interface;
                  docs.css, whose color tokens copy style.css's and are
                  held to them by a test
-test/            281 checks, no dependencies — one file per testable script;
+test/            282 checks, no dependencies — one file per testable script;
                  fake-host.js, the one fake shell every test builds from
 test/dom/        browser checks and render budgets, driven over CDP
 tools/           music-get.sh and .cmd — optional YouTube downloader, not the app

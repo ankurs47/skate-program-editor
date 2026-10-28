@@ -51,6 +51,19 @@ const redoStack = [];
 
 const $ = (id) => document.getElementById(id);
 
+/* A Mac says ⌘ where everyone else says Ctrl, and its Del key is labeled
+   "delete". The keys themselves already work (`onKey` takes either modifier,
+   and Backspace); this is only what the hints say. An iPad with a keyboard
+   has ⌘ too. */
+const ON_MAC = /Mac|iPhone|iPad/.test(navigator.platform);
+const MOD = ON_MAC ? '⌘' : 'Ctrl';
+
+/** Every key hint that reads differently on a Mac carries its Mac label. */
+function showPlatformKeys() {
+  if (!ON_MAC) return;
+  for (const kbd of document.querySelectorAll('kbd[data-mac]')) kbd.textContent = kbd.dataset.mac;
+}
+
 function toast(message, ms = 2600) {
   const el = $('toast');
   // Shown before the text is set, not after: this is a live region, and a
@@ -371,10 +384,10 @@ function updateUndoAvailability() {
   $('btnUndo').disabled = undoStack.length === 0;
   $('btnRedo').disabled = redoStack.length === 0;
   $('btnUndo').title = undoStack.length
-    ? 'Take back the last change (Ctrl+Z)'
+    ? `Take back the last change (${MOD}+Z)`
     : 'Nothing to undo yet';
   $('btnRedo').title = redoStack.length
-    ? 'Put back what was just undone (Ctrl+Shift+Z)'
+    ? `Put back what was just undone (${MOD}+Shift+Z)`
     : 'Nothing to redo';
 }
 
@@ -1975,6 +1988,7 @@ function maybeWarnSmallScreen() {
 function init() {
   /* The head already set the attribute; this catches the button up with it. */
   applyTheme(storedTheme());
+  showPlatformKeys();
 
   const missing = unsupportedReasons();
   if (missing.length) {
