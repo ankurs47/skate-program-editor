@@ -238,9 +238,36 @@
     "guards": "dropping on the strip puts the music in the program",
     "file": "src/library.js",
     "suite": "dom",
-    "find": "    if (ontoTimeline) for (const entry of added) addClip(entry);",
-    "replace": "    void ontoTimeline;",
+    "find": "    await addSongs(dropped, { intoProgram: ontoTimeline });",
+    "replace": "    await addSongs(dropped);",
     "expect": "puts the song in the program"
+  },
+  {
+    "name": "songs given to an empty program stay in the list",
+    "guards": "the first songs picked become the program",
+    "file": "src/library.js",
+    "suite": "dom",
+    "find": "  const intoIt = intoProgram || state.clips.length === 0;",
+    "replace": "  const intoIt = intoProgram;",
+    "expect": "become it, in order, as one edit"
+  },
+  {
+    "name": "adding several songs is one edit per song again",
+    "guards": "one Undo takes back a whole pick",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "    state.clips.push(clip);\n    first = first || clip;",
+    "replace": "    state.clips.push(clip);\n    pushUndo();\n    first = first || clip;",
+    "expect": "become it, in order, as one edit"
+  },
+  {
+    "name": "an empty program shows Play again",
+    "guards": "the empty screen offers one first step",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "  document.querySelector('.transport').classList.toggle('hidden', empty);",
+    "replace": "  document.querySelector('.transport').classList.toggle('hidden', false);",
+    "expect": "not the controls for a program"
   },
   {
     "name": "a color is changed in the app but not the docs",
