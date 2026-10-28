@@ -294,6 +294,7 @@ function tickPlayhead() {
         return;
       }
     } else if (playing.mode === 'song') {
+      showSongProgress(playing.song, Math.min(elapsed, playing.until));
       if (elapsed >= playing.until) {
         stopPlayback();
         return;

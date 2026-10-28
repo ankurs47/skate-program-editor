@@ -333,7 +333,14 @@ function renderLibrary() {
         const icon = document.createElement('span');
         icon.className = 'lib-play-icon';
         icon.setAttribute('aria-hidden', 'true');
-        play.append(icon, canvas);
+        // The played part fills in over the waveform while it plays.
+        const wave = document.createElement('span');
+        wave.className = 'lib-wave';
+        const progress = document.createElement('span');
+        progress.className = 'lib-progress';
+        progress.hidden = true;
+        wave.append(canvas, progress);
+        play.append(icon, wave);
         play.onclick = () => toggleSong(entry.name);
         li.appendChild(play);
       } else {
@@ -504,7 +511,27 @@ function syncSongPlay() {
   for (const li of document.querySelectorAll('#libraryList li[data-song]')) {
     const play = li.querySelector('.lib-play');
     if (play) play.setAttribute('aria-pressed', String(li.dataset.song === now));
+    if (li.dataset.song !== now) showSongProgress(li.dataset.song, null);
   }
+}
+
+/**
+ * How far the card's song has played: the waveform filled in to there and the
+ * length read as "0:12 / 1:36". `null` puts the card back as it was.
+ */
+function showSongProgress(name, at) {
+  const li = [...document.querySelectorAll('#libraryList li[data-song]')].find(
+    (row) => row.dataset.song === name,
+  );
+  const entry = library.get(name);
+  if (!li || !entry || entry.state !== 'ready') return;
+  const bar = li.querySelector('.lib-progress');
+  if (bar) {
+    bar.hidden = at === null;
+    bar.style.width = `${Math.min(100, (100 * (at || 0)) / entry.duration)}%`;
+  }
+  li.querySelector('.lib-dur').textContent =
+    at === null ? fmtShort(entry.duration) : `${fmtShort(at)} / ${fmtShort(entry.duration)}`;
 }
 
 /* ------------------------------------------------------ remembering files */
@@ -1083,6 +1110,7 @@ if (typeof module !== 'undefined' && module.exports) {
     librarySignature,
     renderLibrary,
     syncSongPlay,
+    showSongProgress,
     HANDLE_DB,
     HANDLE_STORE,
     rememberedNames,

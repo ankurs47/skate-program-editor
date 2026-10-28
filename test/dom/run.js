@@ -2326,6 +2326,39 @@ async function main() {
       );
     });
 
+    await check(
+      'a playing card shows how far it has got, and forgets it when stopped',
+      async () => {
+        const result = await run(`
+        window.__reset([]);
+        window.__addToLibrary('a.mp3', window.__tone(220, 80));
+        forgetLibraryShape(); renderLibrary();
+        const li = document.querySelector('#libraryList li[data-song="a.mp3"]');
+        const read = () => ({
+          bar: li.querySelector('.lib-progress').hidden ? null : li.querySelector('.lib-progress').style.width,
+          time: li.querySelector('.lib-dur').textContent,
+        });
+        const idle = read();
+        playSong('a.mp3');
+        // Left to play, the playhead's own tick fills it in.
+        await new Promise((r) => setTimeout(r, 500));
+        const moving = read();
+        // And at a known point, what that tick shows.
+        showSongProgress('a.mp3', 20);
+        const playing20 = read();
+        stopPlayback();
+        return { idle, moving, playing20, stopped: read() };
+      `);
+        eq(result.idle, { bar: null, time: '1:20' }, 'before it plays: ');
+        ok(
+          result.moving.bar !== null && / \/ 1:20$/.test(result.moving.time),
+          `playing did not show any progress: ${JSON.stringify(result.moving)}`,
+        );
+        eq(result.playing20, { bar: '25%', time: '0:20 / 1:20' }, 'a quarter of the way in: ');
+        eq(result.stopped, { bar: null, time: '1:20' }, 'once stopped: ');
+      },
+    );
+
     await check('a card keeps Remove in its corner and only what applies on its row', async () => {
       /* The card had grown to four buttons beside a badge, a length and a tag.
          Remove is the corner ×, there only while nothing in the program uses

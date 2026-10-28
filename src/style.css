@@ -607,9 +607,21 @@ section {
   border: 0;
   background: #fff;
 }
-#libraryList .lib-play canvas {
+#libraryList .lib-wave {
+  position: relative;
   flex: 1 1 auto;
   min-width: 0;
+}
+/* The part already heard, tinted, with a line where the music is now. */
+#libraryList .lib-progress {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  border-right: 2px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  pointer-events: none;
 }
 #libraryList .lib-dur {
   min-width: 0;

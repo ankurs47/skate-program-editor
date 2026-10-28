@@ -1582,5 +1582,14 @@
     "find": "    if (playing && playing.mode === 'clip') {\n      stopPlayback();\n      return;\n    }",
     "replace": "",
     "expect": "becomes Stop this clip while it plays"
+  },
+  {
+    "name": "a playing card stops showing its progress",
+    "guards": "a song played from the list shows how far it has got",
+    "file": "src/audio.js",
+    "suite": "dom",
+    "find": "      showSongProgress(playing.song, Math.min(elapsed, playing.until));\n",
+    "replace": "",
+    "expect": "shows how far it has got"
   }
 ]
