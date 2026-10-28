@@ -192,9 +192,10 @@
         <b>Zoom in</b> to work up close for longer. The whole of a four-minute song is too much to
         see a tenth of a second on, so a nudge changes the time but barely moves the picture. The
         <b>+</b> and <b>&minus;</b> buttons under the waveform, or the <kbd>+</kbd> and
-        <kbd>&minus;</kbd> keys, zoom around the end the arrow keys move. <kbd>Ctrl</kbd> and the
-        mouse wheel (or a pinch on a trackpad) zoom around the pointer, and scrolling sideways moves
-        along the song. The waveform follows the marker while it plays.
+        <kbd>&minus;</kbd> keys, zoom around the end the arrow keys move.
+        <kbd data-mac="⌘">Ctrl</kbd> and the mouse wheel (or a pinch on a trackpad) zoom around the
+        pointer, and scrolling sideways moves along the song. The waveform follows the marker while
+        it plays.
       </p>
       <p>
         <b>Trimming never touches your source files.</b> Nothing the editor does modifies the music
@@ -265,7 +266,9 @@
           ear with <kbd>I</kbd> and <kbd>O</kbd>.
         </li>
       </ul>
-      <p><kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes it either way, so it costs nothing to try.</p>
+      <p>
+        <kbd data-mac="⌘">Ctrl</kbd>+<kbd>Z</kbd> undoes it either way, so it costs nothing to try.
+      </p>
 
       <h2 id="volume">Volume</h2>
 
@@ -414,7 +417,8 @@
       <p>
         The song you replaced stays in the list. It is not part of your program any more, so
         <b>Remove</b> is available on it once you are sure &mdash; and until then
-        <kbd>Ctrl</kbd>+<kbd>Z</kbd> puts everything back the way it was, music included.
+        <kbd data-mac="⌘">Ctrl</kbd>+<kbd>Z</kbd> puts everything back the way it was, music
+        included.
       </p>
       <p>
         Where the editor is working from a project folder, the song it replaces is moved to your
@@ -545,17 +549,20 @@
             <td>go to the previous or next song</td>
           </tr>
           <tr>
-            <td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td>
+            <td><kbd data-mac="⌘">Ctrl</kbd>+<kbd>Z</kbd></td>
             <td>
               undo &mdash; or the <b>Undo</b> button above the songs, which is the way on a tablet
             </td>
           </tr>
           <tr>
-            <td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td>
-            <td>redo &mdash; <kbd>Ctrl</kbd>+<kbd>Y</kbd> and the <b>Redo</b> button work too</td>
+            <td><kbd data-mac="⌘">Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td>
+            <td>
+              redo &mdash; <kbd data-mac="⌘">Ctrl</kbd>+<kbd>Y</kbd> and the <b>Redo</b> button work
+              too
+            </td>
           </tr>
           <tr>
-            <td><kbd>Delete</kbd></td>
+            <td><kbd data-mac="delete">Delete</kbd></td>
             <td>take the selected song out of the program</td>
           </tr>
         </tbody>
@@ -876,5 +883,14 @@ winget install yt-dlp.yt-dlp    # Windows</code></pre>
         </p>
       </footer>
     </div>
+    <script>
+      /* A Mac's keys are ⌘ and "delete" where everyone else's are Ctrl and Del.
+       Each key that differs carries its Mac label; src/app.js does the same in
+       the editor. Anywhere else the Ctrl and Del already written stand. */
+      if (/Mac|iPhone|iPad/.test(navigator.platform)) {
+        for (var kbd of document.querySelectorAll('kbd[data-mac]'))
+          kbd.textContent = kbd.dataset.mac;
+      }
+    </script>
   </body>
 </html>
