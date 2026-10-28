@@ -1564,5 +1564,14 @@
     "find": "    if (playing && playing.mode === 'clip') {\n      stopPlayback();\n      return;\n    }",
     "replace": "",
     "expect": "becomes Stop this clip while it plays"
+  },
+  {
+    "name": "Play this clip starts at the waveform's marker",
+    "guards": "the clip button plays the clip between its markers",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "    if (clip) playClipAudition(clip, clip.srcStart);",
+    "replace": "    if (clip) playClipAudition(clip, state.cursor);",
+    "expect": "becomes Stop this clip while it plays"
   }
 ]
