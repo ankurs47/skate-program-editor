@@ -665,7 +665,7 @@ function updateExportOptions() {
   if (mp3Ready) {
     mp3Option.textContent = "MP3 — smaller, usually what's asked for";
     select.value = last === 'wav' ? 'wav' : 'mp3';
-    $('exportNote').textContent = 'MP3 is what most competitions ask for.';
+    $('exportNote').textContent = "If you're not sure, the entry form says which one to send.";
   } else {
     mp3Option.textContent = 'MP3 — could not be loaded';
     select.value = 'wav';
