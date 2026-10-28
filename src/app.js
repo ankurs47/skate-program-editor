@@ -1455,7 +1455,7 @@ function bind() {
   };
   $('btnPreviewClip').onclick = () => {
     const clip = selectedClip();
-    if (clip) playClipAudition(clip, state.cursor > clip.srcStart ? state.cursor : clip.srcStart);
+    if (clip) playClipAudition(clip, auditionFrom(clip, state.cursor));
   };
   $('btnRemoveClip').onclick = () => {
     if (state.selected) removeClip(state.selected);

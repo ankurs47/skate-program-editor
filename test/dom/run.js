@@ -2593,6 +2593,84 @@ async function main() {
       );
     });
 
+    await check('the part that was cut away can be heard, at the song’s level', async () => {
+      /* #118. From outside the trims the audition plays the original, from
+         there to the end of the file with no fades, so the cut-away part can be
+         judged — through the same level node, built and connected, not merely
+         constructed. */
+      const result = await run(`
+        window.__reset([['a.mp3', window.__tone(220, 30)]]);
+        const clip = state.clips[0];
+        clip.srcStart = 2; clip.srcEnd = 20; clip.fadeIn = 3; clip.fadeOut = 4;
+        clip.gain = dbToGain(-8);
+        state.selected = clip.id;
+        refresh();
+
+        const context = ctx();
+        const edges = [];
+        const realConnect = AudioNode.prototype.connect;
+        AudioNode.prototype.connect = function (target) {
+          edges.push({ from: this, to: target });
+          return realConnect.apply(this, arguments);
+        };
+        let source = null;
+        let started = null;
+        const realSource = context.createBufferSource.bind(context);
+        context.createBufferSource = () => {
+          source = realSource();
+          const realStart = source.start.bind(source);
+          source.start = (when, offset, duration) => {
+            started = { offset, duration: +duration.toFixed(3) };
+            return realStart(when, offset, duration);
+          };
+          return source;
+        };
+        const realEnvelope = window.applyEnvelope;
+        let envelopes = 0;
+        window.applyEnvelope = (...args) => { envelopes++; return realEnvelope(...args); };
+        try {
+          playClipAudition(clip, 0.5);         // before the start trim
+          const until = playing.until;
+          stopPlayback();
+          const chain = [source];
+          for (;;) {
+            const next = edges.find((e) => e.from === chain[chain.length - 1]);
+            if (!next || chain.includes(next.to)) break;
+            chain.push(next.to);
+          }
+          return {
+            path: chain.map((n) => n && n.constructor.name),
+            level: +chain[1].gain.value.toFixed(4),
+            wanted: +clipGain(clip).toFixed(4),
+            started, until, envelopes,
+            from: {
+              cut: auditionFrom(clip, 0.5),
+              kept: auditionFrom(clip, 8),
+              end: auditionFrom(clip, 20),
+            },
+          };
+        } finally {
+          AudioNode.prototype.connect = realConnect;
+          context.createBufferSource = realSource;
+          window.applyEnvelope = realEnvelope;
+        }
+      `);
+      eq(
+        result.path,
+        ['AudioBufferSourceNode', 'GainNode', 'GainNode', 'AudioDestinationNode'],
+        'the original must still reach the output through the level node: ',
+      );
+      near(result.level, result.wanted, 1e-6, 'the song’s level was not applied: ');
+      eq(result.started, { offset: 0.5, duration: 29.5 }, 'not played from there to the end: ');
+      eq(result.until, 30, 'the marker would stop at the trim: ');
+      eq(result.envelopes, 0, 'fades were applied to the part that was cut: ');
+      eq(
+        result.from,
+        { cut: 0.5, kept: 8, end: 2 },
+        'Play this song starts at the marker, or over from the end: ',
+      );
+    });
+
     await check(
       'the arrow keys trim whichever end was last touched, and stay in the file',
       async () => {
