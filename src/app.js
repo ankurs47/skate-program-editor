@@ -375,6 +375,24 @@ function applySnapshot(json) {
 }
 
 /**
+ * Until there is a program, leave out the controls that act on one.
+ *
+ * Grayed out beside the empty card, they were six things to read before the
+ * one that could be pressed. Undo and Redo come back whenever there is history,
+ * which includes taking back the removal of the last song. The music list's
+ * drop box goes while the card is already saying "drop the files anywhere".
+ */
+function showProgramControls() {
+  const empty = state.clips.length === 0;
+  const history = undoStack.length > 0 || redoStack.length > 0;
+  document.querySelector('.undo-buttons').classList.toggle('hidden', empty && !history);
+  $('btnEvenOut').classList.toggle('hidden', empty);
+  document.querySelector('.transport').classList.toggle('hidden', empty);
+  $('notesBox').classList.toggle('hidden', empty && !state.notes);
+  $('dropzone').classList.toggle('hidden', empty && library.size === 0);
+}
+
+/**
  * Gray out Undo and Redo when there is nothing for them to do.
  *
  * Called from `refresh` and `save`, between them the end of every edit — a
@@ -410,20 +428,36 @@ function redo() {
 }
 
 function addClip(entry) {
+  addClips([entry]);
+}
+
+/**
+ * Put songs on the end of the program, in the order given, as one edit.
+ *
+ * One edit, so a single Undo takes back a whole drop or a first pick of three
+ * songs rather than one song at a time. The first of them is selected: it is
+ * where the new part of the program starts.
+ */
+function addClips(entries) {
+  if (!entries.length) return;
   pushUndo();
-  const clip = {
-    id: uid(),
-    file: entry.name,
-    title: songTitle({ title: entry.tags && entry.tags.title }, entry.name),
-    srcStart: 0,
-    srcEnd: entry.duration,
-    fadeIn: state.clips.length === 0 ? 1.0 : 0,
-    fadeOut: 0,
-    crossfade: state.clips.length === 0 ? 0 : 1.5,
-    gain: 1,
-  };
-  state.clips.push(clip);
-  state.selected = clip.id;
+  let first = null;
+  for (const entry of entries) {
+    const clip = {
+      id: uid(),
+      file: entry.name,
+      title: songTitle({ title: entry.tags && entry.tags.title }, entry.name),
+      srcStart: 0,
+      srcEnd: entry.duration,
+      fadeIn: state.clips.length === 0 ? 1.0 : 0,
+      fadeOut: 0,
+      crossfade: state.clips.length === 0 ? 0 : 1.5,
+      gain: 1,
+    };
+    state.clips.push(clip);
+    first = first || clip;
+  }
+  state.selected = first.id;
   state.cursor = 0;
   refresh();
 }
@@ -1176,6 +1210,7 @@ function refresh() {
   updateExportAvailability();
   updateEvenOutAvailability();
   updateUndoAvailability();
+  showProgramControls();
   // The library is redrawn too: whether a file can be removed depends on
   // whether the program is still using it, so it changes as clips come and go.
   renderLibrary();
@@ -1406,7 +1441,7 @@ function bind() {
 
   $('btnNew').onclick = () => openStartDialog(true);
   $('fileInput').onchange = (e) => {
-    addFiles(e.target.files);
+    addSongs(e.target.files);
     e.target.value = '';
   };
 
@@ -2111,9 +2146,11 @@ if (typeof document !== 'undefined') {
     takeRedo,
     applySnapshot,
     updateUndoAvailability,
+    showProgramControls,
     undo,
     redo,
     addClip,
+    addClips,
     selectedClip,
     removeClip,
     moveClip,

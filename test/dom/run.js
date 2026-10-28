@@ -3415,34 +3415,106 @@ async function main() {
     });
 
     await check('a drop on the timeline also puts the song in the program', async () => {
+      /* Starts with a program: an empty one takes dropped songs wherever they
+         land (the next check), so only a program that exists can tell a drop on
+         the strip from a drop on the list. */
       const result = await run(`
-        window.__reset([]);
+        window.__reset([['a.mp3', window.__tone(330, 12)]]);
         window.__addToLibrary('dropped.mp3', window.__tone(220, 12));
         const realAddFiles = window.addFiles;
         window.addFiles = async () => [library.get('dropped.mp3')];
-        try {
+        const dropOn = async (target) => {
           const dt = new DataTransfer();
           dt.items.add(new File([new Uint8Array(64)], 'dropped.mp3', { type: 'audio/mpeg' }));
-          document.querySelector('#timelineWrap').dispatchEvent(
-            new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+          target.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
           await new Promise(r => setTimeout(r, 0));
-          const onTimeline = state.clips.map(c => c.file);
-
-          // The same drop on the library side adds the file but not a clip.
-          state.clips = []; refresh();
-          const dt2 = new DataTransfer();
-          dt2.items.add(new File([new Uint8Array(64)], 'dropped.mp3', { type: 'audio/mpeg' }));
-          __id('dropzone').dispatchEvent(
-            new DragEvent('drop', { dataTransfer: dt2, bubbles: true, cancelable: true }));
-          await new Promise(r => setTimeout(r, 0));
-          return { onTimeline, onLibrary: state.clips.map(c => c.file) };
+          return state.clips.map(c => c.file);
+        };
+        try {
+          const onTimeline = await dropOn(document.querySelector('#timelineWrap'));
+          state.clips = state.clips.slice(0, 1); refresh();
+          const onLibrary = await dropOn(__id('libraryList'));
+          return { onTimeline, onLibrary };
         } finally {
           window.addFiles = realAddFiles;
         }
       `);
-      eq(result.onTimeline, ['dropped.mp3'], 'dropping on the timeline should add it: ');
-      eq(result.onLibrary, [], 'dropping on the list should not: ');
+      eq(result.onTimeline, ['a.mp3', 'dropped.mp3'], 'dropping on the timeline should add it: ');
+      eq(result.onLibrary, ['a.mp3'], 'dropping on the list should not: ');
     });
+
+    await check('songs brought to an empty program become it, in order, as one edit', async () => {
+      /* #106. However they arrive — the picker's input, or a drop anywhere — the
+         songs given to an empty program are its running order. Once there is a
+         program, the same pick only adds to the list. */
+      const result = await run(`
+        window.__reset([]);
+        window.__addToLibrary('one.mp3', window.__tone(220, 12));
+        window.__addToLibrary('two.mp3', window.__tone(330, 12));
+        window.__addToLibrary('three.mp3', window.__tone(440, 12));
+        undoStack.length = 0; redoStack.length = 0;
+        const realAddFiles = window.addFiles;
+        window.addFiles = async (list) => [...list].map((f) => library.get(f.name));
+        const files = (...names) =>
+          names.map((n) => new File([new Uint8Array(64)], n, { type: 'audio/mpeg' }));
+        try {
+          await addSongs(files('one.mp3', 'two.mp3'));
+          const picked = { clips: state.clips.map(c => c.file), undos: undoStack.length,
+                           selected: state.clips.findIndex(c => c.id === state.selected) };
+          await addSongs(files('three.mp3'));
+          const later = state.clips.map(c => c.file);
+
+          undo();
+          const afterUndo = state.clips.length;
+          return { picked, later, afterUndo };
+        } finally {
+          window.addFiles = realAddFiles;
+        }
+      `);
+      eq(result.picked.clips, ['one.mp3', 'two.mp3'], 'an empty program did not take the songs: ');
+      eq(result.picked.undos, 1, 'adding them was not one edit: ');
+      eq(result.picked.selected, 0, 'the first song is not the one selected: ');
+      eq(result.later, ['one.mp3', 'two.mp3'], 'a song added mid-edit changed the program: ');
+      eq(result.afterUndo, 0, 'one Undo did not take the whole first pick back: ');
+    });
+
+    await check(
+      'an empty program shows the first step and not the controls for a program',
+      async () => {
+        /* #109. Grayed-out buttons beside the empty card were six things to read
+         before the one that could be pressed. */
+        const result = await run(`
+        const shown = () => ({
+          undo: !document.querySelector('.undo-buttons').classList.contains('hidden'),
+          evenOut: !__id('btnEvenOut').classList.contains('hidden'),
+          transport: !document.querySelector('.transport').classList.contains('hidden'),
+          notes: !__id('notesBox').classList.contains('hidden'),
+          dropzone: !__id('dropzone').classList.contains('hidden'),
+        });
+        window.__reset([]);
+        undoStack.length = 0; redoStack.length = 0; state.notes = ''; refresh();
+        const empty = shown();
+        window.__reset([['a.mp3', window.__tone(220, 12)]]);
+        const program = shown();
+        // Removing the last song leaves Undo, which is the way back to it.
+        removeClip(state.clips[0].id);
+        const emptied = shown();
+        return { empty, program, emptied };
+      `);
+        eq(
+          result.empty,
+          { undo: false, evenOut: false, transport: false, notes: false, dropzone: false },
+          'with nothing yet: ',
+        );
+        eq(
+          result.program,
+          { undo: true, evenOut: true, transport: true, notes: true, dropzone: true },
+          'with a program: ',
+        );
+        eq(result.emptied.undo, true, 'the last song removed and no Undo to bring it back: ');
+        eq(result.emptied.transport, false, 'nothing to play, and Play is still there: ');
+      },
+    );
 
     await check('dragging a clip is not mistaken for dropping a file', async () => {
       const result = await run(`

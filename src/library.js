@@ -83,6 +83,23 @@ async function addFromOutside(fileList, folder) {
 }
 
 /**
+ * Songs somebody chose to bring in: into the list, and into the program too
+ * when there is no program yet or `intoProgram` says so.
+ *
+ * Songs picked for an empty program are its running order — that is what every
+ * simple joiner does with the files you give it, and pressing Add to program on
+ * each one was a step nobody guessed. Once a program exists, new songs only go
+ * in the list, because adding one mid-edit should not change the program.
+ * Emptiness is read before decoding, which can take seconds.
+ */
+async function addSongs(fileList, { intoProgram = false } = {}) {
+  const intoIt = intoProgram || state.clips.length === 0;
+  const added = await addFiles(fileList);
+  if (intoIt) addClips(added);
+  return added;
+}
+
+/**
  * Put songs into the library, decoding each one.
  *
  * `fromFolder` says these are already the project's own — read out of the media
@@ -840,7 +857,7 @@ async function pickFiles() {
       /* one unreadable file should not lose the rest */
     }
   }
-  if (files.length) await addFiles(files);
+  if (files.length) await addSongs(files);
 }
 
 /**
@@ -990,8 +1007,7 @@ function bindFileDrops() {
     }
 
     await rememberDropped(e.dataTransfer);
-    const added = await addFiles(dropped);
-    if (ontoTimeline) for (const entry of added) addClip(entry);
+    await addSongs(dropped, { intoProgram: ontoTimeline });
   });
 }
 
@@ -999,6 +1015,7 @@ function bindFileDrops() {
    them back into the single scope the script tags give them in a browser. */
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
+    addSongs,
     addFiles,
     addFromOutside,
     readSong,
