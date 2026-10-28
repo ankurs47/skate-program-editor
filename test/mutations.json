@@ -1573,5 +1573,14 @@
     "find": "    drop.setAttribute('aria-label', 'Remove');",
     "replace": "",
     "expect": "keeps Remove in its corner"
+  },
+  {
+    "name": "Play this clip cannot stop what it started",
+    "guards": "the clip button stops the clip it is playing",
+    "file": "src/app.js",
+    "suite": "dom",
+    "find": "    if (playing && playing.mode === 'clip') {\n      stopPlayback();\n      return;\n    }",
+    "replace": "",
+    "expect": "becomes Stop this clip while it plays"
   }
 ]
