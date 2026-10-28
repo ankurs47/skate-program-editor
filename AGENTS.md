@@ -154,7 +154,7 @@ own was the page describing somebody else's app. What survives is
 again, because the folder is the truth and one way of learning it is enough.
 
 **With a folder, this page stops managing projects.** `PROJECT_CONTROLS` lists
-what goes — Save, Load, New, the empty state's Load, and "Forget it all" — and
+what goes — Save, Load, New, the empty state's Load, and "Clear this browser" — and
 `hideProjectControls` says what is true either way rather than only ever hiding,
 because a function that can take a control away and not put it back makes the
 page depend on what ran before it. `shouldOfferStart` keeps the first-run dialog

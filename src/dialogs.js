@@ -12,7 +12,7 @@
    controls behind it, which are unreachable by mouse and still operable by
    keyboard. */
 
-const DIALOGS = ['helpModal', 'startDialog', 'exportDialog', 'replaceDialog'];
+const DIALOGS = ['helpModal', 'startDialog', 'exportDialog', 'replaceDialog', 'forgetDialog'];
 
 /** Whichever dialog is on top, or null when none is open. */
 function openDialog() {
@@ -63,6 +63,7 @@ function closeTopDialog() {
   if (el.id === 'helpModal') closeHelp();
   else if (el.id === 'startDialog') closeStartDialog();
   else if (el.id === 'replaceDialog') closeReplaceDialog();
+  else if (el.id === 'forgetDialog') closeForgetDialog();
   else closeExportDialog();
   return true;
 }
@@ -86,7 +87,13 @@ function closeHelp() {
 
 function bindHelp() {
   for (const button of document.querySelectorAll('.help-btn')) {
-    button.onclick = () => openHelp(button.dataset.help);
+    button.onclick = () => {
+      /* A topic in a menu shuts with it, so focus comes back to the button
+         that opened the menu rather than to one that is no longer shown. */
+      const menu = button.closest('.menu-wrap');
+      if (menu) menu.querySelector('[aria-haspopup]').focus();
+      openHelp(button.dataset.help);
+    };
   }
   $('helpClose').onclick = closeHelp;
   // Clicking the backdrop closes; clicking inside the card does not.

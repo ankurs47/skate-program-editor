@@ -158,9 +158,9 @@ Optional, on `skateHost` itself rather than on `project`.
 not a method to call — a fact the page should know (convention 8). A name the
 page does not know is ignored, and a shell with no `capabilities` has none.
 
-| Name   | Means                                          | The page then                                                        |
-| ------ | ---------------------------------------------- | -------------------------------------------------------------------- |
-| `menu` | the shell shows a menu built from the commands | hides the help topics, Settings, Full guide and GitHub in its header |
+| Name   | Means                                          | The page then                                            |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| `menu` | the shell shows a menu built from the commands | hides the Help menu, the colors and GitHub in its header |
 
 - **`menu`** says the shell's own menu offers the page's commands, so the
   header's copies of them would be a second way to do the same things in one
@@ -171,7 +171,7 @@ page does not know is ignored, and a shell with no `capabilities` has none.
 ## What changes inside a shell
 
 - **Save project**, **Load project**, **New**, the empty screen's **Load a saved
-  project**, and **Forget it all** are hidden (`PROJECT_CONTROLS`). The folder is
+  project**, and **Clear this browser** are hidden (`PROJECT_CONTROLS`). The folder is
   the project, and which project is answered before the page loads.
 - The first-run dialog never opens.
 - Nothing is kept in `localStorage`; the folder is the only copy.
@@ -270,7 +270,7 @@ any other way — not a global by name, not a script it injects.
 | `help.saving`      | open the help on saving                                               |               |
 | `help.quality`     | open the help on sound quality                                        |               |
 | `help.keys`        | open the keyboard shortcuts                                           |               |
-| `help.guide`       | **Full guide** — through `openGuide`, in a shell                      |               |
+| `help.guide`       | **Guide** — through `openGuide`, in a shell                           |               |
 | `clip.moveEarlier` | **Move earlier** — the selected song, or a clip target                |               |
 | `clip.moveLater`   | **Move later** — the selected song, or a clip target                  |               |
 | `clip.remove`      | take the song out of the program — the selected one, or a clip target |               |
@@ -383,6 +383,10 @@ dialog with a report in it, which a message box would flatten.
 
 ## Changelog
 
+- **The header** ([#110], [#119]). One Help menu holds the help topics and the
+  guide, the colors sit in the header, and Settings is gone; `menu` hides those
+  three and GitHub. `help.guide` reads **Guide**, and **Forget it all** is now
+  **Clear this browser**. No command changed.
 - **Version 1, targets** ([#133]). `run(id, target)`, `contextMenu(target,
 items)`, and the `clip.moveEarlier`, `clip.moveLater`, `clip.remove` and
   `song.*` commands.
@@ -410,6 +414,8 @@ details)`, handed the finished music file.
   `onAdded` optional. Written down for the first time ([#129]); no method
   changed.
 
+[#110]: https://github.com/ankurs47/skate-program-editor/issues/110
+[#119]: https://github.com/ankurs47/skate-program-editor/issues/119
 [#120]: https://github.com/ankurs47/skate-program-editor/issues/120
 [#121]: https://github.com/ankurs47/skate-program-editor/issues/121
 [#122]: https://github.com/ankurs47/skate-program-editor/issues/122
