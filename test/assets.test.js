@@ -125,7 +125,7 @@ check('the page loads every script, in the order the tests assume', () => {
 });
 
 check('the vendored MP3 encoder is the one the build script pins', () => {
-  /* The bundle is generated and 400 KB of it is not ours, so nothing here reads
+  /* The bundle is generated and 600 KB of it is not ours, so nothing here reads
      it — but the header names what it was built from, and that has to keep
      agreeing with the versions `tools/build-mp3-encoder.js` installs. A file
      rebuilt from other versions, or edited by hand and no longer traceable to
@@ -171,7 +171,7 @@ check('the license notice names the versions the bundle was built from', () => {
 });
 
 check('the page does not load the encoder, and src/mp3.js does', () => {
-  /* 400 KB that most sessions never need, so it is fetched on the way past
+  /* 600 KB that most sessions never need, so it is fetched on the way past
      rather than by the page. If it ever appears in a script tag, startup is
      paying for something almost nobody uses. */
   ok(

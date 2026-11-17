@@ -1640,8 +1640,8 @@ async function main() {
         out,
         {
           ready: true,
-          size: 121364,
-          sha256: 'e8620d0f61de9729e0584ab25d2a578d10c038d2a835f7985df195b402d8b91c',
+          size: 122252,
+          sha256: '8dbfdff7fe8acb77d5b72c7e525e3698c0f14ecd122b6b66ec6679d3c5df8fb1',
         },
         'the MP3 encoder now writes different bytes for the same input: ',
       );

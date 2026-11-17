@@ -19,8 +19,8 @@
  * Why bundle it ourselves rather than take the one they publish: the encoder
  * cannot run without mediabunny's core, and the core is a whole media toolkit —
  * demuxers for containers this app never opens, muxers it never writes, codec
- * tables for video. Bundling only what `src/audio.js` calls takes 945 KB down to
- * around 400 KB. Everything dropped is code that could not have run.
+ * tables for video. Bundling only what `src/audio.js` calls takes 1.2 MB down to
+ * under 600 KB. Everything dropped is code that could not have run.
  *
  * Nothing here is installed by `npm install`. The pinned packages and the
  * bundler are fetched into a temporary directory when this runs and thrown away
@@ -45,14 +45,14 @@ const OUT = path.join(ROOT, 'src/vendor/mp3-encoder.js');
    made, and `--check` would call it drift. */
 const PINS = {
   mediabunny: {
-    version: '1.62.0',
+    version: '1.66.0',
     integrity:
-      'sha512-D8E8BDxjCyqyrGj074jLRQNgilDW5izJu8o9pg7THMYMIZBL1Fao5hOtdDPDfA+nSnk68tMa8IaCJmz8hSpJpw==',
+      'sha512-0Zff/qLkY1ZRyjBEt2vQjLeMigmU/dFKwJLpiPyCiskIel2f2R2kqMxaLYbeHN+rmyz4PVwwLSnU9anjUHHeJQ==',
   },
   '@mediabunny/mp3-encoder': {
-    version: '1.62.0',
+    version: '1.66.0',
     integrity:
-      'sha512-72yrJXFO+qkFurWzVpkTu7e5yVF6qFB0mmyaMcg7Ztwz5a+bSvuitkaIY82FBk5vM7euCKzFuqVwOzH0YUCcLg==',
+      'sha512-Co1ChvNYWdjCAVCbbWRVu1PdpY8A7M85wVypc2rpKV3IFWzc/Y2C211BeAgMrk6rTi9DvluI0KuwxIEfAtFSlg==',
   },
   esbuild: {
     version: '0.28.2',

@@ -99,7 +99,7 @@ const rules = {
 };
 
 module.exports = [
-  /* Generated and not ours: 400 KB of minified third-party bundle, rebuilt by
+  /* Generated and not ours: 600 KB of minified third-party bundle, rebuilt by
      tools/build-mp3-encoder.js. Linting it would report on somebody else's
      code and on a minifier's choices. */
   { ignores: ['node_modules/**', 'src/vendor/**'] },
