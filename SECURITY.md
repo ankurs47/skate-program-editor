@@ -28,7 +28,7 @@ What remains:
 
 - **The MP3 encoder is third-party code that ships with the app.** The app makes
   no runtime fetch of any kind, so there is no CDN to compromise and nothing to
-  substitute in transit — but `src/vendor/mp3-encoder.js` is 400 KB of generated
+  substitute in transit — but `src/vendor/mp3-encoder.js` is 600 KB of generated
   bundle nobody reads in review, which is its own exposure. What stands in for
   reading it: `npm run check:encoder` rebuilds it from the versions pinned in
   `tools/build-mp3-encoder.js` and fails if a byte differs, and CI runs that on

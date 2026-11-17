@@ -242,7 +242,7 @@ function report(found) {
       'These are not installed and `npm outdated` cannot see them. They are the',
       'versions `src/vendor/mp3-encoder.js` was bundled from, written down in',
       '`tools/build-mp3-encoder.js`. Taking a newer one means rebuilding that',
-      'bundle and committing around 400 KB of generated code, so it is a change',
+      'bundle and committing around 600 KB of generated code, so it is a change',
       'to read the release notes for rather than to take on sight — and for',
       'esbuild it is the bundler itself, which can rewrite the whole file for no',
       'reason anyone asked for.\n',

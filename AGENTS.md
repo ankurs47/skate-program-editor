@@ -525,7 +525,7 @@ and says why.
 **The vendored MP3 encoder** (`src/vendor/mp3-encoder.js`) is generated and
 committed. `npm run check:encoder` rebuilds it from the versions pinned in
 `tools/build-mp3-encoder.js` and fails if the bytes differ, which is what makes
-400 KB of somebody else's code reviewable: it is traceable to two npm versions
+600 KB of somebody else's code reviewable: it is traceable to two npm versions
 and a bundler, and to nothing else. `npm run test:net` asks npm whether those
 versions are still the bytes that were published.
 

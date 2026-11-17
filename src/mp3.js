@@ -55,7 +55,7 @@ let mediabunny = null;
 /**
  * Fetch the bundle and say whether it can produce what `spec` asks for.
  *
- * Loaded on the way past rather than with the page: it is 400 KB that most
+ * Loaded on the way past rather than with the page: it is 600 KB that most
  * sessions never reach for, and nothing about starting up needs it. A failure
  * here is not an error — it is an app that offers WAV and says why.
  */
